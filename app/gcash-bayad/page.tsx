@@ -1,33 +1,45 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  ArrowDownLeft,
+  ArrowUpRight,
   Banknote,
+  Check,
   CheckCircle2,
-  ChevronRight,
+  Clock3,
   CreditCard,
   FileText,
   Layers3,
   Package,
+  Plus,
   ReceiptText,
   RefreshCw,
   Search,
   ShoppingCart,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
 
-type Order = {
+type GCashTransaction = {
   id: string;
-  order_no: string;
+  transaction_no: string;
+  channel: string;
+  transaction_type: "cash_in" | "cash_out" | "bills_payment" | "payment" | "other";
+  amount: number;
+  service_fee: number;
+  reference_no: string | null;
+  account_number: string | null;
   customer_name: string | null;
-  total: number;
-  amount_paid: number;
-  status: string;
+  status: "pending" | "successful" | "failed" | "cancelled" | "refunded";
+  notes: string | null;
   created_at: string;
 };
+
+type TransactionType = "cash_in" | "cash_out";
 
 const nav = [
   [ShoppingCart, "Point of Sale", "/pos"],
@@ -44,33 +56,62 @@ const peso = (value: number) =>
     style: "currency",
     currency: "PHP",
     minimumFractionDigits: 2,
-  }).format(value);
+  }).format(Number(value || 0));
+
+const formatMobile = (value: string) => value.replace(/\D/g, "").slice(0, 11);
+
+const transactionLabel = (type: string) =>
+  type === "cash_in" ? "Cash In" : type === "cash_out" ? "Cash Out" : type.replaceAll("_", " ");
+
+const generateTransactionNo = () => {
+  const now = new Date();
+  const date = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  const time = `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+  const suffix = Math.floor(100 + Math.random() * 900);
+  return `PW-GC-${date}-${time}${suffix}`;
+};
 
 export default function GCashBayadPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [transactions, setTransactions] = useState<GCashTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error" | "info">("info");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [type, setType] = useState<TransactionType>("cash_in");
+  const [customerName, setCustomerName] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [amount, setAmount] = useState("");
+  const [serviceFee, setServiceFee] = useState("0");
+  const [referenceNo, setReferenceNo] = useState("");
+  const [notes, setNotes] = useState("");
+  const [completedNow, setCompletedNow] = useState(false);
+  const [completeTarget, setCompleteTarget] = useState<GCashTransaction | null>(null);
+  const [completeReference, setCompleteReference] = useState("");
+  const [updating, setUpdating] = useState(false);
 
   const load = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
-    setMessage("");
 
     const { data, error } = await supabase
-      .from("pos_orders")
-      .select("id,order_no,customer_name,total,amount_paid,status,created_at")
+      .from("payment_transactions")
+      .select("id,transaction_no,channel,transaction_type,amount,service_fee,reference_no,account_number,customer_name,status,notes,created_at")
+      .eq("channel", "gcash")
+      .in("transaction_type", ["cash_in", "cash_out"])
       .order("created_at", { ascending: false });
 
     if (error) {
-      setMessage(`Unable to load payment transactions: ${error.message}`);
+      setMessage(`Unable to load GCash transactions: ${error.message}`);
+      setMessageType("error");
     } else {
-      setOrders(
-        (data ?? []).map((o: any) => ({
-          ...o,
-          total: Number(o.total || 0),
-          amount_paid: Number(o.amount_paid || 0),
+      setTransactions(
+        (data ?? []).map((row: any) => ({
+          ...row,
+          amount: Number(row.amount || 0),
+          service_fee: Number(row.service_fee || 0),
         }))
       );
     }
@@ -81,29 +122,163 @@ export default function GCashBayadPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) window.location.href = "/pos";
-      else load();
+      if (!data.user) {
+        window.location.href = "/pos";
+        return;
+      }
+      load();
     });
   }, []);
 
+  const resetForm = () => {
+    setCustomerName("");
+    setMobileNumber("");
+    setAmount("");
+    setServiceFee("0");
+    setReferenceNo("");
+    setNotes("");
+    setCompletedNow(false);
+  };
+
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
+    setMessage("");
+
+    const cleanMobile = formatMobile(mobileNumber);
+    const numericAmount = Number(amount);
+    const numericFee = Number(serviceFee || 0);
+
+    if (!customerName.trim()) {
+      setMessage("Please enter the customer's name.");
+      setMessageType("error");
+      return;
+    }
+    if (cleanMobile.length < 10) {
+      setMessage("Please enter a valid GCash mobile number.");
+      setMessageType("error");
+      return;
+    }
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setMessage("Please enter a valid transaction amount.");
+      setMessageType("error");
+      return;
+    }
+    if (!Number.isFinite(numericFee) || numericFee < 0) {
+      setMessage("Service fee cannot be negative.");
+      setMessageType("error");
+      return;
+    }
+
+    setSaving(true);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
+      setSaving(false);
+      window.location.href = "/pos";
+      return;
+    }
+
+    const payload = {
+      transaction_no: generateTransactionNo(),
+      channel: "gcash",
+      transaction_type: type,
+      amount: numericAmount,
+      service_fee: numericFee,
+      reference_no: referenceNo.trim() || null,
+      account_number: cleanMobile,
+      customer_name: customerName.trim(),
+      status: completedNow ? "successful" : "pending",
+      notes: notes.trim() || null,
+      created_by: auth.user.id,
+    };
+
+    const { error } = await supabase.from("payment_transactions").insert(payload);
+
+    if (error) {
+      setMessage(`Unable to save transaction: ${error.message}`);
+      setMessageType("error");
+    } else {
+      setMessage(
+        completedNow
+          ? `${type === "cash_in" ? "Cash-in" : "Cash-out"} transaction recorded as successful.`
+          : "Transaction saved as pending. Complete it after you finish the actual GCash transaction."
+      );
+      setMessageType("success");
+      resetForm();
+      await load();
+    }
+    setSaving(false);
+  };
+
+  const markSuccessful = async () => {
+    if (!completeTarget) return;
+    setUpdating(true);
+    const { error } = await supabase
+      .from("payment_transactions")
+      .update({
+        status: "successful",
+        reference_no: completeReference.trim() || completeTarget.reference_no || null,
+      })
+      .eq("id", completeTarget.id);
+
+    if (error) {
+      setMessage(`Unable to complete transaction: ${error.message}`);
+      setMessageType("error");
+    } else {
+      setMessage("Transaction marked as successful.");
+      setMessageType("success");
+      setCompleteTarget(null);
+      setCompleteReference("");
+      await load();
+    }
+    setUpdating(false);
+  };
+
+  const cancelTransaction = async (id: string) => {
+    if (!window.confirm("Cancel this pending transaction?")) return;
+    const { error } = await supabase
+      .from("payment_transactions")
+      .update({ status: "cancelled" })
+      .eq("id", id);
+
+    if (error) {
+      setMessage(`Unable to cancel transaction: ${error.message}`);
+      setMessageType("error");
+    } else {
+      setMessage("Transaction cancelled.");
+      setMessageType("success");
+      await load();
+    }
+  };
+
   const filtered = useMemo(() => {
     const query = search.toLowerCase().trim();
-    if (!query) return orders;
-    return orders.filter((o) =>
-      `${o.order_no} ${o.customer_name || ""} ${o.status || ""}`
-        .toLowerCase()
-        .includes(query)
-    );
-  }, [orders, search]);
+    return transactions.filter((transaction) => {
+      const matchesStatus = statusFilter === "all" || transaction.status === statusFilter;
+      const matchesSearch = !query ||
+        `${transaction.transaction_no} ${transaction.customer_name || ""} ${transaction.account_number || ""} ${transaction.reference_no || ""}`
+          .toLowerCase()
+          .includes(query);
+      return matchesStatus && matchesSearch;
+    });
+  }, [transactions, search, statusFilter]);
 
-  const completed = filtered.filter(
-    (o) => o.status?.toLowerCase() === "completed"
-  );
-  const collected = completed.reduce((sum, o) => sum + o.amount_paid, 0);
-  const outstanding = filtered.reduce(
-    (sum, o) => sum + Math.max(0, o.total - o.amount_paid),
-    0
-  );
+  const todayKey = new Date().toDateString();
+  const todayTransactions = transactions.filter((t) => new Date(t.created_at).toDateString() === todayKey);
+  const todayCashIn = todayTransactions
+    .filter((t) => t.status === "successful" && t.transaction_type === "cash_in")
+    .reduce((sum, t) => sum + t.amount, 0);
+  const todayCashOut = todayTransactions
+    .filter((t) => t.status === "successful" && t.transaction_type === "cash_out")
+    .reduce((sum, t) => sum + t.amount, 0);
+  const todayFees = todayTransactions
+    .filter((t) => t.status === "successful")
+    .reduce((sum, t) => sum + t.service_fee, 0);
+  const pendingCount = transactions.filter((t) => t.status === "pending").length;
+
+  const amountNumber = Number(amount || 0);
+  const feeNumber = Number(serviceFee || 0);
+  const cashReceived = type === "cash_in" ? amountNumber + feeNumber : 0;
+  const cashToRelease = type === "cash_out" ? Math.max(0, amountNumber - feeNumber) : 0;
 
   return (
     <main className="app-shell">
@@ -114,216 +289,212 @@ export default function GCashBayadPage() {
         </div>
         <div className="nav-label">MAIN MENU</div>
         {nav.map(([Icon, label, href]) => (
-          <a
-            key={label}
-            href={href}
-            className={`nav-item ${label === "GCash / Bayad" ? "active" : ""}`}
-          >
+          <a key={label} href={href} className={`nav-item ${label === "GCash / Bayad" ? "active" : ""}`}>
             <Icon size={19} />
             <span>{label}</span>
           </a>
         ))}
       </aside>
 
-      <section className="workspace payment-workspace">
-        <header className="topbar payment-header">
+      <section className="workspace gcash-workspace">
+        <header className="topbar gcash-header">
           <div>
-            <div className="eyebrow">PAYMENT COLLECTIONS</div>
-            <h1>GCash / Bayad</h1>
-            <p>Review, search, and monitor collected payments from your PrintWise transactions.</p>
+            <div className="eyebrow">SERVICE CENTER</div>
+            <h1>GCash / Bayad Services</h1>
+            <p>Record and manage cash-in and cash-out transactions while the actual wallet transfer is processed through your authorized service channel.</p>
           </div>
-          <button
-            className="refresh-btn"
-            onClick={() => load(true)}
-            disabled={refreshing}
-          >
+          <button className="refresh-btn" onClick={() => load(true)} disabled={refreshing}>
             <RefreshCw size={18} className={refreshing ? "spin" : ""} />
             {refreshing ? "REFRESHING..." : "REFRESH"}
           </button>
         </header>
 
-        <div className="payment-content">
-          <section className="metric-grid">
-            <article className="metric-card">
-              <div className="metric-icon soft-green"><CheckCircle2 size={21} /></div>
-              <div className="metric-copy">
-                <span>Completed Payments</span>
-                <strong>{completed.length}</strong>
-                <small>Completed transactions</small>
-              </div>
-            </article>
+        <div className="gcash-content">
+          <section className="notice-card">
+            <Clock3 size={20} />
+            <div>
+              <strong>Manual processing mode</strong>
+              <span>PrintWise records the transaction, fees, reference number, and status. The actual transfer must still be completed through your authorized GCash service or merchant channel.</span>
+            </div>
+          </section>
 
+          <section className="metric-grid gcash-metrics">
             <article className="metric-card">
-              <div className="metric-icon soft-red"><Wallet size={21} /></div>
-              <div className="metric-copy">
-                <span>Total Collected</span>
-                <strong>{peso(collected)}</strong>
-                <small>Amount paid by customers</small>
-              </div>
+              <div className="metric-icon soft-green"><ArrowDownLeft size={21} /></div>
+              <div className="metric-copy"><span>Today's Cash In</span><strong>{peso(todayCashIn)}</strong><small>Successful cash-in transactions</small></div>
             </article>
-
+            <article className="metric-card">
+              <div className="metric-icon soft-blue"><ArrowUpRight size={21} /></div>
+              <div className="metric-copy"><span>Today's Cash Out</span><strong>{peso(todayCashOut)}</strong><small>Successful cash-out transactions</small></div>
+            </article>
             <article className="metric-card">
               <div className="metric-icon soft-amber"><Banknote size={21} /></div>
-              <div className="metric-copy">
-                <span>Outstanding</span>
-                <strong>{peso(outstanding)}</strong>
-                <small>Remaining unpaid balance</small>
-              </div>
+              <div className="metric-copy"><span>Service Fees Today</span><strong>{peso(todayFees)}</strong><small>Recorded fees from successful services</small></div>
+            </article>
+            <article className="metric-card">
+              <div className="metric-icon soft-red"><Clock3 size={21} /></div>
+              <div className="metric-copy"><span>Pending</span><strong>{pendingCount}</strong><small>Waiting for completion</small></div>
             </article>
           </section>
 
-          <section className="payment-channels">
-            <article className="channel-card gcash-card">
-              <div className="channel-top">
-                <div className="channel-icon"><Wallet size={24} /></div>
+          <section className="service-grid">
+            <form className="transaction-form-card" onSubmit={handleSave}>
+              <div className="form-heading">
                 <div>
-                  <h2>GCash</h2>
-                  <p>Digital wallet payments</p>
+                  <div className="eyebrow">NEW SERVICE</div>
+                  <h2>{type === "cash_in" ? "Process Cash In" : "Process Cash Out"}</h2>
+                  <p>Enter the details first, then complete the actual transaction using your authorized channel.</p>
+                </div>
+                <div className={`service-icon ${type === "cash_in" ? "cash-in" : "cash-out"}`}>
+                  {type === "cash_in" ? <ArrowDownLeft size={24} /> : <ArrowUpRight size={24} />}
                 </div>
               </div>
-              <div className="channel-divider" />
-              <p className="channel-description">
-                Review customer payments recorded through the POS checkout workflow.
-              </p>
-              <div className="channel-footer">
-                <span>Payment monitoring</span>
-                <ChevronRight size={17} />
-              </div>
-            </article>
 
-            <article className="channel-card bayad-card">
-              <div className="channel-top">
-                <div className="channel-icon"><CreditCard size={24} /></div>
-                <div>
-                  <h2>Bayad</h2>
-                  <p>Alternative payment collection</p>
-                </div>
+              <div className="type-switch">
+                <button type="button" onClick={() => setType("cash_in")} className={type === "cash_in" ? "selected" : ""}>
+                  <ArrowDownLeft size={18} /> Cash In
+                </button>
+                <button type="button" onClick={() => setType("cash_out")} className={type === "cash_out" ? "selected" : ""}>
+                  <ArrowUpRight size={18} /> Cash Out
+                </button>
               </div>
-              <div className="channel-divider" />
-              <p className="channel-description">
-                Keep a clear overview of collected and outstanding transaction balances.
-              </p>
-              <div className="channel-footer">
-                <span>Collection overview</span>
-                <ChevronRight size={17} />
+
+              <div className="form-grid">
+                <label className="full-field">Customer Name
+                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="e.g. Juan Dela Cruz" required />
+                </label>
+                <label>GCash Mobile Number
+                  <input inputMode="numeric" value={mobileNumber} onChange={(e) => setMobileNumber(formatMobile(e.target.value))} placeholder="09XXXXXXXXX" required />
+                </label>
+                <label>{type === "cash_in" ? "Cash-In Amount" : "Cash-Out Amount"}
+                  <div className="money-input"><span>₱</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" required /></div>
+                </label>
+                <label>Service Fee
+                  <div className="money-input"><span>₱</span><input inputMode="decimal" value={serviceFee} onChange={(e) => setServiceFee(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" /></div>
+                </label>
+                <label>Reference Number <em>(optional)</em>
+                  <input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Enter after successful transfer" />
+                </label>
+                <label className="full-field">Notes <em>(optional)</em>
+                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional transaction notes..." rows={3} />
+                </label>
               </div>
-            </article>
+
+              <div className="amount-preview">
+                {type === "cash_in" ? (
+                  <><span>Cash to Receive from Customer</span><strong>{peso(cashReceived)}</strong><small>{peso(amountNumber)} transaction + {peso(feeNumber)} fee</small></>
+                ) : (
+                  <><span>Cash to Release to Customer</span><strong>{peso(cashToRelease)}</strong><small>{peso(amountNumber)} transaction − {peso(feeNumber)} fee</small></>
+                )}
+              </div>
+
+              <label className="completion-check">
+                <input type="checkbox" checked={completedNow} onChange={(e) => setCompletedNow(e.target.checked)} />
+                <span><strong>The actual GCash transaction is already completed.</strong><small>Check this only after confirming the wallet transaction outside PrintWise.</small></span>
+              </label>
+
+              <div className="form-actions">
+                <button type="button" className="secondary-btn" onClick={resetForm}>Clear Form</button>
+                <button type="submit" className="primary-btn" disabled={saving}>
+                  <Plus size={18} />
+                  {saving ? "SAVING..." : completedNow ? "RECORD SUCCESSFUL" : "SAVE AS PENDING"}
+                </button>
+              </div>
+            </form>
+
+            <aside className="workflow-card">
+              <div className="workflow-head"><CheckCircle2 size={21} /><div><h2>Recommended Workflow</h2><p>Use this process for safe manual tracking.</p></div></div>
+              <ol className="workflow-list">
+                <li><span>1</span><div><strong>Receive or prepare cash</strong><p>Confirm the customer's name, mobile number, and requested amount.</p></div></li>
+                <li><span>2</span><div><strong>Save the transaction</strong><p>Record it as pending before processing the actual wallet transaction.</p></div></li>
+                <li><span>3</span><div><strong>Process through your authorized channel</strong><p>Complete the real cash-in or cash-out outside PrintWise.</p></div></li>
+                <li><span>4</span><div><strong>Confirm and add reference</strong><p>Mark the transaction successful and save the official reference number.</p></div></li>
+              </ol>
+              <div className="workflow-tip"><Wallet size={18} /> Never enter your GCash password or OTP into PrintWise.</div>
+            </aside>
           </section>
 
-          <section className="transactions-card">
+          {message && <div className={`message transaction-message ${messageType}`}>{message}</div>}
+
+          <section className="transactions-card gcash-history">
             <div className="transactions-head">
-              <div>
-                <h2>Payment Transactions</h2>
-                <p>{filtered.length} transaction{filtered.length === 1 ? "" : "s"} shown</p>
-              </div>
-              <div className="search-box payment-search">
-                <Search size={19} />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search order, customer, or status..."
-                />
+              <div><h2>GCash Transaction History</h2><p>{filtered.length} transaction{filtered.length === 1 ? "" : "s"} shown</p></div>
+              <div className="history-tools">
+                <div className="search-box payment-search"><Search size={19} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, mobile, reference..." /></div>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="successful">Successful</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="failed">Failed</option>
+                </select>
               </div>
             </div>
 
-            {message && <div className="message payment-message">{message}</div>}
-
             <div className="table-wrap">
-              <table className="payment-table">
-                <thead>
-                  <tr>
-                    <th>Order No.</th>
-                    <th>Customer</th>
-                    <th>Date & Time</th>
-                    <th>Total</th>
-                    <th>Paid</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
+              <table className="payment-table gcash-table">
+                <thead><tr><th>Transaction</th><th>Customer</th><th>Service</th><th>Amount</th><th>Fee</th><th>Reference</th><th>Status</th><th>Action</th></tr></thead>
                 <tbody>
-                  {loading ? (
-                    <tr><td colSpan={6} className="empty-state">Loading payment transactions...</td></tr>
-                  ) : filtered.length === 0 ? (
-                    <tr><td colSpan={6} className="empty-state">No payment transactions found.</td></tr>
-                  ) : (
-                    filtered.map((o) => {
-                      const isCompleted = o.status?.toLowerCase() === "completed";
-                      return (
-                        <tr key={o.id}>
-                          <td><span className="order-number">{o.order_no}</span></td>
-                          <td>{o.customer_name || "Walk-in Customer"}</td>
-                          <td className="date-cell">{new Date(o.created_at).toLocaleString()}</td>
-                          <td className="amount-cell">{peso(o.total)}</td>
-                          <td className="amount-cell paid-cell">{peso(o.amount_paid)}</td>
-                          <td>
-                            <span className={`status-badge ${isCompleted ? "completed" : "pending"}`}>
-                              {o.status || "Unknown"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                  {loading ? <tr><td colSpan={8} className="empty-state">Loading GCash transactions...</td></tr>
+                    : filtered.length === 0 ? <tr><td colSpan={8} className="empty-state">No GCash transactions found yet.</td></tr>
+                    : filtered.map((transaction) => (
+                      <tr key={transaction.id}>
+                        <td><span className="order-number">{transaction.transaction_no}</span><small className="table-date">{new Date(transaction.created_at).toLocaleString()}</small></td>
+                        <td><strong>{transaction.customer_name || "Walk-in Customer"}</strong><small className="table-date">{transaction.account_number || "No mobile number"}</small></td>
+                        <td><span className={`service-badge ${transaction.transaction_type}`}>{transaction.transaction_type === "cash_in" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}{transactionLabel(transaction.transaction_type)}</span></td>
+                        <td className="amount-cell">{peso(transaction.amount)}</td>
+                        <td className="fee-cell">{peso(transaction.service_fee)}</td>
+                        <td>{transaction.reference_no || <span className="muted">—</span>}</td>
+                        <td><span className={`status-badge ${transaction.status}`}>{transaction.status}</span></td>
+                        <td><div className="row-actions">
+                          {transaction.status === "pending" && <>
+                            <button className="icon-action complete" title="Mark successful" onClick={() => { setCompleteTarget(transaction); setCompleteReference(transaction.reference_no || ""); }}><Check size={17} /></button>
+                            <button className="icon-action cancel" title="Cancel transaction" onClick={() => cancelTransaction(transaction.id)}><X size={17} /></button>
+                          </>}
+                        </div></td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
           </section>
         </div>
 
+        {completeTarget && (
+          <div className="modal-backdrop" role="presentation">
+            <div className="complete-modal" role="dialog" aria-modal="true" aria-label="Complete GCash transaction">
+              <button className="modal-close" onClick={() => setCompleteTarget(null)}><X size={20} /></button>
+              <div className="modal-icon"><CheckCircle2 size={26} /></div>
+              <h2>Complete Transaction</h2>
+              <p>Confirm that the actual GCash transaction has been successfully completed.</p>
+              <div className="modal-summary"><span>{transactionLabel(completeTarget.transaction_type)}</span><strong>{peso(completeTarget.amount)}</strong><small>{completeTarget.customer_name} • {completeTarget.account_number}</small></div>
+              <label>Official Reference Number <em>(optional)</em><input value={completeReference} onChange={(e) => setCompleteReference(e.target.value)} placeholder="Paste the transaction reference" /></label>
+              <div className="modal-actions"><button className="secondary-btn" onClick={() => setCompleteTarget(null)}>Cancel</button><button className="primary-btn" onClick={markSuccessful} disabled={updating}><Check size={18} />{updating ? "UPDATING..." : "MARK SUCCESSFUL"}</button></div>
+            </div>
+          </div>
+        )}
+
         <style jsx>{`
-          .payment-workspace { background: #f7f8fb; min-height: 100vh; }
-          .payment-header { padding: 24px 30px; background: #fff; border-bottom: 1px solid #e8ecf2; }
+          .gcash-workspace { background: #f7f8fb; min-height: 100vh; }
+          .gcash-header { padding: 24px 30px; background: #fff; border-bottom: 1px solid #e8ecf2; }
           .eyebrow { color: #ef2620; font-size: 11px; font-weight: 800; letter-spacing: .12em; margin-bottom: 4px; }
-          .payment-header h1 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
-          .payment-header p { margin: 5px 0 0; color: #64748b; }
-          .refresh-btn { display: inline-flex; align-items: center; gap: 9px; border: 0; border-radius: 14px; padding: 15px 23px; background: linear-gradient(135deg,#ff2720,#e71611); color: #fff; font-weight: 800; letter-spacing: .02em; cursor: pointer; box-shadow: 0 10px 22px rgba(229,22,17,.18); transition: transform .2s, box-shadow .2s; }
-          .refresh-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(229,22,17,.25); }
-          .refresh-btn:disabled { opacity: .75; cursor: wait; }
-          .spin { animation: spin 1s linear infinite; }
-          .payment-content { padding: 28px 30px 36px; max-width: 1500px; width: 100%; margin: 0 auto; box-sizing: border-box; }
-          .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-          .metric-card { background: #fff; border: 1px solid #e8ecf2; border-radius: 18px; padding: 20px; display: flex; gap: 15px; align-items: flex-start; box-shadow: 0 5px 18px rgba(15,23,42,.035); }
-          .metric-icon { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex: 0 0 auto; }
-          .soft-green { color: #15803d; background: #ecfdf3; }
-          .soft-red { color: #e11d1a; background: #fff1f0; }
-          .soft-amber { color: #b45309; background: #fff8e8; }
-          .metric-copy { display: flex; flex-direction: column; min-width: 0; }
-          .metric-copy span { font-size: 13px; color: #64748b; font-weight: 700; }
-          .metric-copy strong { font-size: 27px; line-height: 1.15; margin: 5px 0 4px; color: #18202d; letter-spacing: -.02em; white-space: nowrap; }
-          .metric-copy small { color: #94a3b8; font-size: 12px; }
-          .payment-channels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
-          .channel-card { background: #fff; border: 1px solid #e8ecf2; border-radius: 18px; padding: 21px; box-shadow: 0 5px 18px rgba(15,23,42,.035); transition: transform .2s, box-shadow .2s; }
-          .channel-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15,23,42,.08); }
-          .channel-top { display: flex; align-items: center; gap: 13px; }
-          .channel-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: #fff1f0; color: #e11d1a; }
-          .channel-top h2 { margin: 0; font-size: 19px; }
-          .channel-top p { margin: 3px 0 0; color: #64748b; font-size: 13px; }
-          .channel-divider { height: 1px; background: #eef1f5; margin: 17px 0 13px; }
-          .channel-description { color: #64748b; line-height: 1.55; font-size: 14px; margin: 0; min-height: 44px; }
-          .channel-footer { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; color: #475569; font-size: 12px; font-weight: 700; }
-          .transactions-card { margin-top: 18px; background: #fff; border: 1px solid #e8ecf2; border-radius: 18px; padding: 20px; box-shadow: 0 5px 18px rgba(15,23,42,.035); }
-          .transactions-head { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 18px; }
-          .transactions-head h2 { margin: 0; font-size: 20px; }
-          .transactions-head p { margin: 4px 0 0; font-size: 13px; color: #94a3b8; }
-          .payment-search { width: min(430px, 100%); margin: 0; background: #f8fafc; border: 1px solid #e4e9f0; border-radius: 13px; min-height: 48px; }
-          .payment-search input { background: transparent; }
-          .table-wrap { overflow-x: auto; border: 1px solid #eef1f5; border-radius: 14px; }
-          .payment-table { width: 100%; min-width: 780px; border-collapse: collapse; }
-          .payment-table th { text-align: left; padding: 13px 16px; background: #f8fafc; color: #64748b; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid #eef1f5; }
-          .payment-table td { padding: 16px; border-bottom: 1px solid #eef1f5; color: #334155; font-size: 14px; vertical-align: middle; }
-          .payment-table tbody tr:last-child td { border-bottom: 0; }
-          .payment-table tbody tr:hover { background: #fcfcfd; }
-          .order-number { font-weight: 800; color: #1e293b; }
-          .date-cell { color: #64748b; white-space: nowrap; }
-          .amount-cell { font-weight: 700; white-space: nowrap; }
-          .paid-cell { color: #15803d; }
-          .status-badge { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: capitalize; }
-          .status-badge.completed { background: #ecfdf3; color: #15803d; }
-          .status-badge.pending { background: #fff8e8; color: #a16207; }
-          .empty-state { padding: 34px !important; text-align: center; color: #94a3b8 !important; }
-          .payment-message { margin-bottom: 14px; }
-          @keyframes spin { to { transform: rotate(360deg); } }
-          @media (max-width: 900px) { .metric-grid { grid-template-columns: 1fr; } .payment-channels { grid-template-columns: 1fr; } .payment-header, .payment-content { padding-left: 18px; padding-right: 18px; } .transactions-head { align-items: stretch; flex-direction: column; } .payment-search { width: 100%; } }
+          .gcash-header h1 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
+          .gcash-header p { margin: 5px 0 0; color: #64748b; max-width: 820px; line-height: 1.5; }
+          .refresh-btn,.primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; border:0; border-radius:14px; padding:14px 20px; background:linear-gradient(135deg,#ff2720,#e71611); color:#fff; font-weight:800; letter-spacing:.02em; cursor:pointer; box-shadow:0 10px 22px rgba(229,22,17,.18); }
+          .refresh-btn:hover:not(:disabled),.primary-btn:hover:not(:disabled){ transform:translateY(-1px); box-shadow:0 14px 28px rgba(229,22,17,.25); }
+          .refresh-btn:disabled,.primary-btn:disabled{opacity:.7;cursor:wait}.spin{animation:spin 1s linear infinite}
+          .gcash-content{padding:28px 30px 40px;max-width:1540px;width:100%;margin:0 auto;box-sizing:border-box}
+          .notice-card{display:flex;gap:13px;align-items:flex-start;background:#fff8e8;border:1px solid #f5d995;border-radius:16px;padding:15px 17px;color:#9a6700;margin-bottom:18px}.notice-card strong{display:block;font-size:14px;margin-bottom:3px}.notice-card span{display:block;font-size:13px;line-height:1.5;color:#8a6a22}
+          .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.metric-card{background:#fff;border:1px solid #e8ecf2;border-radius:18px;padding:19px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 5px 18px rgba(15,23,42,.035)}.metric-icon{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;flex:0 0 auto}.soft-green{color:#15803d;background:#ecfdf3}.soft-blue{color:#2563eb;background:#eff6ff}.soft-amber{color:#b45309;background:#fff8e8}.soft-red{color:#e11d1a;background:#fff1f0}.metric-copy{display:flex;flex-direction:column;min-width:0}.metric-copy span{font-size:12px;color:#64748b;font-weight:700}.metric-copy strong{font-size:24px;line-height:1.15;margin:5px 0 4px;color:#18202d;letter-spacing:-.02em;white-space:nowrap}.metric-copy small{color:#94a3b8;font-size:11px}
+          .service-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(310px,.75fr);gap:18px;margin-top:18px}.transaction-form-card,.workflow-card,.transactions-card{background:#fff;border:1px solid #e8ecf2;border-radius:18px;box-shadow:0 5px 18px rgba(15,23,42,.035)}.transaction-form-card{padding:24px}.form-heading{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.form-heading h2,.workflow-head h2,.transactions-head h2{margin:0;font-size:21px;color:#18202d}.form-heading p,.workflow-head p,.transactions-head p{margin:5px 0 0;color:#64748b;font-size:13px;line-height:1.5}.service-icon{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;flex:0 0 auto}.service-icon.cash-in{color:#15803d;background:#ecfdf3}.service-icon.cash-out{color:#2563eb;background:#eff6ff}
+          .type-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#f7f8fb;border:1px solid #e8ecf2;border-radius:14px;padding:5px;margin:20px 0}.type-switch button{display:flex;align-items:center;justify-content:center;gap:8px;border:0;background:transparent;border-radius:10px;padding:12px;color:#64748b;font-weight:800;cursor:pointer}.type-switch button.selected{background:#fff;color:#e11d1a;box-shadow:0 2px 9px rgba(15,23,42,.08)}
+          .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.form-grid label,.complete-modal label{display:flex;flex-direction:column;gap:7px;color:#334155;font-size:13px;font-weight:800}.form-grid .full-field{grid-column:1/-1}.form-grid em,.complete-modal em{font-style:normal;font-weight:600;color:#94a3b8}.form-grid input,.form-grid textarea,.complete-modal input{width:100%;box-sizing:border-box;border:1px solid #dce3ec;border-radius:11px;padding:12px 13px;background:#fff;color:#18202d;font:inherit;outline:none}.form-grid input:focus,.form-grid textarea:focus,.complete-modal input:focus{border-color:#ef2620;box-shadow:0 0 0 3px rgba(239,38,32,.08)}.form-grid textarea{resize:vertical}.money-input{display:flex;align-items:center;border:1px solid #dce3ec;border-radius:11px;overflow:hidden;background:#fff}.money-input:focus-within{border-color:#ef2620;box-shadow:0 0 0 3px rgba(239,38,32,.08)}.money-input span{padding:12px 12px;border-right:1px solid #e8ecf2;color:#64748b;background:#f8fafc}.money-input input{border:0!important;box-shadow:none!important;padding-left:11px}
+          .amount-preview{margin-top:17px;background:#f8fafc;border:1px dashed #d9e1eb;border-radius:14px;padding:15px 17px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px}.amount-preview span{font-size:12px;font-weight:800;color:#64748b}.amount-preview strong{font-size:24px;color:#18202d}.amount-preview small{grid-column:1/-1;color:#94a3b8;font-size:11px}.completion-check{display:flex;gap:11px;align-items:flex-start;margin-top:16px;padding:13px 14px;border:1px solid #e8ecf2;border-radius:13px;cursor:pointer}.completion-check input{width:18px;height:18px;accent-color:#e11d1a;margin-top:1px}.completion-check strong{display:block;color:#334155;font-size:13px}.completion-check small{display:block;color:#94a3b8;font-size:11px;margin-top:3px}.form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.secondary-btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #dce3ec;border-radius:13px;padding:13px 18px;background:#fff;color:#475569;font-weight:800;cursor:pointer}.secondary-btn:hover{background:#f8fafc}.workflow-card{padding:23px}.workflow-head{display:flex;gap:12px;align-items:flex-start}.workflow-head>svg{color:#e11d1a;flex:0 0 auto;margin-top:2px}.workflow-list{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:17px}.workflow-list li{display:flex;gap:12px}.workflow-list li>span{width:27px;height:27px;display:grid;place-items:center;border-radius:50%;background:#fff1f0;color:#e11d1a;font-size:12px;font-weight:900;flex:0 0 auto}.workflow-list strong{font-size:13px;color:#334155}.workflow-list p{margin:4px 0 0;color:#94a3b8;font-size:12px;line-height:1.45}.workflow-tip{display:flex;gap:9px;align-items:flex-start;margin-top:20px;padding:12px;border-radius:12px;background:#f8fafc;color:#64748b;font-size:11px;line-height:1.45}.workflow-tip svg{color:#e11d1a;flex:0 0 auto}
+          .transaction-message{margin-top:18px;border-radius:13px;padding:13px 15px;font-size:13px;font-weight:700}.transaction-message.success{background:#ecfdf3;color:#15803d;border:1px solid #bbf7d0}.transaction-message.error{background:#fff1f0;color:#b42318;border:1px solid #fecaca}.transaction-message.info{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+          .gcash-history{margin-top:18px;padding:20px}.transactions-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}.history-tools{display:flex;gap:9px;align-items:center}.payment-search{width:min(360px,100%);margin:0;background:#f8fafc;border:1px solid #e4e9f0;border-radius:13px;min-height:46px}.payment-search input{background:transparent}.history-tools select{height:46px;border:1px solid #dce3ec;border-radius:12px;padding:0 12px;background:#fff;color:#475569;font-weight:700;outline:none}.table-wrap{overflow-x:auto;border:1px solid #eef1f5;border-radius:14px}.payment-table{width:100%;min-width:1080px;border-collapse:collapse}.payment-table th{text-align:left;padding:13px 14px;background:#f8fafc;color:#64748b;font-size:10px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #eef1f5}.payment-table td{padding:14px;border-bottom:1px solid #eef1f5;color:#334155;font-size:13px;vertical-align:middle}.payment-table tbody tr:last-child td{border-bottom:0}.payment-table tbody tr:hover{background:#fcfcfd}.order-number{display:block;font-weight:800;color:#1e293b;white-space:nowrap}.table-date{display:block;color:#94a3b8;font-size:10px;margin-top:4px}.amount-cell{font-weight:800;white-space:nowrap}.fee-cell{color:#a16207;font-weight:700;white-space:nowrap}.muted{color:#94a3b8}.service-badge,.status-badge{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:999px;font-size:10px;font-weight:900;text-transform:capitalize;white-space:nowrap}.service-badge.cash_in{background:#ecfdf3;color:#15803d}.service-badge.cash_out{background:#eff6ff;color:#2563eb}.status-badge.pending{background:#fff8e8;color:#a16207}.status-badge.successful{background:#ecfdf3;color:#15803d}.status-badge.cancelled,.status-badge.failed{background:#fff1f0;color:#b42318}.row-actions{display:flex;gap:6px}.icon-action{width:34px;height:34px;border-radius:10px;border:1px solid #dce3ec;background:#fff;display:grid;place-items:center;cursor:pointer}.icon-action.complete{color:#15803d}.icon-action.cancel{color:#b42318}.icon-action:hover{background:#f8fafc}.empty-state{padding:34px!important;text-align:center;color:#94a3b8!important}
+          .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:grid;place-items:center;padding:20px;z-index:50}.complete-modal{position:relative;width:min(480px,100%);background:#fff;border-radius:20px;padding:28px;box-shadow:0 24px 70px rgba(15,23,42,.28)}.modal-close{position:absolute;right:16px;top:16px;width:38px;height:38px;border:1px solid #dce3ec;border-radius:10px;background:#fff;display:grid;place-items:center;cursor:pointer}.modal-icon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:#ecfdf3;color:#15803d}.complete-modal h2{margin:15px 0 5px;color:#18202d}.complete-modal>p{margin:0;color:#64748b;font-size:13px;line-height:1.5}.modal-summary{margin:18px 0;padding:15px;background:#f8fafc;border:1px solid #e8ecf2;border-radius:14px}.modal-summary span,.modal-summary small{display:block;color:#64748b;font-size:11px}.modal-summary strong{display:block;font-size:24px;color:#18202d;margin:4px 0}.modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:19px}
+          @keyframes spin{to{transform:rotate(360deg)}}
+          @media(max-width:1180px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.service-grid{grid-template-columns:1fr}}@media(max-width:900px){.gcash-header,.gcash-content{padding-left:18px;padding-right:18px}.transactions-head{align-items:stretch;flex-direction:column}.history-tools{flex-direction:column;align-items:stretch}.payment-search{width:100%}.history-tools select{width:100%}}@media(max-width:640px){.metric-grid,.form-grid{grid-template-columns:1fr}.form-grid .full-field{grid-column:auto}.form-heading{flex-direction:column}.form-actions{flex-direction:column-reverse}.form-actions button{width:100%}.gcash-header{gap:16px;align-items:flex-start;flex-direction:column}.amount-preview{grid-template-columns:1fr}.amount-preview strong{grid-column:auto}.notice-card{align-items:flex-start}}
         `}</style>
       </section>
     </main>
