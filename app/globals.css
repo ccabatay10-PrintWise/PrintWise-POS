@@ -1,0 +1,19 @@
+:root {
+  --red: #d71920;
+  --red-dark: #a90f15;
+  --charcoal: #24262b;
+  --gray-900: #33363d;
+  --gray-700: #646973;
+  --gray-500: #9aa0aa;
+  --gray-300: #d9dde3;
+  --gray-100: #f3f4f6;
+  --white: #ffffff;
+  --success: #1f9d63;
+  --warning: #d58a18;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--gray-100); }
+body { color: var(--gray-900); font-family: Arial, Helvetica, sans-serif; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
