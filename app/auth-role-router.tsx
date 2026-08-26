@@ -4,16 +4,22 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 
-const staffAllowedRoutes = new Set([
+const staffAllowedRoutes = [
   "/staff",
   "/pos",
   "/orders",
   "/gcash-bayad",
   "/customers",
-]);
+];
 
 function roleOf(user: any) {
   return user?.app_metadata?.role || user?.user_metadata?.role || "admin";
+}
+
+function isStaffAllowedRoute(pathname: string) {
+  return staffAllowedRoutes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
 }
 
 export default function AuthRoleRouter({ children }: { children: React.ReactNode }) {
@@ -28,10 +34,17 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
       if (!active || !user) return;
 
       const role = roleOf(user);
-      if (role === "staff" && !staffAllowedRoutes.has(pathname)) {
-        router.replace("/staff");
+
+      if (role === "staff") {
+        // Staff may freely use only their assigned working tools.
+        if (!isStaffAllowedRoute(pathname)) {
+          router.replace("/staff");
+        }
+        return;
       }
-      if (role !== "staff" && pathname === "/staff") {
+
+      // Non-staff users should not stay inside the staff portal.
+      if (pathname === "/staff" || pathname.startsWith("/staff/")) {
         router.replace("/dashboard");
       }
     };
