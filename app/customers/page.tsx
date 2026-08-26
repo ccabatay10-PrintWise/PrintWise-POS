@@ -12,6 +12,12 @@ type Customer = {
   lastOrder: string;
 };
 
+type CustomerOrder = {
+  customer_name: string | null;
+  total: number | null;
+  created_at: string;
+};
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
@@ -20,44 +26,55 @@ export default function CustomersPage() {
 
   useEffect(() => {
     const loadCustomers = async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) {
-        window.location.href = "/pos";
-        return;
-      }
+      try {
+        setLoading(true);
+        setMessage("");
 
-      const { data, error } = await supabase
-        .from("pos_orders")
-        .select("customer_name,total,created_at")
-        .not("customer_name", "is", null)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        setMessage(`Unable to load customers: ${error.message}`);
-        setLoading(false);
-        return;
-      }
-
-      const map = new Map<string, Customer>();
-      for (const order of data ?? []) {
-        const name = String(order.customer_name || "").trim();
-        if (!name) continue;
-        const existing = map.get(name.toLowerCase());
-        if (existing) {
-          existing.orders += 1;
-          existing.totalSpent += Number(order.total || 0);
-        } else {
-          map.set(name.toLowerCase(), {
-            name,
-            orders: 1,
-            totalSpent: Number(order.total || 0),
-            lastOrder: order.created_at,
-          });
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !sessionData.session?.access_token) {
+          window.location.href = "/pos";
+          return;
         }
-      }
 
-      setCustomers(Array.from(map.values()).sort((a, b) => b.lastOrder.localeCompare(a.lastOrder)));
-      setLoading(false);
+        const response = await fetch("/api/customers", {
+          headers: {
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+          cache: "no-store",
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || "Unable to load customers.");
+        }
+
+        const map = new Map<string, Customer>();
+        for (const order of (payload.orders ?? []) as CustomerOrder[]) {
+          const name = String(order.customer_name || "").trim();
+          if (!name) continue;
+
+          const key = name.toLowerCase();
+          const existing = map.get(key);
+          if (existing) {
+            existing.orders += 1;
+            existing.totalSpent += Number(order.total || 0);
+          } else {
+            map.set(key, {
+              name,
+              orders: 1,
+              totalSpent: Number(order.total || 0),
+              lastOrder: order.created_at,
+            });
+          }
+        }
+
+        setCustomers(Array.from(map.values()).sort((a, b) => b.lastOrder.localeCompare(a.lastOrder)));
+      } catch (error) {
+        setCustomers([]);
+        setMessage(error instanceof Error ? error.message : "Unable to load customers.");
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadCustomers();
