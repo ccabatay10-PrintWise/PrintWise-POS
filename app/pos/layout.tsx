@@ -15,7 +15,8 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
         "Products & Services": "/products",
         Customers: "/customers",
         Inventory: "/inventory",
-        Reports: "/reports"
+        Reports: "/reports",
+        "Project Costing": "/project-costing"
       };
       const route = routeMap[label || ""];
       if (route) {
