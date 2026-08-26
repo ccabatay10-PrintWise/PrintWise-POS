@@ -44,7 +44,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [userName, setUserName] = useState("Loading...");
-  const [userRole, setUserRole] = useState("staff");
+  const [userRole, setUserRole] = useState("admin");
 
   useEffect(() => {
     let mounted = true;
@@ -68,7 +68,7 @@ export default function Sidebar() {
       const role = String(
         user.app_metadata?.role ||
         user.user_metadata?.role ||
-        "staff"
+        "admin"
       ).toLowerCase();
 
       setUserName(displayName);
@@ -96,7 +96,7 @@ export default function Sidebar() {
         String(
           user.app_metadata?.role ||
           user.user_metadata?.role ||
-          "staff"
+          "admin"
         ).toLowerCase()
       );
     });
@@ -108,7 +108,7 @@ export default function Sidebar() {
   }, []);
 
   const roleLabel =
-    userRole === "admin" ? "Administrator" :
+    userRole === "admin" ? "Admin" :
     userRole === "staff" ? "Staff" :
     userRole.charAt(0).toUpperCase() + userRole.slice(1);
 
