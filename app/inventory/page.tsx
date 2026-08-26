@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Layers3, Package, Plus, Pencil, Power, Save, Search, X, ReceiptText, ShoppingCart, Boxes, AlertTriangle, Hash } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
+import "./inventory.css";
 
 type InventoryItem={id:string;name:string;category:string;unit:string;quantity:number;reorder_level:number;unit_cost:number;is_active:boolean};
 type Form={name:string;category:string;unit:string;quantity:string;reorder_level:string;unit_cost:string};
@@ -54,5 +55,68 @@ export default function InventoryPage(){
  const low=items.filter(i=>i.is_active&&i.quantity<=i.reorder_level).length;
  const fieldStyle={width:"100%",height:46,border:"1px solid #d8dee8",borderRadius:10,padding:"0 13px",fontSize:15,outline:"none",background:"#fff",boxSizing:"border-box" as const};
  const labelStyle={display:"block",fontSize:14,fontWeight:700,color:"#344054",marginBottom:8};
- return <main className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><Package size={21}/></div><span>PRINTWISE</span></div><div className="nav-label">MAIN MENU</div><a className="nav-item" href="/pos"><ShoppingCart size={19}/><span>Point of Sale</span></a><a className="nav-item" href="/orders"><ReceiptText size={19}/><span>Orders</span></a><a className="nav-item" href="/products"><Package size={19}/><span>Products & Services</span></a><a className="nav-item active" href="/inventory"><Layers3 size={19}/><span>Inventory</span></a></aside><section className="workspace"><header className="topbar"><div><h1>Inventory</h1><p>Track PrintWise materials, supplies, and stock levels.</p></div><button className="process-btn" style={{width:"auto"}} onClick={openAdd}><Plus size={18}/> ADD INVENTORY ITEM</button></header><div className="pos-layout" style={{gridTemplateColumns:"1fr"}}><section className="catalog-panel"><div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:14,marginBottom:18}}><div className="summary"><b>Total Items</b><strong style={{fontSize:24}}>{items.length}</strong></div><div className="summary"><b>Active Items</b><strong style={{fontSize:24}}>{items.filter(i=>i.is_active).length}</strong></div><div className="summary"><b>Low Stock</b><strong style={{fontSize:24}}>{low}</strong></div></div><div className="search-box"><Search size={19}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search inventory..."/></div>{message&&<div className="message">{message}</div>}<div style={{overflowX:"auto",marginTop:18}}><table className="orders-table"><thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>Unit Cost</th><th>Reorder Level</th><th>Status</th><th>Action</th></tr></thead><tbody>{loading?<tr><td colSpan={7}>Loading inventory...</td></tr>:filtered.length===0?<tr><td colSpan={7}>No inventory items found.</td></tr>:filtered.map(i=><tr key={i.id}><td><b>{i.name}</b><small style={{display:"block",opacity:.65}}>{i.unit}</small></td><td>{i.category}</td><td><b style={{color:i.quantity<=i.reorder_level?"#dc2626":undefined}}>{i.quantity} {i.unit}</b></td><td>₱{i.unit_cost.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td>{i.reorder_level} {i.unit}</td><td><span className="order-status">{i.is_active?"Active":"Inactive"}</span></td><td><button className="icon-btn" onClick={()=>openEdit(i)}><Pencil size={16}/></button>{" "}<button className="icon-btn" onClick={()=>toggle(i)}><Power size={16}/></button></td></tr>)}</tbody></table></div></section></div></section>{open&&<div onMouseDown={closeModal} style={{position:"fixed",inset:0,background:"rgba(15,23,42,.58)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,zIndex:1000}}><div onMouseDown={e=>e.stopPropagation()} style={{width:"min(680px,100%)",background:"linear-gradient(180deg,#ffffff 0%,#fbfcfe 100%)",borderRadius:24,boxShadow:"0 24px 80px rgba(15,23,42,.25)",overflow:"hidden",border:"1px solid rgba(255,255,255,.7)"}}><div style={{padding:"26px 30px 20px",borderBottom:"1px solid #edf0f4",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}><div style={{display:"flex",gap:14,alignItems:"center"}}><div style={{width:48,height:48,borderRadius:14,display:"grid",placeItems:"center",background:"#fff1f0",color:"#ef2b22"}}><Boxes size={24}/></div><div><h2 style={{margin:0,fontSize:26,color:"#1f2937",letterSpacing:"-.3px"}}>{editing?"Edit Inventory Item":"Add Inventory Item"}</h2><p style={{margin:"5px 0 0",color:"#6b7280",fontSize:14}}>Keep your stock records accurate and up to date.</p></div></div><button aria-label="Close" className="icon-btn" onClick={closeModal} style={{width:42,height:42,borderRadius:12,flexShrink:0}}><X size={20}/></button></div><div style={{padding:"24px 30px 30px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}><div style={{gridColumn:"1 / -1"}}><label style={labelStyle}>Item Name <span style={{color:"#ef2b22"}}>*</span></label><div style={{position:"relative"}}><Package size={18} style={{position:"absolute",left:14,top:14,color:"#98a2b3"}}/><input style={{...fieldStyle,paddingLeft:44}} placeholder="e.g. Glossy Photo Paper" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></div></div><div><label style={labelStyle}>Category <span style={{color:"#ef2b22"}}>*</span></label><input style={fieldStyle} placeholder="e.g. Printing Materials" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/></div><div><label style={labelStyle}>Unit</label><input style={fieldStyle} placeholder="piece, pack, roll..." value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})}/></div><div><label style={labelStyle}>Cost per Unit (₱)</label><input style={fieldStyle} type="number" min="0" step="0.01" value={form.unit_cost} onChange={e=>setForm({...form,unit_cost:e.target.value})}/></div><div><label style={labelStyle}>Current Quantity</label><div style={{position:"relative"}}><Hash size={17} style={{position:"absolute",left:14,top:14,color:"#98a2b3"}}/><input style={{...fieldStyle,paddingLeft:42}} type="number" min="0" value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})}/></div></div><div><label style={labelStyle}>Reorder Level</label><div style={{position:"relative"}}><AlertTriangle size={17} style={{position:"absolute",left:14,top:14,color:"#98a2b3"}}/><input style={{...fieldStyle,paddingLeft:42}} type="number" min="0" value={form.reorder_level} onChange={e=>setForm({...form,reorder_level:e.target.value})}/></div></div></div>{modalError&&<div role="alert" style={{marginTop:16,padding:"12px 14px",borderRadius:12,background:"#fff1f0",border:"1px solid #fecaca",fontSize:13,color:"#b42318",fontWeight:600}}>{modalError}</div>}<div style={{marginTop:16,padding:"12px 14px",borderRadius:12,background:"#f8fafc",border:"1px solid #e8edf3",fontSize:13,color:"#667085"}}>The item will be flagged as <b style={{color:"#344054"}}>Low Stock</b> when the quantity reaches the reorder level.</div><div style={{display:"flex",justifyContent:"flex-end",gap:12,marginTop:26,paddingTop:20,borderTop:"1px solid #edf0f4"}}><button type="button" onClick={closeModal} disabled={saving} style={{height:48,padding:"0 22px",borderRadius:12,border:"1px solid #d8dee8",background:"#fff",fontWeight:700,fontSize:15,color:"#344054",cursor:"pointer"}}>Cancel</button><button type="button" disabled={saving} onClick={save} style={{height:48,padding:"0 23px",borderRadius:12,border:0,background:"#ef2019",color:"#fff",fontWeight:800,fontSize:15,display:"inline-flex",alignItems:"center",gap:9,cursor:"pointer",boxShadow:"0 8px 18px rgba(239,32,25,.22)"}}><Save size={18}/> {saving?"SAVING...":editing?"SAVE CHANGES":"ADD ITEM"}</button></div></div></div></div>}</main>
+ return <main className="app-shell inventory-page">
+  <aside className="sidebar">
+   <div className="brand"><div className="brand-mark"><Package size={21}/></div><span>PRINTWISE</span></div>
+   <div className="nav-label">MAIN MENU</div>
+   <a className="nav-item" href="/pos"><ShoppingCart size={19}/><span>Point of Sale</span></a>
+   <a className="nav-item" href="/orders"><ReceiptText size={19}/><span>Orders</span></a>
+   <a className="nav-item" href="/products"><Package size={19}/><span>Products & Services</span></a>
+   <a className="nav-item active" href="/inventory"><Layers3 size={19}/><span>Inventory</span></a>
+  </aside>
+  <section className="workspace inventory-workspace">
+   <header className="topbar inventory-topbar">
+    <div><div className="inventory-kicker">INVENTORY MANAGEMENT</div><h1>Inventory</h1><p>Track PrintWise materials, supplies, and stock levels.</p></div>
+    <button className="inventory-add-btn" onClick={openAdd}><Plus size={19}/> <span>ADD INVENTORY ITEM</span></button>
+   </header>
+   <div className="inventory-content">
+    <section className="inventory-stats">
+     <div className="inventory-stat total"><div className="stat-icon"><Boxes size={21}/></div><div><span>Total Items</span><strong>{items.length}</strong><small>All inventory records</small></div></div>
+     <div className="inventory-stat active"><div className="stat-icon"><Package size={21}/></div><div><span>Active Items</span><strong>{items.filter(i=>i.is_active).length}</strong><small>Ready for use</small></div></div>
+     <div className="inventory-stat low"><div className="stat-icon"><AlertTriangle size={21}/></div><div><span>Low Stock</span><strong>{low}</strong><small>Needs attention</small></div></div>
+    </section>
+    <section className="inventory-card">
+     <div className="inventory-toolbar">
+      <div className="inventory-toolbar-copy"><h2>Inventory Items</h2><p>Search, review, and manage your available materials.</p></div>
+      <div className="inventory-count">{filtered.length} {filtered.length===1?"item":"items"} shown</div>
+     </div>
+     <div className="inventory-search"><Search size={20}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by item, category, or unit..."/><kbd>⌘ K</kbd></div>
+     {message&&<div className={`inventory-message ${message.toLowerCase().includes("unable")||message.toLowerCase().includes("error")?"error":"success"}`}>{message}</div>}
+     <div className="inventory-table-wrap">
+      <table className="inventory-table">
+       <thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>Unit Cost</th><th>Reorder Level</th><th>Status</th><th className="actions-col">Actions</th></tr></thead>
+       <tbody>{loading?<tr><td colSpan={7}><div className="inventory-empty">Loading inventory...</div></td></tr>:filtered.length===0?<tr><td colSpan={7}><div className="inventory-empty">No inventory items found.</div></td></tr>:filtered.map(i=>{
+        const isLow=i.is_active&&i.quantity<=i.reorder_level;
+        return <tr key={i.id} className={isLow?"low-row":""}>
+         <td><div className="item-cell"><div className="item-avatar"><Package size={18}/></div><div><b>{i.name}</b><small>{i.unit}</small></div></div></td>
+         <td><span className="category-chip">{i.category}</span></td>
+         <td><div className={`quantity-value ${isLow?"is-low":""}`}><b>{i.quantity}</b><span>{i.unit}</span></div></td>
+         <td><b className="cost-value">₱{i.unit_cost.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</b></td>
+         <td>{i.reorder_level} <span className="muted-unit">{i.unit}</span></td>
+         <td><span className={`inventory-status ${i.is_active?"active":"inactive"}`}><i></i>{i.is_active?"Active":"Inactive"}</span></td>
+         <td><div className="inventory-actions"><button className="inventory-icon-btn" aria-label={`Edit ${i.name}`} title="Edit item" onClick={()=>openEdit(i)}><Pencil size={16}/></button><button className={`inventory-icon-btn power ${i.is_active?"":"is-inactive"}`} aria-label={`${i.is_active?"Deactivate":"Activate"} ${i.name}`} title={i.is_active?"Deactivate item":"Activate item"} onClick={()=>toggle(i)}><Power size={16}/></button></div></td>
+        </tr>})}</tbody>
+      </table>
+     </div>
+     <div className="inventory-footer"><span>Showing <b>{filtered.length}</b> of <b>{items.length}</b> inventory items</span><span className="inventory-live"><i></i> Live database data</span></div>
+    </section>
+   </div>
+  </section>
+  {open&&<div onMouseDown={closeModal} className="inventory-modal-backdrop"><div onMouseDown={e=>e.stopPropagation()} className="inventory-modal">
+   <div className="inventory-modal-head"><div className="inventory-modal-title"><div className="modal-icon"><Boxes size={24}/></div><div><h2>{editing?"Edit Inventory Item":"Add Inventory Item"}</h2><p>Keep your stock records accurate and up to date.</p></div></div><button aria-label="Close" className="inventory-close-btn" onClick={closeModal}><X size={20}/></button></div>
+   <div className="inventory-modal-body">
+    <div className="inventory-form-grid">
+     <div className="full-field"><label style={labelStyle}>Item Name <span style={{color:"#ef2b22"}}>*</span></label><div className="input-with-icon"><Package size={18}/><input style={fieldStyle} placeholder="e.g. Glossy Photo Paper" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></div></div>
+     <div><label style={labelStyle}>Category <span style={{color:"#ef2b22"}}>*</span></label><input style={fieldStyle} placeholder="e.g. Printing Materials" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/></div>
+     <div><label style={labelStyle}>Unit</label><input style={fieldStyle} placeholder="piece, pack, roll..." value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})}/></div>
+     <div><label style={labelStyle}>Cost per Unit (₱)</label><input style={fieldStyle} type="number" min="0" step="0.01" value={form.unit_cost} onChange={e=>setForm({...form,unit_cost:e.target.value})}/></div>
+     <div><label style={labelStyle}>Current Quantity</label><div className="input-with-icon"><Hash size={17}/><input style={fieldStyle} type="number" min="0" value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})}/></div></div>
+     <div><label style={labelStyle}>Reorder Level</label><div className="input-with-icon"><AlertTriangle size={17}/><input style={fieldStyle} type="number" min="0" value={form.reorder_level} onChange={e=>setForm({...form,reorder_level:e.target.value})}/></div></div>
+    </div>
+    {modalError&&<div role="alert" className="inventory-modal-error">{modalError}</div>}
+    <div className="inventory-modal-note">The item will be flagged as <b>Low Stock</b> when the quantity reaches the reorder level.</div>
+    <div className="inventory-modal-actions"><button type="button" className="inventory-cancel-btn" onClick={closeModal} disabled={saving}>Cancel</button><button type="button" className="inventory-save-btn" disabled={saving} onClick={save}><Save size={18}/> {saving?"SAVING...":editing?"SAVE CHANGES":"ADD ITEM"}</button></div>
+   </div>
+  </div></div>}
+ </main>
 }
