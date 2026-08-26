@@ -15,6 +15,7 @@ export default function ProjectCostingPage() {
   const [client, setClient] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [sellingPrice, setSellingPrice] = useState(0);
+  const [targetMargin, setTargetMargin] = useState(25);
   const [orderNo, setOrderNo] = useState("");
   const [orderId, setOrderId] = useState("");
   const [costs, setCosts] = useState<CostRow[]>([{ id: 1, category: "Materials", description: "Item / materials", amount: 0 }]);
@@ -47,6 +48,7 @@ export default function ProjectCostingPage() {
         setClient(saved.client ?? "");
         setQuantity(Math.max(1, Number(saved.quantity ?? 1)));
         setSellingPrice(Number(saved.sellingPrice ?? 0));
+        setTargetMargin(Math.min(90, Math.max(1, Number(saved.targetMargin ?? 25))));
         setOrderNo(saved.orderNo ?? "");
         setOrderId(saved.orderId ?? "");
         if (Array.isArray(saved.costs) && saved.costs.length) setCosts(saved.costs);
@@ -79,13 +81,13 @@ export default function ProjectCostingPage() {
   }, []);
 
   useEffect(() => {
-    const draft = { projectName, client, quantity, sellingPrice, orderNo, orderId, costs, selectedInventoryId, inventoryQty };
+    const draft = { projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [projectName, client, quantity, sellingPrice, orderNo, orderId, costs, selectedInventoryId, inventoryQty]);
+  }, [projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty]);
 
   const discardDraft = () => {
     localStorage.removeItem(DRAFT_KEY);
-    setProjectName(""); setClient(""); setQuantity(1); setSellingPrice(0);
+    setProjectName(""); setClient(""); setQuantity(1); setSellingPrice(0); setTargetMargin(25);
     setOrderNo(""); setOrderId(""); setSelectedInventoryId(""); setInventoryQty(1);
     setCosts([{ id: Date.now(), category: "Materials", description: "Item / materials", amount: 0 }]);
     setMessage("Draft cleared. You can start a new project costing.");
@@ -97,6 +99,16 @@ export default function ProjectCostingPage() {
   const costPerItem = quantity > 0 ? totalExpenses / quantity : 0;
   const profitPerItem = quantity > 0 ? netProfit / quantity : 0;
   const isLoss = netProfit < 0;
+  const suggestedTotalPrice = totalExpenses > 0 && targetMargin > 0 && targetMargin < 100
+    ? totalExpenses / (1 - targetMargin / 100)
+    : 0;
+  const suggestedPricePerItem = quantity > 0 ? suggestedTotalPrice / quantity : 0;
+  const suggestedProfit = suggestedTotalPrice - totalExpenses;
+  const applySuggestedPrice = () => {
+    if (suggestedTotalPrice <= 0) { setMessage("Add your project expenses first so PrintWise can calculate a suggested selling price."); return; }
+    setSellingPrice(Number(suggestedTotalPrice.toFixed(2)));
+    setMessage(`Suggested selling price applied at a ${targetMargin.toFixed(0)}% target profit margin.`);
+  };
   const selectedInventoryItem = inventory.find((item) => item.id === selectedInventoryId);
   const selectedInventoryAmount = selectedInventoryItem
     ? Number(selectedInventoryItem.unit_cost || 0) * Math.max(1, Number(inventoryQty) || 1)
@@ -138,6 +150,8 @@ export default function ProjectCostingPage() {
       totalExpenses,
       netProfit,
       profitMargin,
+      targetMargin,
+      suggestedTotalPrice,
       createdAt: new Date().toISOString()
     };
     const history = JSON.parse(localStorage.getItem("printwise_project_costing") || "[]");
@@ -178,6 +192,21 @@ export default function ProjectCostingPage() {
             <label className="project-field">Client<input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Client or customer name" /></label>
             <label className="project-field">Quantity<input type="number" min="1" value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} /></label>
             <label className="project-field">Total Selling Price<input className="money-input" type="number" min="0" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(Number(e.target.value) || 0)} /></label>
+          </div>
+
+          <div className="smart-price-box">
+            <div className="smart-price-head">
+              <div><div className="smart-price-kicker"><TrendingUp size={15}/> SMART PRICE SUGGESTION</div><h3>Let PrintWise recommend your selling price</h3><p>Choose your target profit margin. The suggestion is based on your actual project expenses and quantity.</p></div>
+              <button type="button" className="apply-suggested-btn" onClick={applySuggestedPrice} disabled={suggestedTotalPrice <= 0}>USE SUGGESTED PRICE</button>
+            </div>
+            <div className="margin-options">{[20,25,30,40].map((margin)=><button type="button" key={margin} className={targetMargin===margin?"active":""} onClick={()=>setTargetMargin(margin)}>{margin}%{margin===25?<small> RECOMMENDED</small>:null}</button>)}</div>
+            <div className="smart-price-grid">
+              <label className="target-margin-field">Custom Target Margin<input type="number" min="1" max="90" step="1" value={targetMargin} onChange={e=>setTargetMargin(Math.min(90,Math.max(1,Number(e.target.value)||25)))} /><span>%</span></label>
+              <div className="suggested-price-stat"><span>Suggested Price / Item</span><strong>{money.format(suggestedPricePerItem)}</strong></div>
+              <div className="suggested-price-stat featured"><span>Suggested Total Selling Price</span><strong>{money.format(suggestedTotalPrice)}</strong></div>
+              <div className="suggested-price-stat"><span>Expected Profit</span><strong>{money.format(suggestedProfit)}</strong></div>
+            </div>
+            {totalExpenses<=0 && <div className="smart-price-empty">Add at least one project expense to unlock an accurate selling price suggestion.</div>}
           </div>
 
           <div className="expense-section">
