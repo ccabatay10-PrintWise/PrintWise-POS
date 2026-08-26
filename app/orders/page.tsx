@@ -26,6 +26,21 @@ type OrderItem = {
   line_total: number;
 };
 
+async function apiGet(path: string) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Please sign in again.");
+
+  const response = await fetch(path, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Unable to load orders.");
+  return payload;
+}
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,22 +51,16 @@ export default function OrdersPage() {
   const [loadingItems, setLoadingItems] = useState(false);
 
   useEffect(() => {
+    let active = true;
+
     const loadOrders = async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) {
-        window.location.href = "/pos";
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("pos_orders")
-        .select("id,order_no,customer_name,subtotal,discount_amount,total,amount_paid,status,created_at")
-        .order("created_at", { ascending: false });
-
-      if (error) setError(error.message);
-      else {
+      setLoading(true);
+      setError("");
+      try {
+        const payload = await apiGet("/api/orders");
+        if (!active) return;
         setOrders(
-          (data ?? []).map((o: any) => ({
+          (payload.orders ?? []).map((o: any) => ({
             ...o,
             subtotal: Number(o.subtotal || 0),
             discount_amount: Number(o.discount_amount || 0),
@@ -59,11 +68,15 @@ export default function OrdersPage() {
             amount_paid: Number(o.amount_paid || 0),
           }))
         );
+      } catch (err: any) {
+        if (active) setError(err?.message || "Unable to load orders.");
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
     };
 
     loadOrders();
+    return () => { active = false; };
   }, []);
 
   const filtered = orders.filter((o) =>
@@ -78,24 +91,21 @@ export default function OrdersPage() {
     setLoadingItems(true);
     setError("");
 
-    const { data, error } = await supabase
-      .from("pos_order_items")
-      .select("id,item_name,unit_price,quantity,line_total")
-      .eq("pos_order_id", order.id)
-      .order("created_at", { ascending: true });
-
-    if (error) setError(`Unable to load order items: ${error.message}`);
-    else {
+    try {
+      const payload = await apiGet(`/api/orders?orderId=${encodeURIComponent(order.id)}`);
       setItems(
-        (data ?? []).map((i: any) => ({
+        (payload.items ?? []).map((i: any) => ({
           ...i,
           unit_price: Number(i.unit_price || 0),
           quantity: Number(i.quantity || 0),
           line_total: Number(i.line_total || 0),
         }))
       );
+    } catch (err: any) {
+      setError(err?.message || "Unable to load order items.");
+    } finally {
+      setLoadingItems(false);
     }
-    setLoadingItems(false);
   };
 
   const printOrder = () => {
@@ -159,7 +169,6 @@ export default function OrdersPage() {
 </body>
 </html>`;
 
-    // Use a hidden iframe instead of window.open so browsers do not block the receipt.
     const frame = document.createElement("iframe");
     frame.style.position = "fixed";
     frame.style.width = "1px";
@@ -219,7 +228,7 @@ export default function OrdersPage() {
               <Search size={19} />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order number, customer, or status..." />
             </div>
-            {error && <div className="message">Unable to load orders: {error}</div>}
+            {error && <div className="message">{error}</div>}
             <div style={{ overflowX: "auto", marginTop: 18 }}>
               <table className="orders-table">
                 <thead><tr><th>Order No.</th><th>Customer</th><th>Date & Time</th><th>Total</th><th>Paid</th><th>Status</th></tr></thead>
