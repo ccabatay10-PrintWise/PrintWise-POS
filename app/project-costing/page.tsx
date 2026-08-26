@@ -112,6 +112,13 @@ export default function ProjectCostingPage() {
   };
 
   const totalExpenses = useMemo(() => costs.reduce((sum, row) => sum + (Number(row.amount) || 0), 0), [costs]);
+  const selectedInventoryItem = useMemo(
+    () => inventory.find((item) => item.id === selectedInventoryId) ?? null,
+    [inventory, selectedInventoryId]
+  );
+  const selectedInventoryExpense = selectedInventoryItem
+    ? (Number(selectedInventoryItem.unit_cost) || 0) * Math.max(1, Number(inventoryQty) || 1)
+    : 0;
   // Cost-first calculation: compute all project expenses, then divide by project quantity.
   const costPerItem = totalExpenses / Math.max(1, quantity);
   const profitPerItem = costPerItem * (targetMargin / 100);
