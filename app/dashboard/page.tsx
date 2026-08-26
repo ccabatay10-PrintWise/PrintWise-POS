@@ -183,7 +183,10 @@ export default function DashboardPage() {
         .filter((order) => dateKey(new Date(order.created_at)) === key)
         .reduce((sum, order) => sum + order.total, 0);
       trend.push({
-        label: day.toLocaleDateString(undefined, { weekday: trendDays <= 7 ? "short" : "numeric" }),
+        label:
+          trendDays <= 7
+            ? day.toLocaleDateString(undefined, { weekday: "short" })
+            : day.toLocaleDateString(undefined, { day: "numeric" }),
         amount,
       });
     }
