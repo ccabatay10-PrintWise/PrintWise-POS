@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AuthRoleRouter from "./auth-role-router";
 
 export const metadata: Metadata = {
   title: "PrintWise POS",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><AuthRoleRouter>{children}</AuthRoleRouter></body>
     </html>
   );
 }
