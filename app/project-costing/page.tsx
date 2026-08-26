@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, ArrowLeft, Plus, Trash2, Save, WalletCards, ReceiptText, BriefcaseBusiness, Package, CircleDollarSign, TrendingUp, Link2, Users } from "lucide-react";
+import { Calculator, ArrowLeft, Plus, Trash2, Save, WalletCards, ReceiptText, BriefcaseBusiness, Package, CircleDollarSign, TrendingUp, Link2, Users, Printer, X } from "lucide-react";
 import "../pos/pos.css";
 import "./project-costing.css";
 
@@ -31,6 +31,7 @@ export default function ProjectCostingPage() {
   const [orderId, setOrderId] = useState("");
   const [costs, setCosts] = useState<CostRow[]>([{ id: 1, category: "Materials", description: "Item / materials", amount: 0 }]);
   const [message, setMessage] = useState("");
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedInventoryId, setSelectedInventoryId] = useState("");
   const [inventoryQty, setInventoryQty] = useState(1);
@@ -187,6 +188,11 @@ export default function ProjectCostingPage() {
     setCosts((rows) => rows.length > 1 ? rows.filter((row) => row.id !== id) : rows);
   };
 
+  const printSummary = () => {
+    setShowPrintPreview(false);
+    window.setTimeout(() => window.print(), 120);
+  };
+
   const saveEstimate = () => {
     const record = {
       id: Date.now(),
@@ -331,6 +337,7 @@ export default function ProjectCostingPage() {
 
           {message && <div className="costing-message">✓ {message}</div>}
           <div className="project-actions">
+            <button className="print-summary-btn" type="button" onClick={()=>setShowPrintPreview(true)}><Printer size={18} /> PRINT SUMMARY</button>
             <button className="save-costing-btn" onClick={saveEstimate}><Save size={18} /> SAVE PROJECT COSTING</button>
             <button className="add-expense-btn" onClick={discardDraft} type="button">DISCARD / CLEAR DRAFT</button>
           </div>
@@ -355,5 +362,29 @@ export default function ProjectCostingPage() {
         </aside>
       </div>
     </section>
+      {showPrintPreview && <div className="receipt-modal-backdrop no-print">
+        <div className="receipt-modal">
+          <div className="receipt-modal-head"><div><h2>Print Preview</h2><p>80mm POS receipt format</p></div><button type="button" className="receipt-close" onClick={()=>setShowPrintPreview(false)}><X size={20}/></button></div>
+          <div id="project-costing-receipt" className="project-receipt">
+            <div className="receipt-brand">PRINTWISE</div><div className="receipt-subtitle">PROJECT COSTING & PRICING SUMMARY</div>
+            <div className="receipt-line"/>
+            <div className="receipt-meta"><div><span>PROJECT</span><b>{projectName || "Untitled Project"}</b></div><div><span>CLIENT</span><b>{client || "Walk-in Client"}</b></div><div><span>DATE</span><b>{new Date().toLocaleDateString("en-PH")}</b></div><div><span>QUANTITY</span><b>{quantity} pc{quantity===1?"":"s"}</b></div>{printingMethod && <div><span>PRINTING</span><b>{printingMethod}</b></div>}</div>
+            <div className="receipt-section-title">COST BREAKDOWN</div>
+            {costs.filter(r=>Number(r.amount)>0).map(r=><div className="receipt-row" key={r.id}><div><b>{r.description || r.category}</b><small>{r.category}</small></div><span>{money.format(Number(r.amount)||0)}</span></div>)}
+            {costs.filter(r=>Number(r.amount)>0).length===0 && <div className="receipt-empty">No project expenses added yet.</div>}
+            <div className="receipt-line"/>
+            <div className="receipt-total"><span>TOTAL PRODUCTION COST</span><b>{money.format(totalExpenses)}</b></div>
+            <div className="receipt-row simple"><span>Cost Per Item</span><b>{money.format(costPerItem)}</b></div>
+            <div className="receipt-section-title emphasis">RECOMMENDED PRICING</div>
+            <div className="receipt-row simple"><span>Suggested Price / Item</span><b>{money.format(suggestedPricePerItem)}</b></div>
+            <div className="receipt-total"><span>RECOMMENDED TOTAL PRICE</span><b>{money.format(suggestedTotalPrice)}</b></div>
+            <div className="receipt-row simple"><span>Estimated Profit</span><b>{money.format(suggestedProfit)}</b></div>
+            <div className="receipt-row simple"><span>Profit Margin</span><b>{profitMargin.toFixed(2)}%</b></div>
+            <div className="receipt-line"/><div className="receipt-footer">Thank you for using PrintWise<br/><small>Smart Printing & Business Management</small></div>
+          </div>
+          <div className="receipt-modal-actions"><button type="button" onClick={()=>setShowPrintPreview(false)}>Close</button><button type="button" className="receipt-print-action" onClick={printSummary}><Printer size={17}/> PRINT RECEIPT</button></div>
+        </div>
+      </div>}
+
   </main>;
 }
