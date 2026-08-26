@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, ArrowLeft, Package, Plus, Save, Trash2, WalletCards, ReceiptText, Boxes, BadgePhilippinePeso } from "lucide-react";
+import { Calculator, ArrowLeft, Package, Plus, Save, Trash2, WalletCards, ReceiptText, Boxes, PhilippinePeso } from "lucide-react";
 import "../pos/pos.css";
 import "./product-costing.css";
 
@@ -55,7 +55,7 @@ export default function ProductCostingPage() {
       <a className="nav-item active" href="/product-costing"><Boxes size={19} /><span>Product Cost Database</span></a>
     </aside>
     <section className="workspace product-cost-workspace">
-      <header className="product-cost-header"><div><div className="product-eyebrow"><BadgePhilippinePeso size={15} /> AUTOMATIC COST SETUP</div><h1>Product Cost Database</h1><p>Save the real cost per piece of each product. PrintWise will use these amounts automatically when creating a project costing.</p></div></header>
+      <header className="product-cost-header"><div><div className="product-eyebrow"><PhilippinePeso size={15} /> AUTOMATIC COST SETUP</div><h1>Product Cost Database</h1><p>Save the real cost per piece of each product. PrintWise will use these amounts automatically when creating a project costing.</p></div></header>
       <div className="product-cost-grid">
         <section className="product-editor-card">
           <div className="pc-section-head"><div><h2>Create Product Cost</h2><p>Enter the cost breakdown for one piece.</p></div><div className="pc-cost-badge"><span>Current Cost / PC</span><b>{money.format(costPerPiece)}</b></div></div>
