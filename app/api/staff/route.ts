@@ -1,19 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function envValue(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim().replace(/^['\"]|['\"]$/g, "");
+    if (value) return value;
+  }
+  return "";
+}
+
+const url = envValue("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL");
+const anonKey = envValue(
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "SUPABASE_ANON_KEY",
+);
+const serviceKey = envValue(
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_SERVICE_ROLE",
+  "SERVICE_ROLE_KEY",
+);
 
 function jsonError(error: string, status: number) {
   return NextResponse.json({ error }, { status });
 }
 
 function configError() {
+  const missing = [
+    !url && "NEXT_PUBLIC_SUPABASE_URL",
+    !anonKey && "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    !serviceKey && "SUPABASE_SERVICE_ROLE_KEY",
+  ].filter(Boolean).join(", ");
   return jsonError(
-    "Staff Management is not configured. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, and SUPABASE_SERVICE_ROLE_KEY to the Production environment, then redeploy.",
+    `Staff Management server configuration is incomplete. Missing: ${missing || "unknown setting"}. Add the value as a Secret in Vercel Production and redeploy.`,
     500,
   );
 }
@@ -27,7 +49,7 @@ async function getAdmin(request: NextRequest) {
 
   const authorization = request.headers.get("authorization") || "";
   const token = authorization.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return { error: jsonError("Your admin session is missing. Please sign in again and retry.", 401) };
+  if (!token) return { error: jsonError("Your admin session is missing. Please sign in again, refresh the page, and retry.", 401) };
 
   const client = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -38,9 +60,9 @@ async function getAdmin(request: NextRequest) {
   }
 
   const role = userRole(data.user);
-  // Legacy owner accounts created before roles were introduced are treated as admins.
+  // Existing owner accounts created before role support are treated as admins.
   if (role && role !== "admin") {
-    return { error: jsonError("Admin access required to manage staff accounts.", 403) };
+    return { error: jsonError("Admin access is required to manage staff accounts.", 403) };
   }
 
   return { user: data.user };
@@ -57,15 +79,19 @@ function staffRecord(user: any) {
   };
 }
 
+function adminClient() {
+  return createClient(url!, serviceKey!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const auth = await getAdmin(request);
   if (auth.error) return auth.error;
 
-  const admin = createClient(url!, serviceKey!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const admin = adminClient();
   const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (error) return jsonError(error.message, 400);
+  if (error) return jsonError(`Unable to load staff accounts: ${error.message}`, 400);
 
   const staff = data.users
     .filter((user) => userRole(user) === "staff")
@@ -86,9 +112,7 @@ export async function POST(request: NextRequest) {
   }
 
   const action = body.action || "create";
-  const admin = createClient(url!, serviceKey!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const admin = adminClient();
 
   if (action === "create") {
     const name = String(body.name || "").trim();
@@ -99,6 +123,40 @@ export async function POST(request: NextRequest) {
       return jsonError("Enter a full name, valid email, and password with at least 6 characters.", 400);
     }
 
+    // Check first so a previously created account can be repaired instead of failing.
+    const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+    if (usersError) {
+      return jsonError(`Unable to access Supabase users. Check SUPABASE_SERVICE_ROLE_KEY: ${usersError.message}`, 500);
+    }
+
+    const existing = usersData.users.find(
+      (user) => (user.email || "").toLowerCase() === email,
+    );
+
+    if (existing) {
+      const { data: updated, error: updateError } = await admin.auth.admin.updateUserById(existing.id, {
+        password,
+        email_confirm: true,
+        user_metadata: {
+          ...existing.user_metadata,
+          full_name: name,
+          role: "staff",
+        },
+      });
+      if (updateError || !updated.user) {
+        return jsonError(updateError?.message || "The existing account could not be updated as a staff account.", 400);
+      }
+      return NextResponse.json({
+        success: true,
+        created: false,
+        message: "The existing account was updated and restored as a staff account.",
+        staff: staffRecord(updated.user),
+      });
+    }
+
     const { data, error } = await admin.auth.admin.createUser({
       email,
       password,
@@ -106,33 +164,11 @@ export async function POST(request: NextRequest) {
       user_metadata: { full_name: name, role: "staff" },
     });
 
-    if (!error && data.user) {
-      return NextResponse.json({ success: true, created: true, staff: staffRecord(data.user) });
+    if (error || !data.user) {
+      return jsonError(error?.message || "Supabase did not return the new staff account.", 400);
     }
 
-    // A previous click may already have created the account. Return the existing
-    // staff account instead of leaving the user with an apparently broken button.
-    const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
-    });
-    const existing = usersError
-      ? undefined
-      : usersData.users.find((user) => (user.email || "").toLowerCase() === email);
-
-    if (existing) {
-      if (userRole(existing) !== "staff") {
-        return jsonError("This email is already registered to a non-staff account. Use a different email address.", 400);
-      }
-      return NextResponse.json({
-        success: true,
-        created: false,
-        message: "This staff account already exists and has been restored to the staff list.",
-        staff: staffRecord(existing),
-      });
-    }
-
-    return jsonError(error?.message || "Unable to create the staff account.", 400);
+    return NextResponse.json({ success: true, created: true, staff: staffRecord(data.user) });
   }
 
   const staffId = String(body.staffId || "").trim();
