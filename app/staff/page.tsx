@@ -1,30 +1,43 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LogOut, ReceiptText, ShoppingCart, Users, Wallet } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 export default function StaffPage() {
+  const router = useRouter();
   const [name, setName] = useState("Staff");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+
     supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!active) return;
       if (!user) {
-        window.location.href = "/pos";
+        router.replace("/pos");
         return;
       }
+
       const role = user.app_metadata?.role || user.user_metadata?.role;
       if (role !== "staff") {
-        window.location.href = "/dashboard";
+        router.replace("/dashboard");
         return;
       }
+
       setName(user.user_metadata?.full_name || user.email?.split("@")[0] || "Staff");
+      setLoading(false);
     });
-  }, []);
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    window.location.href = "/pos";
+    router.replace("/pos");
   };
 
   const cards = [
@@ -33,6 +46,10 @@ export default function StaffPage() {
     { href: "/gcash-bayad", icon: Wallet, title: "GCash / Bayad", text: "Process and record payment transactions." },
     { href: "/customers", icon: Users, title: "Customers", text: "Access customer information." },
   ];
+
+  if (loading) {
+    return <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f4f6fb", color: "#26364b", fontWeight: 700 }}>Loading Staff Portal...</main>;
+  }
 
   return (
     <main style={{ minHeight: "100vh", background: "#f4f6fb", color: "#26364b", padding: "28px" }}>
@@ -48,11 +65,16 @@ export default function StaffPage() {
 
         <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 18 }}>
           {cards.map(({ href, icon: Icon, title, text }) => (
-            <a key={href} href={href} style={{ textDecoration: "none", color: "inherit", background: "white", border: "1px solid #e2e7ef", borderRadius: 20, padding: 24, boxShadow: "0 8px 25px rgba(31,54,93,.07)" }}>
+            <button
+              key={href}
+              type="button"
+              onClick={() => router.push(href)}
+              style={{ textAlign: "left", color: "inherit", background: "white", border: "1px solid #e2e7ef", borderRadius: 20, padding: 24, boxShadow: "0 8px 25px rgba(31,54,93,.07)", cursor: "pointer", font: "inherit" }}
+            >
               <div style={{ width: 48, height: 48, borderRadius: 14, background: "#eef3fb", display: "grid", placeItems: "center", marginBottom: 18 }}><Icon size={23}/></div>
               <h2 style={{ margin: "0 0 8px", fontSize: 19 }}>{title}</h2>
               <p style={{ margin: 0, color: "#6d7a8d", lineHeight: 1.5 }}>{text}</p>
-            </a>
+            </button>
           ))}
         </div>
 
