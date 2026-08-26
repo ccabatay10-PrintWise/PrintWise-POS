@@ -8,6 +8,7 @@ import "./project-costing.css";
 type CostRow = { id: number; category: string; description: string; amount: number; inventoryId?: string; quantityUsed?: number; unitCost?: number };
 type InventoryItem = { id:string; name:string; category:string; unit:string; quantity:number; unit_cost:number; is_active:boolean };
 type DtfRow = { id:number; description:string; width:number; height:number; quantity:number };
+type PrintingMethod = "" | "DTF Printing" | "Sublimation" | "No Printing";
 const DRAFT_KEY = "printwise_project_costing_draft_v1";
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
@@ -24,7 +25,10 @@ export default function ProjectCostingPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedInventoryId, setSelectedInventoryId] = useState("");
   const [inventoryQty, setInventoryQty] = useState(1);
+  const [printingMethod, setPrintingMethod] = useState<PrintingMethod>("DTF Printing");
   const [dtfCostPerSqIn, setDtfCostPerSqIn] = useState(0);
+  const [sublimationCostPerSqIn, setSublimationCostPerSqIn] = useState(0);
+  const [sublimationWastage, setSublimationWastage] = useState(0);
   const [dtfWastage, setDtfWastage] = useState(0);
   const [dtfRows, setDtfRows] = useState<DtfRow[]>([{ id: Date.now(), description: "Left Chest Logo", width: 4, height: 4, quantity: 1 }]);
 
@@ -58,7 +62,10 @@ export default function ProjectCostingPage() {
         if (Array.isArray(saved.costs) && saved.costs.length) setCosts(saved.costs);
         setSelectedInventoryId(saved.selectedInventoryId ?? "");
         setInventoryQty(Math.max(1, Number(saved.inventoryQty ?? 1)));
+        setPrintingMethod(saved.printingMethod === "Sublimation" || saved.printingMethod === "No Printing" || saved.printingMethod === "DTF Printing" ? saved.printingMethod : "DTF Printing");
         setDtfCostPerSqIn(Math.max(0, Number(saved.dtfCostPerSqIn ?? 0)));
+        setSublimationCostPerSqIn(Math.max(0, Number(saved.sublimationCostPerSqIn ?? 0)));
+        setSublimationWastage(Math.max(0, Number(saved.sublimationWastage ?? 0)));
         setDtfWastage(Math.max(0, Number(saved.dtfWastage ?? 0)));
         if (Array.isArray(saved.dtfRows) && saved.dtfRows.length) setDtfRows(saved.dtfRows);
         setMessage("Unsaved draft restored automatically.");
@@ -88,14 +95,14 @@ export default function ProjectCostingPage() {
   }, []);
 
   useEffect(() => {
-    const draft = { projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty, dtfCostPerSqIn, dtfWastage, dtfRows };
+    const draft = { projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty, printingMethod, dtfCostPerSqIn, dtfWastage, sublimationCostPerSqIn, sublimationWastage, dtfRows };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty, dtfCostPerSqIn, dtfWastage, dtfRows]);
+  }, [projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty, printingMethod, dtfCostPerSqIn, dtfWastage, sublimationCostPerSqIn, sublimationWastage, dtfRows]);
 
   const discardDraft = () => {
     localStorage.removeItem(DRAFT_KEY);
     setProjectName(""); setClient(""); setQuantity(1); setSellingPrice(0); setTargetMargin(25);
-    setOrderNo(""); setOrderId(""); setSelectedInventoryId(""); setInventoryQty(1); setDtfCostPerSqIn(0); setDtfWastage(0); setDtfRows([{ id: Date.now(), description: "Left Chest Logo", width: 4, height: 4, quantity: 1 }]);
+    setOrderNo(""); setOrderId(""); setSelectedInventoryId(""); setInventoryQty(1); setPrintingMethod("DTF Printing"); setDtfCostPerSqIn(0); setDtfWastage(0); setSublimationCostPerSqIn(0); setSublimationWastage(0); setDtfRows([{ id: Date.now(), description: "Left Chest Logo", width: 4, height: 4, quantity: 1 }]);
     setCosts([{ id: Date.now(), category: "Materials", description: "Item / materials", amount: 0 }]);
     setMessage("Draft cleared. You can start a new project costing.");
   };
@@ -125,17 +132,34 @@ export default function ProjectCostingPage() {
   const dtfBaseCost = dtfBaseArea * Math.max(0, Number(dtfCostPerSqIn)||0);
   const dtfWastageAmount = dtfBaseCost * Math.max(0, Number(dtfWastage)||0) / 100;
   const dtfTotalCost = dtfBaseCost + dtfWastageAmount;
+  const sublimationBaseCost = dtfBaseArea * Math.max(0, Number(sublimationCostPerSqIn)||0);
+  const sublimationWastageAmount = sublimationBaseCost * Math.max(0, Number(sublimationWastage)||0) / 100;
+  const sublimationTotalCost = sublimationBaseCost + sublimationWastageAmount;
   const updateDtfRow = (id:number, key:keyof DtfRow, value:string|number) => {
     setDtfRows(rows => rows.map(row => row.id === id ? { ...row, [key]: key === "description" ? String(value) : Math.max(0, Number(value)||0) } : row));
   };
   const addDtfRow = () => setDtfRows(rows => [...rows, { id: Date.now(), description: "", width: 0, height: 0, quantity: 1 }]);
   const removeDtfRow = (id:number) => setDtfRows(rows => rows.length > 1 ? rows.filter(row => row.id !== id) : rows);
+  const removePrintingExpenses = () => setCosts(rows => rows.filter(row => !(row.category === "Printing" && (row.description.startsWith("DTF Printing —") || row.description.startsWith("Sublimation Printing —")))));
   const addDtfExpense = () => {
     if (dtfTotalCost <= 0) { setMessage("Enter valid DTF sizes, quantities, and a cost per square inch first."); return; }
     const activeRows = dtfRows.filter(row => row.width > 0 && row.height > 0 && row.quantity > 0);
     const detail = activeRows.map(row => `${row.description || "DTF Print"} ${row.width}×${row.height} in × ${row.quantity}`).join("; ");
-    setCosts(rows => [...rows, { id: Date.now(), category: "Printing", description: `DTF Printing — ${detail}`, amount: Number(dtfTotalCost.toFixed(2)) }]);
+    setCosts(rows => [...rows.filter(row => !(row.category === "Printing" && (row.description.startsWith("DTF Printing —") || row.description.startsWith("Sublimation Printing —")))), { id: Date.now(), category: "Printing", description: `DTF Printing — ${detail}`, amount: Number(dtfTotalCost.toFixed(2)) }]);
     setMessage(`DTF expense of ${money.format(dtfTotalCost)} added to Project Expenses.`);
+  };
+
+  const addSublimationExpense = () => {
+    if (sublimationTotalCost <= 0) { setMessage("Enter valid print sizes, quantities, and a Sublimation cost per square inch first."); return; }
+    const activeRows = dtfRows.filter(row => row.width > 0 && row.height > 0 && row.quantity > 0);
+    const detail = activeRows.map(row => `${row.description || "Sublimation Print"} ${row.width}×${row.height} in × ${row.quantity}`).join("; ");
+    setCosts(rows => [...rows.filter(row => !(row.category === "Printing" && (row.description.startsWith("DTF Printing —") || row.description.startsWith("Sublimation Printing —")))), { id: Date.now(), category: "Printing", description: `Sublimation Printing — ${detail}`, amount: Number(sublimationTotalCost.toFixed(2)) }]);
+    setMessage(`Sublimation expense of ${money.format(sublimationTotalCost)} added to Project Expenses.`);
+  };
+  const handlePrintingMethodChange = (value: PrintingMethod) => {
+    setPrintingMethod(value);
+    removePrintingExpenses();
+    setMessage(value === "No Printing" ? "Printing costs are disabled for this project." : `Printing method changed to ${value}. Previous printing expense was removed to prevent duplicate costs.`);
   };
 
   const updateCost = (id: number, key: keyof CostRow, value: string | number) => {
@@ -251,16 +275,26 @@ export default function ProjectCostingPage() {
               </div>}
             </div>
 
-            <div className="dtf-costing-box">
+            <div className="printing-method-box">
+              <div className="printing-method-head"><div><div className="dtf-kicker">PRINTING METHOD</div><h2>Choose how this project will be printed.</h2><p>Select one method. PrintWise will show only the correct calculator and prevent duplicate printing expenses.</p></div></div>
+              <label className="project-field printing-method-select">Printing Method<select value={printingMethod} onChange={e=>handlePrintingMethodChange(e.target.value as PrintingMethod)}><option value="">Select Printing Method</option><option value="DTF Printing">DTF Printing</option><option value="Sublimation">Sublimation</option><option value="No Printing">No Printing</option></select></label>
+            </div>
+
+            {printingMethod === "DTF Printing" && <div className="dtf-costing-box">
               <div className="dtf-heading"><div><div className="dtf-kicker">DTF PRINTING CALCULATOR</div><h2>Mixed Print Sizes? Calculate each one separately.</h2><p>Add every print location or design size. Each row can have its own width, height, and quantity.</p></div><button type="button" className="add-expense-btn" onClick={addDtfRow}><Plus size={17}/> ADD PRINT SIZE</button></div>
-              <div className="dtf-settings">
-                <label className="project-field">DTF Cost per sq. in. (₱)<input type="number" min="0" step="0.01" value={dtfCostPerSqIn} onChange={e=>setDtfCostPerSqIn(Math.max(0,Number(e.target.value)||0))}/></label>
-                <label className="project-field">Wastage Allowance (%)<input type="number" min="0" max="100" step="1" value={dtfWastage} onChange={e=>setDtfWastage(Math.min(100,Math.max(0,Number(e.target.value)||0)))} /></label>
-                <div className="dtf-total-preview"><span>Live DTF Expense</span><strong>{money.format(dtfTotalCost)}</strong><small>{dtfBaseArea.toLocaleString()} sq. in. total area</small></div>
-              </div>
+              <div className="dtf-settings"><label className="project-field">DTF Cost per sq. in. (₱)<input type="number" min="0" step="0.01" value={dtfCostPerSqIn} onChange={e=>setDtfCostPerSqIn(Math.max(0,Number(e.target.value)||0))}/></label><label className="project-field">Wastage Allowance (%)<input type="number" min="0" max="100" step="1" value={dtfWastage} onChange={e=>setDtfWastage(Math.min(100,Math.max(0,Number(e.target.value)||0)))} /></label><div className="dtf-total-preview"><span>Live DTF Expense</span><strong>{money.format(dtfTotalCost)}</strong><small>{dtfBaseArea.toLocaleString()} sq. in. total area</small></div></div>
               <div className="dtf-table-wrap"><table className="dtf-table"><thead><tr><th>PRINT DESCRIPTION</th><th>WIDTH (IN)</th><th>HEIGHT (IN)</th><th>QTY</th><th>TOTAL AREA</th><th>DTF COST</th><th></th></tr></thead><tbody>{dtfRows.map(row => { const area=(row.width||0)*(row.height||0)*(row.quantity||0); const cost=area*dtfCostPerSqIn; return <tr key={row.id}><td><input value={row.description} onChange={e=>updateDtfRow(row.id,"description",e.target.value)} placeholder="e.g. Left Chest Logo"/></td><td><input type="number" min="0" step="0.1" value={row.width} onChange={e=>updateDtfRow(row.id,"width",e.target.value)}/></td><td><input type="number" min="0" step="0.1" value={row.height} onChange={e=>updateDtfRow(row.id,"height",e.target.value)}/></td><td><input type="number" min="0" step="1" value={row.quantity} onChange={e=>updateDtfRow(row.id,"quantity",e.target.value)}/></td><td><b>{area.toLocaleString()} sq. in.</b></td><td><b>{money.format(cost)}</b></td><td><button className="delete-expense" type="button" title="Remove print size" onClick={()=>removeDtfRow(row.id)}><Trash2 size={17}/></button></td></tr>})}</tbody></table></div>
               <div className="dtf-summary"><span>Base DTF Cost: <b>{money.format(dtfBaseCost)}</b></span><span>Wastage: <b>{money.format(dtfWastageAmount)}</b></span><span className="dtf-grand">Final DTF Expense: <b>{money.format(dtfTotalCost)}</b></span><button type="button" className="apply-suggested-btn" onClick={addDtfExpense}>ADD DTF EXPENSE TO PROJECT</button></div>
-            </div>
+            </div>}
+
+            {printingMethod === "Sublimation" && <div className="dtf-costing-box sublimation-box">
+              <div className="dtf-heading"><div><div className="dtf-kicker">SUBLIMATION CALCULATOR</div><h2>Calculate mixed sublimation print sizes automatically.</h2><p>Use the same print-size rows, but apply your Sublimation cost rate and wastage allowance.</p></div><button type="button" className="add-expense-btn" onClick={addDtfRow}><Plus size={17}/> ADD PRINT SIZE</button></div>
+              <div className="dtf-settings"><label className="project-field">Sublimation Cost per sq. in. (₱)<input type="number" min="0" step="0.01" value={sublimationCostPerSqIn} onChange={e=>setSublimationCostPerSqIn(Math.max(0,Number(e.target.value)||0))}/></label><label className="project-field">Wastage Allowance (%)<input type="number" min="0" max="100" step="1" value={sublimationWastage} onChange={e=>setSublimationWastage(Math.min(100,Math.max(0,Number(e.target.value)||0)))} /></label><div className="dtf-total-preview"><span>Live Sublimation Expense</span><strong>{money.format(sublimationTotalCost)}</strong><small>{dtfBaseArea.toLocaleString()} sq. in. total area</small></div></div>
+              <div className="dtf-table-wrap"><table className="dtf-table"><thead><tr><th>PRINT DESCRIPTION</th><th>WIDTH (IN)</th><th>HEIGHT (IN)</th><th>QTY</th><th>TOTAL AREA</th><th>SUBLIMATION COST</th><th></th></tr></thead><tbody>{dtfRows.map(row => { const area=(row.width||0)*(row.height||0)*(row.quantity||0); const cost=area*sublimationCostPerSqIn; return <tr key={row.id}><td><input value={row.description} onChange={e=>updateDtfRow(row.id,"description",e.target.value)} placeholder="e.g. Front Design"/></td><td><input type="number" min="0" step="0.1" value={row.width} onChange={e=>updateDtfRow(row.id,"width",e.target.value)}/></td><td><input type="number" min="0" step="0.1" value={row.height} onChange={e=>updateDtfRow(row.id,"height",e.target.value)}/></td><td><input type="number" min="0" step="1" value={row.quantity} onChange={e=>updateDtfRow(row.id,"quantity",e.target.value)}/></td><td><b>{area.toLocaleString()} sq. in.</b></td><td><b>{money.format(cost)}</b></td><td><button className="delete-expense" type="button" title="Remove print size" onClick={()=>removeDtfRow(row.id)}><Trash2 size={17}/></button></td></tr>})}</tbody></table></div>
+              <div className="dtf-summary"><span>Base Sublimation Cost: <b>{money.format(sublimationBaseCost)}</b></span><span>Wastage: <b>{money.format(sublimationWastageAmount)}</b></span><span className="dtf-grand">Final Sublimation Expense: <b>{money.format(sublimationTotalCost)}</b></span><button type="button" className="apply-suggested-btn" onClick={addSublimationExpense}>ADD SUBLIMATION EXPENSE TO PROJECT</button></div>
+            </div>}
+
+            {printingMethod === "No Printing" && <div className="printing-none-state">No printing cost will be included. You can continue adding Inventory and other Project Expenses.</div>}
 
             <div className="expense-title-row">
               <div>
