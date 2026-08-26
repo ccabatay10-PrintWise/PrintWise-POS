@@ -7,6 +7,7 @@ import "./project-costing.css";
 
 type CostRow = { id: number; category: string; description: string; amount: number; inventoryId?: string; quantityUsed?: number; unitCost?: number };
 type InventoryItem = { id:string; name:string; category:string; unit:string; quantity:number; unit_cost:number; is_active:boolean };
+type DtfRow = { id:number; description:string; width:number; height:number; quantity:number };
 const DRAFT_KEY = "printwise_project_costing_draft_v1";
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
@@ -23,6 +24,9 @@ export default function ProjectCostingPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedInventoryId, setSelectedInventoryId] = useState("");
   const [inventoryQty, setInventoryQty] = useState(1);
+  const [dtfCostPerSqIn, setDtfCostPerSqIn] = useState(0);
+  const [dtfWastage, setDtfWastage] = useState(0);
+  const [dtfRows, setDtfRows] = useState<DtfRow[]>([{ id: Date.now(), description: "Left Chest Logo", width: 4, height: 4, quantity: 1 }]);
 
   useEffect(() => {
     const loadInventory = async () => {
@@ -54,6 +58,9 @@ export default function ProjectCostingPage() {
         if (Array.isArray(saved.costs) && saved.costs.length) setCosts(saved.costs);
         setSelectedInventoryId(saved.selectedInventoryId ?? "");
         setInventoryQty(Math.max(1, Number(saved.inventoryQty ?? 1)));
+        setDtfCostPerSqIn(Math.max(0, Number(saved.dtfCostPerSqIn ?? 0)));
+        setDtfWastage(Math.max(0, Number(saved.dtfWastage ?? 0)));
+        if (Array.isArray(saved.dtfRows) && saved.dtfRows.length) setDtfRows(saved.dtfRows);
         setMessage("Unsaved draft restored automatically.");
         return;
       } catch {
@@ -81,14 +88,14 @@ export default function ProjectCostingPage() {
   }, []);
 
   useEffect(() => {
-    const draft = { projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty };
+    const draft = { projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty, dtfCostPerSqIn, dtfWastage, dtfRows };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty]);
+  }, [projectName, client, quantity, sellingPrice, targetMargin, orderNo, orderId, costs, selectedInventoryId, inventoryQty, dtfCostPerSqIn, dtfWastage, dtfRows]);
 
   const discardDraft = () => {
     localStorage.removeItem(DRAFT_KEY);
     setProjectName(""); setClient(""); setQuantity(1); setSellingPrice(0); setTargetMargin(25);
-    setOrderNo(""); setOrderId(""); setSelectedInventoryId(""); setInventoryQty(1);
+    setOrderNo(""); setOrderId(""); setSelectedInventoryId(""); setInventoryQty(1); setDtfCostPerSqIn(0); setDtfWastage(0); setDtfRows([{ id: Date.now(), description: "Left Chest Logo", width: 4, height: 4, quantity: 1 }]);
     setCosts([{ id: Date.now(), category: "Materials", description: "Item / materials", amount: 0 }]);
     setMessage("Draft cleared. You can start a new project costing.");
   };
@@ -113,6 +120,23 @@ export default function ProjectCostingPage() {
   const selectedInventoryAmount = selectedInventoryItem
     ? Number(selectedInventoryItem.unit_cost || 0) * Math.max(1, Number(inventoryQty) || 1)
     : 0;
+
+  const dtfBaseArea = useMemo(() => dtfRows.reduce((sum, row) => sum + (Math.max(0, Number(row.width)||0) * Math.max(0, Number(row.height)||0) * Math.max(0, Number(row.quantity)||0)), 0), [dtfRows]);
+  const dtfBaseCost = dtfBaseArea * Math.max(0, Number(dtfCostPerSqIn)||0);
+  const dtfWastageAmount = dtfBaseCost * Math.max(0, Number(dtfWastage)||0) / 100;
+  const dtfTotalCost = dtfBaseCost + dtfWastageAmount;
+  const updateDtfRow = (id:number, key:keyof DtfRow, value:string|number) => {
+    setDtfRows(rows => rows.map(row => row.id === id ? { ...row, [key]: key === "description" ? String(value) : Math.max(0, Number(value)||0) } : row));
+  };
+  const addDtfRow = () => setDtfRows(rows => [...rows, { id: Date.now(), description: "", width: 0, height: 0, quantity: 1 }]);
+  const removeDtfRow = (id:number) => setDtfRows(rows => rows.length > 1 ? rows.filter(row => row.id !== id) : rows);
+  const addDtfExpense = () => {
+    if (dtfTotalCost <= 0) { setMessage("Enter valid DTF sizes, quantities, and a cost per square inch first."); return; }
+    const activeRows = dtfRows.filter(row => row.width > 0 && row.height > 0 && row.quantity > 0);
+    const detail = activeRows.map(row => `${row.description || "DTF Print"} ${row.width}×${row.height} in × ${row.quantity}`).join("; ");
+    setCosts(rows => [...rows, { id: Date.now(), category: "Printing", description: `DTF Printing — ${detail}`, amount: Number(dtfTotalCost.toFixed(2)) }]);
+    setMessage(`DTF expense of ${money.format(dtfTotalCost)} added to Project Expenses.`);
+  };
 
   const updateCost = (id: number, key: keyof CostRow, value: string | number) => {
     setCosts((rows) => rows.map((row) => row.id === id ? { ...row, [key]: key === "amount" ? Number(value) || 0 : value } : row));
@@ -226,6 +250,18 @@ export default function ProjectCostingPage() {
                 <button className="add-expense-btn" style={{padding:"9px 13px"}} type="button" onClick={addInventoryExpense}>ADD FROM INVENTORY</button>
               </div>}
             </div>
+
+            <div className="dtf-costing-box">
+              <div className="dtf-heading"><div><div className="dtf-kicker">DTF PRINTING CALCULATOR</div><h2>Mixed Print Sizes? Calculate each one separately.</h2><p>Add every print location or design size. Each row can have its own width, height, and quantity.</p></div><button type="button" className="add-expense-btn" onClick={addDtfRow}><Plus size={17}/> ADD PRINT SIZE</button></div>
+              <div className="dtf-settings">
+                <label className="project-field">DTF Cost per sq. in. (₱)<input type="number" min="0" step="0.01" value={dtfCostPerSqIn} onChange={e=>setDtfCostPerSqIn(Math.max(0,Number(e.target.value)||0))}/></label>
+                <label className="project-field">Wastage Allowance (%)<input type="number" min="0" max="100" step="1" value={dtfWastage} onChange={e=>setDtfWastage(Math.min(100,Math.max(0,Number(e.target.value)||0)))} /></label>
+                <div className="dtf-total-preview"><span>Live DTF Expense</span><strong>{money.format(dtfTotalCost)}</strong><small>{dtfBaseArea.toLocaleString()} sq. in. total area</small></div>
+              </div>
+              <div className="dtf-table-wrap"><table className="dtf-table"><thead><tr><th>PRINT DESCRIPTION</th><th>WIDTH (IN)</th><th>HEIGHT (IN)</th><th>QTY</th><th>TOTAL AREA</th><th>DTF COST</th><th></th></tr></thead><tbody>{dtfRows.map(row => { const area=(row.width||0)*(row.height||0)*(row.quantity||0); const cost=area*dtfCostPerSqIn; return <tr key={row.id}><td><input value={row.description} onChange={e=>updateDtfRow(row.id,"description",e.target.value)} placeholder="e.g. Left Chest Logo"/></td><td><input type="number" min="0" step="0.1" value={row.width} onChange={e=>updateDtfRow(row.id,"width",e.target.value)}/></td><td><input type="number" min="0" step="0.1" value={row.height} onChange={e=>updateDtfRow(row.id,"height",e.target.value)}/></td><td><input type="number" min="0" step="1" value={row.quantity} onChange={e=>updateDtfRow(row.id,"quantity",e.target.value)}/></td><td><b>{area.toLocaleString()} sq. in.</b></td><td><b>{money.format(cost)}</b></td><td><button className="delete-expense" type="button" title="Remove print size" onClick={()=>removeDtfRow(row.id)}><Trash2 size={17}/></button></td></tr>})}</tbody></table></div>
+              <div className="dtf-summary"><span>Base DTF Cost: <b>{money.format(dtfBaseCost)}</b></span><span>Wastage: <b>{money.format(dtfWastageAmount)}</b></span><span className="dtf-grand">Final DTF Expense: <b>{money.format(dtfTotalCost)}</b></span><button type="button" className="apply-suggested-btn" onClick={addDtfExpense}>ADD DTF EXPENSE TO PROJECT</button></div>
+            </div>
+
             <div className="expense-title-row">
               <div>
                 <h2><ReceiptText size={20} /> Project Expenses</h2>
