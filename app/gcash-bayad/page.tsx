@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
-import Sidebar from "../components/Sidebar";
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
@@ -21,6 +20,7 @@ import Sidebar from "../components/Sidebar";
   Wallet,
   X,
 } from "lucide-react";
+import Sidebar from "../components/Sidebar";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
 
