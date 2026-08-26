@@ -5,7 +5,8 @@ import { Calculator, ArrowLeft, Plus, Trash2, Save, WalletCards, ReceiptText, Br
 import "../pos/pos.css";
 import "./project-costing.css";
 
-type CostRow = { id: number; category: string; description: string; amount: number };
+type CostRow = { id: number; category: string; description: string; amount: number; inventoryId?: string; quantityUsed?: number; unitCost?: number };
+type InventoryItem = { id:string; name:string; category:string; unit:string; quantity:number; unit_cost:number; is_active:boolean };
 const DRAFT_KEY = "printwise_project_costing_draft_v1";
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
@@ -18,6 +19,23 @@ export default function ProjectCostingPage() {
   const [orderId, setOrderId] = useState("");
   const [costs, setCosts] = useState<CostRow[]>([{ id: 1, category: "Materials", description: "Item / materials", amount: 0 }]);
   const [message, setMessage] = useState("");
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [selectedInventoryId, setSelectedInventoryId] = useState("");
+  const [inventoryQty, setInventoryQty] = useState(1);
+
+  useEffect(() => {
+    const loadInventory = async () => {
+      try {
+        const { data, error } = await (await import("../../lib/supabase")).supabase
+          .from("inventory_items").select("*").eq("is_active", true).order("category").order("name");
+        if (error) throw error;
+        setInventory((data ?? []).map((item:any) => ({ ...item, quantity:Number(item.quantity||0), unit_cost:Number(item.unit_cost||0) })));
+      } catch {
+        setMessage("Inventory could not be loaded. Please check your inventory setup.");
+      }
+    };
+    loadInventory();
+  }, []);
 
   useEffect(() => {
     // Restore an unsaved draft first so switching tabs, reloading, or revisiting this page never loses work.
@@ -32,6 +50,8 @@ export default function ProjectCostingPage() {
         setOrderNo(saved.orderNo ?? "");
         setOrderId(saved.orderId ?? "");
         if (Array.isArray(saved.costs) && saved.costs.length) setCosts(saved.costs);
+        setSelectedInventoryId(saved.selectedInventoryId ?? "");
+        setInventoryQty(Math.max(1, Number(saved.inventoryQty ?? 1)));
         setMessage("Unsaved draft restored automatically.");
         return;
       } catch {
@@ -59,14 +79,14 @@ export default function ProjectCostingPage() {
   }, []);
 
   useEffect(() => {
-    const draft = { projectName, client, quantity, sellingPrice, orderNo, orderId, costs };
+    const draft = { projectName, client, quantity, sellingPrice, orderNo, orderId, costs, selectedInventoryId, inventoryQty };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [projectName, client, quantity, sellingPrice, orderNo, orderId, costs]);
+  }, [projectName, client, quantity, sellingPrice, orderNo, orderId, costs, selectedInventoryId, inventoryQty]);
 
   const discardDraft = () => {
     localStorage.removeItem(DRAFT_KEY);
     setProjectName(""); setClient(""); setQuantity(1); setSellingPrice(0);
-    setOrderNo(""); setOrderId("");
+    setOrderNo(""); setOrderId(""); setSelectedInventoryId(""); setInventoryQty(1);
     setCosts([{ id: Date.now(), category: "Materials", description: "Item / materials", amount: 0 }]);
     setMessage("Draft cleared. You can start a new project costing.");
   };
@@ -77,6 +97,10 @@ export default function ProjectCostingPage() {
   const costPerItem = quantity > 0 ? totalExpenses / quantity : 0;
   const profitPerItem = quantity > 0 ? netProfit / quantity : 0;
   const isLoss = netProfit < 0;
+  const selectedInventoryItem = inventory.find((item) => item.id === selectedInventoryId);
+  const selectedInventoryAmount = selectedInventoryItem
+    ? Number(selectedInventoryItem.unit_cost || 0) * Math.max(1, Number(inventoryQty) || 1)
+    : 0;
 
   const updateCost = (id: number, key: keyof CostRow, value: string | number) => {
     setCosts((rows) => rows.map((row) => row.id === id ? { ...row, [key]: key === "amount" ? Number(value) || 0 : value } : row));
@@ -84,6 +108,17 @@ export default function ProjectCostingPage() {
 
   const addCost = () => {
     setCosts((rows) => [...rows, { id: Date.now(), category: "Other", description: "", amount: 0 }]);
+  };
+
+  const addInventoryExpense = () => {
+    const item = inventory.find((x) => x.id === selectedInventoryId);
+    if (!item) { setMessage("Please select an inventory item first."); return; }
+    const qty = Math.max(1, Number(inventoryQty) || 1);
+    if (item.quantity < qty) { setMessage(`Warning: only ${item.quantity} ${item.unit} of ${item.name} is currently in stock.`); }
+    const amount = Number(item.unit_cost || 0) * qty;
+    setCosts((rows) => [...rows, { id: Date.now(), category: "Materials", description: `${item.name} — ${qty} ${item.unit} × ₱${Number(item.unit_cost||0).toFixed(2)}`, amount, inventoryId:item.id, quantityUsed:qty, unitCost:Number(item.unit_cost||0) }]);
+    setSelectedInventoryId(""); setInventoryQty(1);
+    setMessage(`${item.name} was added using its current inventory unit cost.`);
   };
 
   const removeCost = (id: number) => {
@@ -119,6 +154,7 @@ export default function ProjectCostingPage() {
       <a className="nav-item" href="/dashboard"><ArrowLeft size={19} /><span>Dashboard</span></a>
       <a className="nav-item" href="/pos"><WalletCards size={19} /><span>Point of Sale</span></a>
       <a className="nav-item" href="/orders"><ReceiptText size={19} /><span>Orders</span></a>
+      <a className="nav-item" href="/inventory"><Package size={19} /><span>Inventory</span></a>
       <a className="nav-item active" href="/project-costing"><Calculator size={19} /><span>Project Costing</span></a>
     </aside>
 
@@ -145,6 +181,22 @@ export default function ProjectCostingPage() {
           </div>
 
           <div className="expense-section">
+            <div className="inventory-costing-box" style={{marginBottom:18,padding:18,border:"1px solid #e5e7eb",borderRadius:16,background:"#f8fafc"}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:12}}><div><h2 style={{margin:0,fontSize:18}}>Use Inventory Supply</h2><p className="expense-help" style={{margin:"4px 0 0"}}>Select a supply and PrintWise will automatically use its saved cost per unit.</p></div></div>
+              <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 130px 170px",gap:10,alignItems:"end"}}>
+                <label className="project-field">Inventory Item<select value={selectedInventoryId} onChange={e=>setSelectedInventoryId(e.target.value)}><option value="">Select a supply...</option>{inventory.map(item=><option key={item.id} value={item.id}>{item.name} — ₱{Number(item.unit_cost||0).toFixed(2)}/{item.unit} (Stock: {item.quantity})</option>)}</select></label>
+                <label className="project-field">Qty Used<input type="number" min="1" value={inventoryQty} onChange={e=>setInventoryQty(Math.max(1,Number(e.target.value)||1))}/></label>
+                <div style={{padding:"11px 13px",border:"1px solid #d8dee8",borderRadius:10,background:"#fff",minHeight:46,boxSizing:"border-box"}}>
+                  <div style={{fontSize:11,fontWeight:800,color:"#667085",textTransform:"uppercase",letterSpacing:".06em"}}>Auto Expense</div>
+                  <div style={{fontWeight:800,fontSize:18,color:"#1f2937",marginTop:2}}>{money.format(selectedInventoryAmount)}</div>
+                </div>
+              </div>
+              {selectedInventoryItem && <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",marginTop:10,padding:"10px 12px",borderRadius:10,background:"#fff",border:"1px solid #e5e7eb",fontSize:13,color:"#667085",flexWrap:"wrap"}}>
+                <span><b style={{color:"#344054"}}>Unit Cost:</b> {money.format(Number(selectedInventoryItem.unit_cost||0))} / {selectedInventoryItem.unit}</span>
+                <span><b style={{color:"#344054"}}>Available Stock:</b> {selectedInventoryItem.quantity} {selectedInventoryItem.unit}</span>
+                <button className="add-expense-btn" style={{padding:"9px 13px"}} type="button" onClick={addInventoryExpense}>ADD FROM INVENTORY</button>
+              </div>}
+            </div>
             <div className="expense-title-row">
               <div>
                 <h2><ReceiptText size={20} /> Project Expenses</h2>
