@@ -119,6 +119,8 @@ export default function ProjectCostingPage() {
   const suggestedProfit = suggestedTotalPrice - totalExpenses;
   const costPerItem = quantity > 0 ? totalExpenses / quantity : 0;
   const profitPerItem = quantity > 0 ? suggestedProfit / quantity : 0;
+  // Explicit total-profit value: profit per item multiplied by the project quantity.
+  const expectedTotalProfit = profitPerItem * Math.max(1, quantity);
   const profitMargin = suggestedTotalPrice > 0 ? (suggestedProfit / suggestedTotalPrice) * 100 : 0;
   const selectedInventoryItem = inventory.find((item) => item.id === selectedInventoryId);
   const selectedInventoryAmount = selectedInventoryItem
@@ -269,7 +271,7 @@ export default function ProjectCostingPage() {
               <label className="target-margin-field">Custom Target Margin<input type="number" min="1" max="90" step="1" value={targetMargin} onChange={e=>setTargetMargin(Math.min(90,Math.max(1,Number(e.target.value)||25)))} /><span>%</span></label>
               <div className="suggested-price-stat"><span>Suggested Price / Item</span><strong>{money.format(suggestedPricePerItem)}</strong></div>
               <div className="suggested-price-stat featured"><span>Suggested Total Selling Price</span><strong>{money.format(suggestedTotalPrice)}</strong></div>
-              <div className="suggested-price-stat"><span>Expected Profit</span><strong>{money.format(suggestedProfit)}</strong></div>
+              <div className="suggested-price-stat profit-stat"><span>Expected Total Profit</span><strong>{money.format(expectedTotalProfit)}</strong><small>{money.format(profitPerItem)} × {quantity} pc{quantity===1?"":"s"}</small></div>
             </div>
             {totalExpenses<=0 && <div className="smart-price-empty">Add at least one project expense to unlock an accurate selling price suggestion.</div>}
           </div>
@@ -315,10 +317,16 @@ export default function ProjectCostingPage() {
 
             <div className="expense-title-row">
               <div>
+                <div className="section-kicker">LIVE COST BREAKDOWN</div>
                 <h2><ReceiptText size={20} /> Project Expenses</h2>
-                <p className="expense-help">Add the actual costs for materials, labor, printing, delivery, and other project expenses.</p>
+                <p className="expense-help">Add the actual costs for materials, labor, printing, delivery, and other project expenses. Your pricing recommendation updates automatically.</p>
               </div>
-              <button className="add-expense-btn" onClick={addCost}><Plus size={17} /> ADD EXPENSE</button>
+              <button className="add-expense-btn expense-add-primary" onClick={addCost}><Plus size={17} /> ADD EXPENSE</button>
+            </div>
+            <div className="expense-insights">
+              <div className="expense-insight"><span>Expense Entries</span><strong>{costs.filter(row => Number(row.amount) > 0).length}</strong><small>active cost items</small></div>
+              <div className="expense-insight total"><span>Total Project Expenses</span><strong>{money.format(totalExpenses)}</strong><small>live production cost</small></div>
+              <div className="expense-insight"><span>Cost Per Item</span><strong>{money.format(costPerItem)}</strong><small>based on {quantity} pc{quantity===1?"":"s"}</small></div>
             </div>
             <div className="expense-table-wrap">
               <table className="expense-table">
@@ -346,10 +354,15 @@ export default function ProjectCostingPage() {
         <aside className="costing-card profit-card">
           <div className="profit-card-head"><h2>Pricing &amp; Profit Summary</h2><p>Automatic recommendation based on your real project costs.</p></div>
           <div className="profit-hero"><span>Recommended Project Price</span><strong>{money.format(suggestedTotalPrice)}</strong><small>{totalExpenses > 0 ? `Based on your ${targetMargin.toFixed(0)}% target profit margin.` : "Add project expenses to generate a recommended selling price."}</small></div>
+          <div className="profit-quantity-strip"><span>Project Quantity</span><b>{quantity} pc{quantity===1?"":"s"}</b><small>All totals below are calculated for the full project.</small></div>
+          <div className="total-profit-card">
+            <div><span>Expected Total Profit</span><strong>{money.format(expectedTotalProfit)}</strong></div>
+            <p>{money.format(profitPerItem)} profit per item × {quantity} pc{quantity===1?"":"s"}</p>
+          </div>
           <div className="profit-rows">
             <div className="profit-row highlight"><span>Suggested Total Price</span><b>{money.format(suggestedTotalPrice)}</b></div>
             <div className="profit-row"><span>Total Expenses</span><b>{money.format(totalExpenses)}</b></div>
-            <div className="profit-row highlight"><span>Expected Profit</span><b>{money.format(suggestedProfit)}</b></div>
+            <div className="profit-row total-profit-row"><span>Expected Total Profit</span><b>{money.format(expectedTotalProfit)}</b></div>
             <div className="profit-row"><span>Target Profit Margin</span><b className="margin-pill">{profitMargin.toFixed(2)}%</b></div>
             <div className="profit-row"><span>Cost Per Item</span><b>{money.format(costPerItem)}</b></div>
             <div className="profit-row highlight"><span>Suggested Price / Item</span><b>{money.format(suggestedPricePerItem)}</b></div>
@@ -378,7 +391,8 @@ export default function ProjectCostingPage() {
             <div className="receipt-section-title emphasis">RECOMMENDED PRICING</div>
             <div className="receipt-row simple"><span>Suggested Price / Item</span><b>{money.format(suggestedPricePerItem)}</b></div>
             <div className="receipt-total"><span>RECOMMENDED TOTAL PRICE</span><b>{money.format(suggestedTotalPrice)}</b></div>
-            <div className="receipt-row simple"><span>Estimated Profit</span><b>{money.format(suggestedProfit)}</b></div>
+            <div className="receipt-row simple"><span>Expected Profit / Item</span><b>{money.format(profitPerItem)}</b></div>
+            <div className="receipt-total"><span>EXPECTED TOTAL PROFIT</span><b>{money.format(expectedTotalProfit)}</b></div>
             <div className="receipt-row simple"><span>Profit Margin</span><b>{profitMargin.toFixed(2)}%</b></div>
             <div className="receipt-line"/><div className="receipt-footer">Thank you for using PrintWise<br/><small>Smart Printing & Business Management</small></div>
           </div>

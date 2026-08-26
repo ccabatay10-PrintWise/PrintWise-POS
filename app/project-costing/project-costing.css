@@ -65,3 +65,38 @@
 .receipt-modal-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}.receipt-modal-head h2{margin:0;font-size:20px}.receipt-modal-head p{margin:4px 0 0;color:#64748b;font-size:13px}.receipt-close{border:0;background:#f1f5f9;border-radius:10px;width:38px;height:38px;display:grid;place-items:center;cursor:pointer}
 .project-receipt{width:80mm;max-width:100%;margin:auto;background:#fff;color:#000;padding:5mm 4mm;font-family:"Courier New",monospace;font-size:11px;line-height:1.35}.receipt-brand{text-align:center;font-size:21px;font-weight:900;letter-spacing:1px}.receipt-subtitle{text-align:center;font-size:9px;font-weight:700;margin-top:2px}.receipt-line{border-top:1px dashed #000;margin:9px 0}.receipt-meta div{display:flex;justify-content:space-between;gap:12px;margin:3px 0}.receipt-meta span{color:#555;font-size:9px}.receipt-meta b{text-align:right;max-width:60%;word-break:break-word}.receipt-section-title{text-align:center;font-weight:900;margin:10px 0 6px;padding:4px 0;border-top:1px solid #000;border-bottom:1px solid #000}.receipt-section-title.emphasis{background:#eee}.receipt-row{display:flex;justify-content:space-between;gap:10px;padding:4px 0}.receipt-row>div{min-width:0}.receipt-row b{display:block;word-break:break-word}.receipt-row small{display:block;color:#555;font-size:9px}.receipt-row>span,.receipt-row>b{white-space:nowrap;text-align:right}.receipt-row.simple{padding:5px 0}.receipt-total{display:flex;justify-content:space-between;gap:12px;font-size:13px;font-weight:900;padding:6px 0}.receipt-empty{text-align:center;padding:10px 0;color:#555}.receipt-footer{text-align:center;margin-top:10px;font-weight:700}.receipt-footer small{font-weight:400}.receipt-modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}.receipt-modal-actions button{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;background:#e2e8f0}.receipt-modal-actions .receipt-print-action{display:inline-flex;align-items:center;gap:7px;background:#dc2626;color:#fff}
 @media print{body *{visibility:hidden!important}.project-receipt,.project-receipt *{visibility:visible!important}.project-receipt{position:absolute!important;left:0!important;top:0!important;width:80mm!important;max-width:80mm!important;margin:0!important;padding:4mm!important;font-size:10px!important}.receipt-brand{font-size:20px!important}.receipt-modal-backdrop,.receipt-modal{position:static!important;background:#fff!important;box-shadow:none!important;padding:0!important;width:auto!important;max-height:none!important;overflow:visible!important}.receipt-modal-head,.receipt-modal-actions{display:none!important}@page{size:80mm auto;margin:0}}
+
+
+/* ===== Enhanced Project Expenses & Total Profit UI ===== */
+.section-kicker{margin-bottom:7px;color:#ef2020;font-size:10px;font-weight:900;letter-spacing:.14em}
+.expense-title-row{gap:20px;align-items:flex-start}
+.expense-title-row .expense-help{max-width:680px;margin:7px 0 0;color:#687586;line-height:1.55}
+.expense-add-primary{min-height:48px;padding:0 18px;background:linear-gradient(135deg,#fff,#fff7f7);box-shadow:0 8px 18px rgba(239,32,32,.08);white-space:nowrap}
+.expense-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 16px}
+.expense-insight{position:relative;min-height:88px;padding:15px 16px;border:1px solid #e6eaf0;border-radius:14px;background:linear-gradient(145deg,#fbfcfe,#fff);box-shadow:0 6px 18px rgba(31,41,55,.025);overflow:hidden}
+.expense-insight:after{content:"";position:absolute;right:-18px;bottom:-28px;width:74px;height:74px;border-radius:50%;background:rgba(239,32,32,.035)}
+.expense-insight span{display:block;color:#778192;font-size:10px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}
+.expense-insight strong{display:block;margin-top:7px;color:#263142;font-size:20px;letter-spacing:-.02em}
+.expense-insight small{display:block;margin-top:3px;color:#8791a0;font-size:11px}
+.expense-insight.total{border-color:#f1d4d0;background:linear-gradient(135deg,#fff8f7,#fff)}
+.expense-insight.total strong{color:#df1d1d}
+.expense-table-wrap{background:#fff}
+.expense-table th:first-child,.expense-table td:first-child{padding-left:16px}
+.expense-table th:last-child,.expense-table td:last-child{padding-right:16px}
+.expense-table tbody tr:nth-child(even){background:#fcfdff}
+.expense-table input,.expense-table select{transition:border-color .18s,box-shadow .18s,background .18s}
+.expense-table input:focus,.expense-table select:focus{box-shadow:0 0 0 3px rgba(239,32,32,.08);background:#fff}
+.profit-quantity-strip{margin:0 18px 14px;padding:11px 13px;border-radius:13px;background:#f7f9fc;border:1px solid #e7ebf1;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center}
+.profit-quantity-strip span{font-size:11px;font-weight:900;color:#6b7584;text-transform:uppercase;letter-spacing:.06em}
+.profit-quantity-strip b{color:#273142;font-size:16px}
+.profit-quantity-strip small{grid-column:1/-1;color:#7d8795;font-size:11px}
+.total-profit-card{margin:0 18px 16px;padding:17px 18px;border-radius:17px;border:1px solid #bfe7cf;background:linear-gradient(135deg,#f3fff7,#fff);box-shadow:0 10px 24px rgba(20,148,75,.055)}
+.total-profit-card>div{display:flex;align-items:end;justify-content:space-between;gap:12px}
+.total-profit-card span{font-size:11px;font-weight:900;color:#32704a;text-transform:uppercase;letter-spacing:.07em}
+.total-profit-card strong{font-size:25px;color:#168244;letter-spacing:-.02em}
+.total-profit-card p{margin:7px 0 0;color:#5e7768;font-size:11px;font-weight:700}
+.profit-row.total-profit-row{margin:4px -4px;padding:13px 10px;border:1px solid #cfead9;border-radius:12px;background:#f6fff8}
+.profit-row.total-profit-row span{font-weight:900;color:#31724b}
+.profit-row.total-profit-row b{color:#168244;font-size:16px}
+.suggested-price-stat.profit-stat strong{color:#168244}.suggested-price-stat.profit-stat small{margin-top:4px;color:#788493;font-size:10px;font-weight:800}
+@media(max-width:760px){.expense-title-row{flex-direction:column}.expense-add-primary{width:100%;justify-content:center}.expense-insights{grid-template-columns:1fr}.profit-quantity-strip,.total-profit-card{margin-left:14px;margin-right:14px}.total-profit-card>div{align-items:flex-start;flex-direction:column;gap:5px}}
