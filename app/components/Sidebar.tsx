@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Calculator,
@@ -42,6 +43,76 @@ const quickActions = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [userName, setUserName] = useState("Loading...");
+  const [userRole, setUserRole] = useState("staff");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!mounted) return;
+
+      if (!user) {
+        setUserName("Guest User");
+        setUserRole("guest");
+        return;
+      }
+
+      const displayName =
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email?.split("@")[0] ||
+        "PrintWise User";
+
+      const role = String(
+        user.app_metadata?.role ||
+        user.user_metadata?.role ||
+        "staff"
+      ).toLowerCase();
+
+      setUserName(displayName);
+      setUserRole(role);
+    };
+
+    loadCurrentUser();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+
+      if (!user) {
+        setUserName("Guest User");
+        setUserRole("guest");
+        return;
+      }
+
+      setUserName(
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email?.split("@")[0] ||
+        "PrintWise User"
+      );
+      setUserRole(
+        String(
+          user.app_metadata?.role ||
+          user.user_metadata?.role ||
+          "staff"
+        ).toLowerCase()
+      );
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const roleLabel =
+    userRole === "admin" ? "Administrator" :
+    userRole === "staff" ? "Staff" :
+    userRole.charAt(0).toUpperCase() + userRole.slice(1);
+
+  const avatarLetter = userName.charAt(0).toUpperCase() || "P";
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -96,8 +167,8 @@ export default function Sidebar() {
 
       <div className="sidebar-footer">
         <a className="sidebar-user-card" href="/dashboard">
-          <span className="sidebar-avatar">C<i /></span>
-          <span className="sidebar-user-copy"><b>ccabatay10</b><small>Administrator</small></span>
+          <span className="sidebar-avatar">{avatarLetter}<i /></span>
+          <span className="sidebar-user-copy"><b>{userName}</b><small>{roleLabel}</small></span>
           <ChevronRight size={18} />
         </a>
         <button type="button" className="sidebar-logout" onClick={signOut}>
