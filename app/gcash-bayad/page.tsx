@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+import Sidebar from "../components/Sidebar";
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
@@ -256,11 +257,7 @@ export default function GCashBayadPage() {
 
   return (
     <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><Wallet size={21} /></div><span>PRINTWISE</span></div>
-        <div className="nav-label">MAIN MENU</div>
-        {nav.map(([Icon, label, href]) => <a key={label} href={href} className={`nav-item ${label === "GCash / Bayad" ? "active" : ""}`}><Icon size={19} /><span>{label}</span></a>)}
-      </aside>
+      <Sidebar />
 
       <section className="workspace gcash-workspace">
         <header className="topbar gcash-header">

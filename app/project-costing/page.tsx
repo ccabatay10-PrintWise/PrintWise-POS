@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Calculator, ArrowLeft, Plus, Trash2, Save, WalletCards, ReceiptText, BriefcaseBusiness, Package, CircleDollarSign, TrendingUp, Link2, Users, Printer, X } from "lucide-react";
 import "../pos/pos.css";
 import "./project-costing.css";
+import Sidebar from "../components/Sidebar";
 
 type CostRow = { id: number; category: string; description: string; amount: number; inventoryId?: string; quantityUsed?: number; unitCost?: number };
 type InventoryItem = { id:string; name:string; category:string; unit:string; quantity:number; unit_cost:number; is_active:boolean };
@@ -223,15 +224,7 @@ export default function ProjectCostingPage() {
   };
 
   return <main className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><Package size={21} /></div><span>PRINTWISE</span></div>
-      <div className="nav-label">MAIN MENU</div>
-      <a className="nav-item" href="/dashboard"><ArrowLeft size={19} /><span>Dashboard</span></a>
-      <a className="nav-item" href="/pos"><WalletCards size={19} /><span>Point of Sale</span></a>
-      <a className="nav-item" href="/orders"><ReceiptText size={19} /><span>Orders</span></a>
-      <a className="nav-item" href="/inventory"><Package size={19} /><span>Inventory</span></a>
-      <a className="nav-item active" href="/project-costing"><Calculator size={19} /><span>Project Costing</span></a>
-    </aside>
+    <Sidebar />
 
     <section className="workspace project-workspace">
       <header className="project-topbar">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Package, ReceiptText, Search, Users, UserRound } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
+import Sidebar from "../components/Sidebar";
 
 type Customer = {
   name: string;
@@ -89,17 +90,7 @@ export default function CustomersPage() {
 
   return (
     <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark"><Users size={21} /></div>
-          <span>PRINTWISE</span>
-        </div>
-        <div className="nav-label">MAIN MENU</div>
-        <a className="nav-item" href="/pos"><ArrowLeft size={19} /><span>Point of Sale</span></a>
-        <a className="nav-item" href="/orders"><ReceiptText size={19} /><span>Orders</span></a>
-        <a className="nav-item" href="/products"><Package size={19} /><span>Products & Services</span></a>
-        <a className="nav-item active" href="/customers"><Users size={19} /><span>Customers</span></a>
-      </aside>
+      <Sidebar />
 
       <section className="workspace">
         <header className="topbar">

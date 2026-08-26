@@ -5,6 +5,7 @@ import { Layers3, Package, Plus, Pencil, Power, Save, Search, X, ReceiptText, Sh
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
 import "./inventory.css";
+import Sidebar from "../components/Sidebar";
 
 type InventoryItem={id:string;name:string;category:string;unit:string;quantity:number;reorder_level:number;unit_cost:number;is_active:boolean};
 type Form={name:string;category:string;unit:string;quantity:string;reorder_level:string;unit_cost:string};
@@ -56,14 +57,7 @@ export default function InventoryPage(){
  const fieldStyle={width:"100%",height:46,border:"1px solid #d8dee8",borderRadius:10,padding:"0 13px",fontSize:15,outline:"none",background:"#fff",boxSizing:"border-box" as const};
  const labelStyle={display:"block",fontSize:14,fontWeight:700,color:"#344054",marginBottom:8};
  return <main className="app-shell inventory-page">
-  <aside className="sidebar">
-   <div className="brand"><div className="brand-mark"><Package size={21}/></div><span>PRINTWISE</span></div>
-   <div className="nav-label">MAIN MENU</div>
-   <a className="nav-item" href="/pos"><ShoppingCart size={19}/><span>Point of Sale</span></a>
-   <a className="nav-item" href="/orders"><ReceiptText size={19}/><span>Orders</span></a>
-   <a className="nav-item" href="/products"><Package size={19}/><span>Products & Services</span></a>
-   <a className="nav-item active" href="/inventory"><Layers3 size={19}/><span>Inventory</span></a>
-  </aside>
+  <Sidebar />
   <section className="workspace inventory-workspace">
    <header className="topbar inventory-topbar">
     <div><div className="inventory-kicker">INVENTORY MANAGEMENT</div><h1>Inventory</h1><p>Track PrintWise materials, supplies, and stock levels.</p></div>

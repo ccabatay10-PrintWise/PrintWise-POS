@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart3, CalendarDays, CheckCircle2, Download, FileText, Layers3, Package, ReceiptText, Search, ShoppingCart, TrendingUp, Users, Wallet, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
+import Sidebar from "../components/Sidebar";
 
 type Order = { id:string; order_no:string; customer_name:string|null; total:number; amount_paid:number; status:string; created_at:string };
 
@@ -67,11 +68,7 @@ export default function ReportsPage(){
   const formatDate=(date:string)=>new Date(date).toLocaleString("en-PH",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
 
   return <main className="app-shell reports-page">
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><BarChart3 size={21}/></div><span>PRINTWISE</span></div>
-      <div className="nav-label">MAIN MENU</div>
-      {nav.map(([Icon,label,href])=><a key={label} href={href} className={`nav-item ${label==="Reports"?"active":""}`}><Icon size={19}/><span>{label}</span></a>)}
-    </aside>
+    <Sidebar />
 
     <section className="workspace reports-workspace">
       <header className="reports-header">
