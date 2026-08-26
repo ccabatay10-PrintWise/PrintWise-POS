@@ -236,6 +236,14 @@ export default function ProjectCostingPage() {
         </div>
       </header>
 
+      <div className="project-workflow" aria-label="Project costing workflow">
+        <div className="workflow-step active"><span>1</span><div><b>Project Details</b><small>Set the job and quantity</small></div></div>
+        <div className="workflow-line" />
+        <div className="workflow-step"><span>2</span><div><b>Add Actual Costs</b><small>Inventory, printing and expenses</small></div></div>
+        <div className="workflow-line" />
+        <div className="workflow-step"><span>3</span><div><b>Get Your Price</b><small>PrintWise suggests your selling price</small></div></div>
+      </div>
+
       <div className="project-content">
         <section className="costing-card">
           <div className="section-heading"><div><h2>Project Information</h2><p>Enter the project details and quantity. PrintWise will calculate the recommended selling price automatically.</p></div></div>
@@ -261,20 +269,20 @@ export default function ProjectCostingPage() {
           </div>
 
           <div className="expense-section">
-            <div className="inventory-costing-box" style={{marginBottom:18,padding:18,border:"1px solid #e5e7eb",borderRadius:16,background:"#f8fafc"}}>
-              <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:12}}><div><h2 style={{margin:0,fontSize:18}}>Use Inventory Supply</h2><p className="expense-help" style={{margin:"4px 0 0"}}>Select a supply and PrintWise will automatically use its saved cost per unit.</p></div></div>
-              <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 130px 170px",gap:10,alignItems:"end"}}>
+            <div className="inventory-costing-box">
+              <div className="inventory-costing-head"><div><div className="inventory-kicker">INVENTORY LINKED COSTING</div><h2>Use Inventory Supply</h2><p className="expense-help">Select a supply and PrintWise will automatically use its saved cost per unit.</p></div></div>
+              <div className="inventory-costing-grid">
                 <label className="project-field">Inventory Item<select value={selectedInventoryId} onChange={e=>setSelectedInventoryId(e.target.value)}><option value="">Select a supply...</option>{inventory.map(item=><option key={item.id} value={item.id}>{item.name} — ₱{Number(item.unit_cost||0).toFixed(2)}/{item.unit} (Stock: {item.quantity})</option>)}</select></label>
                 <label className="project-field">Qty Used<input type="number" min="1" value={inventoryQty} onChange={e=>setInventoryQty(Math.max(1,Number(e.target.value)||1))}/></label>
-                <div style={{padding:"11px 13px",border:"1px solid #d8dee8",borderRadius:10,background:"#fff",minHeight:46,boxSizing:"border-box"}}>
-                  <div style={{fontSize:11,fontWeight:800,color:"#667085",textTransform:"uppercase",letterSpacing:".06em"}}>Auto Expense</div>
-                  <div style={{fontWeight:800,fontSize:18,color:"#1f2937",marginTop:2}}>{money.format(selectedInventoryAmount)}</div>
+                <div className="inventory-auto-expense">
+                  <div>Auto Expense</div>
+                  <strong>{money.format(selectedInventoryAmount)}</strong>
                 </div>
               </div>
-              {selectedInventoryItem && <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",marginTop:10,padding:"10px 12px",borderRadius:10,background:"#fff",border:"1px solid #e5e7eb",fontSize:13,color:"#667085",flexWrap:"wrap"}}>
-                <span><b style={{color:"#344054"}}>Unit Cost:</b> {money.format(Number(selectedInventoryItem.unit_cost||0))} / {selectedInventoryItem.unit}</span>
-                <span><b style={{color:"#344054"}}>Available Stock:</b> {selectedInventoryItem.quantity} {selectedInventoryItem.unit}</span>
-                <button className="add-expense-btn" style={{padding:"9px 13px"}} type="button" onClick={addInventoryExpense}>ADD FROM INVENTORY</button>
+              {selectedInventoryItem && <div className="inventory-selection-summary">
+                <span><b>Unit Cost:</b> {money.format(Number(selectedInventoryItem.unit_cost||0))} / {selectedInventoryItem.unit}</span>
+                <span><b>Available Stock:</b> {selectedInventoryItem.quantity} {selectedInventoryItem.unit}</span>
+                <button className="add-expense-btn inventory-add-btn" type="button" onClick={addInventoryExpense}>ADD FROM INVENTORY</button>
               </div>}
             </div>
 
@@ -322,7 +330,7 @@ export default function ProjectCostingPage() {
           </div>
 
           {message && <div className="costing-message">✓ {message}</div>}
-          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          <div className="project-actions">
             <button className="save-costing-btn" onClick={saveEstimate}><Save size={18} /> SAVE PROJECT COSTING</button>
             <button className="add-expense-btn" onClick={discardDraft} type="button">DISCARD / CLEAR DRAFT</button>
           </div>
