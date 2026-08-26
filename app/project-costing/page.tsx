@@ -112,6 +112,8 @@ export default function ProjectCostingPage() {
   };
 
   const totalExpenses = useMemo(() => costs.reduce((sum, row) => sum + (Number(row.amount) || 0), 0), [costs]);
+  // Cost-first calculation: compute all project expenses, then divide by project quantity.
+  const costPerItem = totalExpenses / Math.max(1, quantity);
   const profitPerItem = costPerItem * (targetMargin / 100);
   const suggestedPricePerItem = costPerItem + profitPerItem;
   const suggestedTotalPrice = suggestedPricePerItem * quantity;
