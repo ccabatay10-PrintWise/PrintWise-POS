@@ -158,7 +158,7 @@ export default function Sidebar() {
 
         <div className="sidebar-divider" />
         <div className="nav-label">SYSTEM</div>
-        <a className="nav-item" href="/dashboard#settings">
+        <a className="nav-item" href="/settings">
           <span className="nav-icon"><Settings size={19} /></span>
           <span>Settings</span>
           <ChevronRight className="nav-arrow" size={16} />
