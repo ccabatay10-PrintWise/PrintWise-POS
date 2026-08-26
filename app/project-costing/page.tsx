@@ -120,7 +120,7 @@ export default function ProjectCostingPage() {
   const costPerItem = quantity > 0 ? totalExpenses / quantity : 0;
   const profitPerItem = quantity > 0 ? suggestedProfit / quantity : 0;
   // Explicit total-profit value: profit per item multiplied by the project quantity.
-  const expectedTotalProfit = profitPerItem * Math.max(1, quantity);
+  const expectedTotalProfit = profitPerItem * quantity;
   const profitMargin = suggestedTotalPrice > 0 ? (suggestedProfit / suggestedTotalPrice) * 100 : 0;
   const selectedInventoryItem = inventory.find((item) => item.id === selectedInventoryId);
   const selectedInventoryAmount = selectedInventoryItem
@@ -208,7 +208,7 @@ export default function ProjectCostingPage() {
       orderNo,
       costs,
       totalExpenses,
-      netProfit: suggestedProfit,
+      netProfit: expectedTotalProfit,
       profitMargin,
       targetMargin,
       suggestedTotalPrice,
@@ -362,7 +362,6 @@ export default function ProjectCostingPage() {
           <div className="profit-rows">
             <div className="profit-row highlight"><span>Suggested Total Price</span><b>{money.format(suggestedTotalPrice)}</b></div>
             <div className="profit-row"><span>Total Expenses</span><b>{money.format(totalExpenses)}</b></div>
-            <div className="profit-row total-profit-row"><span>Expected Total Profit</span><b>{money.format(expectedTotalProfit)}</b></div>
             <div className="profit-row"><span>Target Profit Margin</span><b className="margin-pill">{profitMargin.toFixed(2)}%</b></div>
             <div className="profit-row"><span>Cost Per Item</span><b>{money.format(costPerItem)}</b></div>
             <div className="profit-row highlight"><span>Suggested Price / Item</span><b>{money.format(suggestedPricePerItem)}</b></div>
