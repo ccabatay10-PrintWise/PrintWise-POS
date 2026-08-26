@@ -6,6 +6,7 @@ import "../pos/pos.css";
 import "./project-costing.css";
 
 type CostRow = { id: number; category: string; description: string; amount: number };
+const DRAFT_KEY = "printwise_project_costing_draft_v1";
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
 export default function ProjectCostingPage() {
@@ -19,6 +20,25 @@ export default function ProjectCostingPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    // Restore an unsaved draft first so switching tabs, reloading, or revisiting this page never loses work.
+    const draft = localStorage.getItem(DRAFT_KEY);
+    if (draft) {
+      try {
+        const saved = JSON.parse(draft);
+        setProjectName(saved.projectName ?? "");
+        setClient(saved.client ?? "");
+        setQuantity(Math.max(1, Number(saved.quantity ?? 1)));
+        setSellingPrice(Number(saved.sellingPrice ?? 0));
+        setOrderNo(saved.orderNo ?? "");
+        setOrderId(saved.orderId ?? "");
+        if (Array.isArray(saved.costs) && saved.costs.length) setCosts(saved.costs);
+        setMessage("Unsaved draft restored automatically.");
+        return;
+      } catch {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    }
+
     const params = new URLSearchParams(window.location.search);
     const id = params.get("orderId") || "";
     if (!id) return;
@@ -37,6 +57,19 @@ export default function ProjectCostingPage() {
       setMessage("Unable to import the selected order.");
     }
   }, []);
+
+  useEffect(() => {
+    const draft = { projectName, client, quantity, sellingPrice, orderNo, orderId, costs };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  }, [projectName, client, quantity, sellingPrice, orderNo, orderId, costs]);
+
+  const discardDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setProjectName(""); setClient(""); setQuantity(1); setSellingPrice(0);
+    setOrderNo(""); setOrderId("");
+    setCosts([{ id: Date.now(), category: "Materials", description: "Item / materials", amount: 0 }]);
+    setMessage("Draft cleared. You can start a new project costing.");
+  };
 
   const totalExpenses = useMemo(() => costs.reduce((sum, row) => sum + (Number(row.amount) || 0), 0), [costs]);
   const netProfit = sellingPrice - totalExpenses;
@@ -75,6 +108,7 @@ export default function ProjectCostingPage() {
     const history = JSON.parse(localStorage.getItem("printwise_project_costing") || "[]");
     const next = [record, ...history.filter((item: any) => !(orderId && item.orderId === orderId))];
     localStorage.setItem("printwise_project_costing", JSON.stringify(next));
+    localStorage.removeItem(DRAFT_KEY);
     setMessage("Project costing saved successfully. Your expenses and estimated profit are now recorded.");
   };
 
@@ -134,7 +168,10 @@ export default function ProjectCostingPage() {
           </div>
 
           {message && <div className="costing-message">✓ {message}</div>}
-          <button className="save-costing-btn" onClick={saveEstimate}><Save size={18} /> SAVE PROJECT COSTING</button>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            <button className="save-costing-btn" onClick={saveEstimate}><Save size={18} /> SAVE PROJECT COSTING</button>
+            <button className="add-expense-btn" onClick={discardDraft} type="button">DISCARD / CLEAR DRAFT</button>
+          </div>
         </section>
 
         <aside className="costing-card profit-card">

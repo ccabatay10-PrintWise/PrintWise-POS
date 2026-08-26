@@ -52,9 +52,12 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
     enforceCurrentRoute();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      // Do not redirect on token/session refresh or when the user switches browser tabs.
+      // Only route after an actual sign-in, and preserve the current page when already signed in.
       if (event === "SIGNED_IN" && session?.user) {
         const role = roleOf(session.user);
-        router.replace(role === "staff" ? "/staff" : "/dashboard");
+        if (role === "staff" && !isStaffAllowedRoute(pathname)) router.replace("/staff");
+        if (role !== "staff" && (pathname === "/staff" || pathname.startsWith("/staff/"))) router.replace("/dashboard");
       }
     });
 
