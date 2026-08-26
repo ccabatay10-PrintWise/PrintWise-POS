@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Calculator,
   ChevronRight,
@@ -8,6 +8,7 @@ import {
   FileText,
   LayoutDashboard,
   Layers3,
+  LogOut,
   Package,
   Plus,
   ReceiptText,
@@ -17,6 +18,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 const nav = [
   [LayoutDashboard, "Dashboard", "/dashboard"],
@@ -39,6 +41,13 @@ const quickActions = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.replace("/pos");
+    router.refresh();
+  };
 
   return (
     <aside className="sidebar sidebar-enhanced">
@@ -85,11 +94,17 @@ export default function Sidebar() {
         </a>
       </div>
 
-      <a className="sidebar-user-card" href="/dashboard">
-        <span className="sidebar-avatar">C<i /></span>
-        <span className="sidebar-user-copy"><b>ccabatay10</b><small>Administrator</small></span>
-        <ChevronRight size={18} />
-      </a>
+      <div className="sidebar-footer">
+        <a className="sidebar-user-card" href="/dashboard">
+          <span className="sidebar-avatar">C<i /></span>
+          <span className="sidebar-user-copy"><b>ccabatay10</b><small>Administrator</small></span>
+          <ChevronRight size={18} />
+        </a>
+        <button type="button" className="sidebar-logout" onClick={signOut}>
+          <LogOut size={18} />
+          <span>LOG OUT</span>
+        </button>
+      </div>
     </aside>
   );
 }
