@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
   if (orderId) {
     const { data, error } = await adminClient
       .from("pos_order_items")
-      .select("id,item_name,unit_price,quantity,line_total")
+      .select("id,product_id,item_name,unit_price,quantity,line_total")
       .eq("pos_order_id", orderId)
       .order("created_at", { ascending: true });
 
