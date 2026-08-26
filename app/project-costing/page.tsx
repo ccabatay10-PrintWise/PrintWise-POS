@@ -112,20 +112,12 @@ export default function ProjectCostingPage() {
   };
 
   const totalExpenses = useMemo(() => costs.reduce((sum, row) => sum + (Number(row.amount) || 0), 0), [costs]);
-  const suggestedTotalPrice = totalExpenses > 0 && targetMargin > 0 && targetMargin < 100
-    ? totalExpenses / (1 - targetMargin / 100)
-    : 0;
-  const suggestedPricePerItem = quantity > 0 ? suggestedTotalPrice / quantity : 0;
-  const suggestedProfit = suggestedTotalPrice - totalExpenses;
-  const costPerItem = quantity > 0 ? totalExpenses / quantity : 0;
-  const profitPerItem = quantity > 0 ? suggestedProfit / quantity : 0;
-  // Explicit total-profit value: profit per item multiplied by the project quantity.
-  const expectedTotalProfit = profitPerItem * quantity;
-  const profitMargin = suggestedTotalPrice > 0 ? (suggestedProfit / suggestedTotalPrice) * 100 : 0;
-  const selectedInventoryItem = inventory.find((item) => item.id === selectedInventoryId);
-  const selectedInventoryAmount = selectedInventoryItem
-    ? Number(selectedInventoryItem.unit_cost || 0) * Math.max(1, Number(inventoryQty) || 1)
-    : 0;
+  const profitPerItem = costPerItem * (targetMargin / 100);
+  const suggestedPricePerItem = costPerItem + profitPerItem;
+  const suggestedTotalPrice = suggestedPricePerItem * quantity;
+  const suggestedProfit = profitPerItem * quantity;
+  const expectedTotalProfit = suggestedProfit;
+  const profitMargin = targetMargin;
 
   const dtfBaseArea = useMemo(() => dtfRows.reduce((sum, row) => sum + (Math.max(0, Number(row.width)||0) * Math.max(0, Number(row.height)||0) * Math.max(0, Number(row.quantity)||0)), 0), [dtfRows]);
   // Automatic supplier pricing: customer enters only print dimensions and quantity.
@@ -263,7 +255,7 @@ export default function ProjectCostingPage() {
 
           <div className="smart-price-box">
             <div className="smart-price-head">
-              <div><div className="smart-price-kicker"><TrendingUp size={15}/> SMART PRICE SUGGESTION</div><h3>Let PrintWise recommend your selling price</h3><p>Choose your target profit margin. The suggestion is based on your actual project expenses and quantity.</p></div>
+              <div><div className="smart-price-kicker"><TrendingUp size={15}/> SMART PRICE SUGGESTION</div><h3>Let PrintWise recommend your selling price</h3><p>Choose your target profit markup on cost. The suggestion is based on your actual project expenses and quantity.</p></div>
               <div className="smart-price-auto-badge">AUTO-CALCULATED</div>
             </div>
             <div className="margin-options">{[20,25,30,40].map((margin)=><button type="button" key={margin} className={targetMargin===margin?"active":""} onClick={()=>setTargetMargin(margin)}>{margin}%{margin===25?<small> RECOMMENDED</small>:null}</button>)}</div>
@@ -353,7 +345,7 @@ export default function ProjectCostingPage() {
 
         <aside className="costing-card profit-card">
           <div className="profit-card-head"><h2>Pricing &amp; Profit Summary</h2><p>Automatic recommendation based on your real project costs.</p></div>
-          <div className="profit-hero"><span>Recommended Project Price</span><strong>{money.format(suggestedTotalPrice)}</strong><small>{totalExpenses > 0 ? `Based on your ${targetMargin.toFixed(0)}% target profit margin.` : "Add project expenses to generate a recommended selling price."}</small></div>
+          <div className="profit-hero"><span>Recommended Project Price</span><strong>{money.format(suggestedTotalPrice)}</strong><small>{totalExpenses > 0 ? `Based on your ${targetMargin.toFixed(0)}% target profit markup on cost.` : "Add project expenses to generate a recommended selling price."}</small></div>
           <div className="profit-quantity-strip"><span>Project Quantity</span><b>{quantity} pc{quantity===1?"":"s"}</b><small>All totals below are calculated for the full project.</small></div>
           <div className="total-profit-card">
             <div><span>Expected Total Profit</span><strong>{money.format(expectedTotalProfit)}</strong></div>
@@ -362,7 +354,7 @@ export default function ProjectCostingPage() {
           <div className="profit-rows">
             <div className="profit-row highlight"><span>Suggested Total Price</span><b>{money.format(suggestedTotalPrice)}</b></div>
             <div className="profit-row"><span>Total Expenses</span><b>{money.format(totalExpenses)}</b></div>
-            <div className="profit-row"><span>Target Profit Margin</span><b className="margin-pill">{profitMargin.toFixed(2)}%</b></div>
+            <div className="profit-row"><span>Target Profit Markup</span><b className="margin-pill">{profitMargin.toFixed(2)}%</b></div>
             <div className="profit-row"><span>Cost Per Item</span><b>{money.format(costPerItem)}</b></div>
             <div className="profit-row highlight"><span>Suggested Price / Item</span><b>{money.format(suggestedPricePerItem)}</b></div>
             <div className="profit-row"><span>Expected Profit / Item</span><b>{money.format(profitPerItem)}</b></div>
