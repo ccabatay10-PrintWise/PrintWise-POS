@@ -95,11 +95,43 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await adminClient
     .from("pos_orders")
-    .select("id,order_no,customer_name,subtotal,discount_amount,total,amount_paid,status,created_at")
+    .select("id,order_no,customer_name,subtotal,discount_amount,total,amount_paid,status,created_at,created_by")
     .order("created_at", { ascending: false });
 
   if (error) return jsonError(`Unable to load orders: ${error.message}`, 400);
-  return NextResponse.json({ orders: data ?? [] });
+
+  // Resolve the existing created_by user ID into the staff/admin name.
+  // This keeps the current database schema unchanged because POS orders already save created_by.
+  const nameCache = new Map<string, string>();
+  const orders = await Promise.all((data ?? []).map(async (order: any) => {
+    const userId = String(order.created_by || "").trim();
+    if (!userId) return { ...order, transacted_by: "Not recorded" };
+
+    let name = nameCache.get(userId);
+    if (!name) {
+      try {
+        const { data: userData, error: userError } = await adminClient.auth.admin.getUserById(userId);
+        const user = userData?.user;
+        if (userError || !user) {
+          name = "Not recorded";
+        } else {
+          name = String(
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            user.email?.split("@")[0] ||
+            "Not recorded"
+          );
+        }
+      } catch {
+        name = "Not recorded";
+      }
+      nameCache.set(userId, name);
+    }
+
+    return { ...order, transacted_by: name };
+  }));
+
+  return NextResponse.json({ orders });
 }
 
 
