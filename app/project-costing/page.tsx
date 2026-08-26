@@ -278,7 +278,7 @@ export default function ProjectCostingPage() {
                 <label className="project-field">Qty Used<input type="number" min="1" value={inventoryQty} onChange={e=>setInventoryQty(Math.max(1,Number(e.target.value)||1))}/></label>
                 <div className="inventory-auto-expense">
                   <div>Auto Expense</div>
-                  <strong>{money.format(selectedInventoryAmount)}</strong>
+                  <strong>{money.format(selectedInventoryExpense)}</strong>
                 </div>
               </div>
               {selectedInventoryItem && <div className="inventory-selection-summary">
