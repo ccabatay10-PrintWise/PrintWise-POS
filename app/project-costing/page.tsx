@@ -6,6 +6,8 @@ import "../pos/pos.css";
 import "./project-costing.css";
 
 type CostRow = { id: number; category: string; description: string; amount: number };
+type ProductComponent = { id: number; category: string; description: string; cost: number };
+type ProductCost = { id: number; name: string; sku: string; notes: string; components: ProductComponent[]; createdAt: string };
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
 export default function ProjectCostingPage() {
@@ -16,9 +18,12 @@ export default function ProjectCostingPage() {
   const [orderNo, setOrderNo] = useState("");
   const [orderId, setOrderId] = useState("");
   const [costs, setCosts] = useState<CostRow[]>([{ id: 1, category: "Materials", description: "Item / materials", amount: 0 }]);
+  const [products, setProducts] = useState<ProductCost[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    try { setProducts(JSON.parse(localStorage.getItem("printwise_product_cost_database") || "[]")); } catch { setProducts([]); }
     const params = new URLSearchParams(window.location.search);
     const id = params.get("orderId") || "";
     if (!id) return;
@@ -26,16 +31,15 @@ export default function ProjectCostingPage() {
     if (!raw) return;
     try {
       const order = JSON.parse(raw) as { id: string; order_no: string; customer_name: string | null; total: number; quantity: number; projectName: string };
-      setOrderId(order.id);
-      setOrderNo(order.order_no);
-      setClient(order.customer_name || "Walk-in Customer");
-      setSellingPrice(Number(order.total || 0));
-      setQuantity(Math.max(1, Number(order.quantity || 1)));
+      setOrderId(order.id); setOrderNo(order.order_no); setClient(order.customer_name || "Walk-in Customer");
+      setSellingPrice(Number(order.total || 0)); setQuantity(Math.max(1, Number(order.quantity || 1)));
       setProjectName(order.projectName || `Costing - ${order.order_no}`);
-      setMessage(`Order ${order.order_no} was imported. Add the actual expenses to calculate your profit.`);
+      setMessage(`Order ${order.order_no} was imported. Select a saved product to automatically calculate its expenses.`);
     } catch { setMessage("Unable to import the selected order."); }
   }, []);
 
+  const selectedProduct = useMemo(() => products.find((item) => String(item.id) === selectedProductId), [products, selectedProductId]);
+  const selectedCostPerPiece = useMemo(() => selectedProduct ? selectedProduct.components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0) : 0, [selectedProduct]);
   const totalExpenses = useMemo(() => costs.reduce((sum, row) => sum + (Number(row.amount) || 0), 0), [costs]);
   const netProfit = sellingPrice - totalExpenses;
   const profitMargin = sellingPrice > 0 ? (netProfit / sellingPrice) * 100 : 0;
@@ -47,12 +51,20 @@ export default function ProjectCostingPage() {
   const addCost = () => setCosts((rows) => [...rows, { id: Date.now(), category: "Other", description: "", amount: 0 }]);
   const removeCost = (id: number) => setCosts((rows) => rows.length > 1 ? rows.filter((row) => row.id !== id) : rows);
 
+  const applyProductCost = () => {
+    if (!selectedProduct) { setMessage("Select a product from the Product Cost Database first."); return; }
+    const nextCosts = selectedProduct.components.map((item, index) => ({ id: Date.now() + index, category: item.category, description: item.description || selectedProduct.name, amount: (Number(item.cost) || 0) * quantity }));
+    setCosts(nextCosts.length ? nextCosts : [{ id: Date.now(), category: "Materials", description: selectedProduct.name, amount: 0 }]);
+    if (!projectName.trim()) setProjectName(selectedProduct.name);
+    setMessage(`${selectedProduct.name} applied successfully. ${money.format(selectedCostPerPiece)} per piece × ${quantity} piece${quantity === 1 ? "" : "s"} = ${money.format(selectedCostPerPiece * quantity)} automatic product expense.`);
+  };
+
   const saveEstimate = () => {
-    const record = { id: Date.now(), projectName, client, quantity, sellingPrice, orderId, orderNo, costs, totalExpenses, netProfit, profitMargin, createdAt: new Date().toISOString() };
+    const record = { id: Date.now(), projectName, client, quantity, sellingPrice, orderId, orderNo, selectedProductId, selectedProductName: selectedProduct?.name || "", costs, totalExpenses, netProfit, profitMargin, createdAt: new Date().toISOString() };
     const history = JSON.parse(localStorage.getItem("printwise_project_costing") || "[]");
     const next = [record, ...history.filter((item: any) => !(orderId && item.orderId === orderId))];
     localStorage.setItem("printwise_project_costing", JSON.stringify(next));
-    setMessage("Project costing saved successfully. Your expenses and estimated profit are now recorded.");
+    setMessage("Project costing saved successfully. Your automatic product cost and estimated profit are now recorded.");
   };
 
   return <main className="app-shell">
@@ -63,22 +75,14 @@ export default function ProjectCostingPage() {
       <a className="nav-item" href="/pos"><WalletCards size={19} /><span>Point of Sale</span></a>
       <a className="nav-item" href="/orders"><ReceiptText size={19} /><span>Orders</span></a>
       <a className="nav-item active" href="/project-costing"><Calculator size={19} /><span>Project Costing</span></a>
+      <a className="nav-item" href="/product-costing"><Boxes size={19} /><span>Product Cost Database</span></a>
     </aside>
     <section className="workspace project-workspace">
-      <header className="project-topbar">
-        <div>
-          <div className="project-eyebrow"><Calculator size={15} /> SMART BUSINESS TOOL</div>
-          <h1>Project Costing &amp; Profit</h1>
-          <p>{orderNo ? `Linked to POS Order ${orderNo}` : "Compute your real project expenses and estimated earnings before production."}</p>
-        </div>
-        <div className="project-topbar-badge">{orderNo ? <><Link2 size={17} /> POS ORDER LINKED</> : <><BriefcaseBusiness size={17} /> NEW PROJECT ESTIMATE</>}</div>
-      </header>
+      <header className="project-topbar"><div><div className="project-eyebrow"><Calculator size={15} /> SMART BUSINESS TOOL</div><h1>Project Costing &amp; Profit</h1><p>{orderNo ? `Linked to POS Order ${orderNo}` : "Compute your real project expenses and estimated earnings before production."}</p></div><div className="project-topbar-badge">{orderNo ? <><Link2 size={17} /> POS ORDER LINKED</> : <><BriefcaseBusiness size={17} /> NEW PROJECT ESTIMATE</>}</div></header>
 
       <div className="project-content">
         <section className="costing-card">
-          <div className="section-heading">
-            <div><h2>Project Information</h2><p>Enter the project details and selling value.</p></div>
-          </div>
+          <div className="section-heading"><div><h2>Project Information</h2><p>Enter the project details and selling value.</p></div></div>
           <div className="project-form-grid">
             <label className="project-field">Project Name<input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Company Polo Shirts" /></label>
             <label className="project-field">Client<input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Client or customer name" /></label>
@@ -86,39 +90,18 @@ export default function ProjectCostingPage() {
             <label className="project-field">Total Selling Price<input className="money-input" type="number" min="0" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(Number(e.target.value) || 0)} /></label>
           </div>
 
-          <div className="expense-section">
-            <div className="expense-title-row">
-              <h2><ReceiptText size={20} /> Project Expenses</h2>
-              <button className="add-expense-btn" onClick={addCost}><Plus size={17} /> ADD EXPENSE</button>
-            </div>
-            <div className="expense-table-wrap">
-              <table className="expense-table"><thead><tr><th>CATEGORY</th><th>DESCRIPTION</th><th>AMOUNT</th><th></th></tr></thead><tbody>
-                {costs.map((row) => <tr key={row.id}>
-                  <td><select value={row.category} onChange={(e) => updateCost(row.id, "category", e.target.value)}><option>Materials</option><option>Labor</option><option>Printing</option><option>Delivery</option><option>Packaging</option><option>GCash Fee</option><option>Other</option></select></td>
-                  <td><input value={row.description} onChange={(e) => updateCost(row.id, "description", e.target.value)} placeholder="What is this expense for?" /></td>
-                  <td className="amount-cell"><input type="number" min="0" step="0.01" value={row.amount} onChange={(e) => updateCost(row.id, "amount", e.target.value)} /></td>
-                  <td><button className="delete-expense" title="Remove expense" onClick={() => removeCost(row.id)}><Trash2 size={17} /></button></td>
-                </tr>)}
-              </tbody></table>
-            </div>
+          <div className="auto-cost-box">
+            <div className="auto-cost-copy"><div className="auto-cost-icon"><Boxes size={19} /></div><div><h3>Automatic Product Cost</h3><p>Select a saved product and PrintWise will multiply its cost per piece by your project quantity.</p></div></div>
+            <div className="auto-cost-controls"><select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}><option value="">Select saved product...</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} — {money.format(product.components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0))}/pc</option>)}</select><button type="button" className="apply-product-btn" onClick={applyProductCost}>APPLY AUTOMATIC COST</button><a className="manage-product-link" href="/product-costing">Manage Products</a></div>
+            {selectedProduct && <div className="auto-cost-preview"><span>{selectedProduct.name}</span><b>{money.format(selectedCostPerPiece)} / PC</b><strong>× {quantity} = {money.format(selectedCostPerPiece * quantity)}</strong></div>}
           </div>
+
+          <div className="expense-section"><div className="expense-title-row"><h2><ReceiptText size={20} /> Project Expenses</h2><button className="add-expense-btn" onClick={addCost}><Plus size={17} /> ADD EXPENSE</button></div><div className="expense-table-wrap"><table className="expense-table"><thead><tr><th>CATEGORY</th><th>DESCRIPTION</th><th>AMOUNT</th><th></th></tr></thead><tbody>{costs.map((row) => <tr key={row.id}><td><select value={row.category} onChange={(e) => updateCost(row.id, "category", e.target.value)}><option>Materials</option><option>Product Base Cost</option><option>Labor</option><option>Printing</option><option>Embroidery</option><option>Delivery</option><option>Packaging</option><option>GCash Fee</option><option>Other</option></select></td><td><input value={row.description} onChange={(e) => updateCost(row.id, "description", e.target.value)} placeholder="What is this expense for?" /></td><td className="amount-cell"><input type="number" min="0" step="0.01" value={row.amount} onChange={(e) => updateCost(row.id, "amount", e.target.value)} /></td><td><button className="delete-expense" title="Remove expense" onClick={() => removeCost(row.id)}><Trash2 size={17} /></button></td></tr>)}</tbody></table></div></div>
           {message && <div className="costing-message">✓ {message}</div>}
           <button className="save-costing-btn" onClick={saveEstimate}><Save size={18} /> SAVE PROJECT COSTING</button>
         </section>
 
-        <aside className="costing-card profit-card">
-          <div className="profit-card-head"><h2>Profit Summary</h2><p>Live calculation based on your inputs.</p></div>
-          <div className="profit-hero"><span>{isLoss ? "Estimated Loss" : "Estimated Net Profit"}</span><strong>{money.format(netProfit)}</strong><small>{isLoss ? "Your expenses are higher than your selling price." : "Estimated earnings after all project expenses."}</small></div>
-          <div className="profit-rows">
-            <div className="profit-row"><span>Total Project Revenue</span><b>{money.format(sellingPrice)}</b></div>
-            <div className="profit-row"><span>Total Expenses</span><b>{money.format(totalExpenses)}</b></div>
-            <div className={`profit-row ${isLoss ? "loss" : "highlight"}`}><span>Estimated Net Profit</span><b>{money.format(netProfit)}</b></div>
-            <div className="profit-row"><span>Profit Margin</span><b className="margin-pill">{profitMargin.toFixed(2)}%</b></div>
-            <div className="profit-row"><span>Cost Per Item</span><b>{money.format(costPerItem)}</b></div>
-            <div className="profit-row"><span>Profit Per Item</span><b>{money.format(profitPerItem)}</b></div>
-          </div>
-          <div className="project-link-note">{orderNo ? <Link2 size={17} /> : <TrendingUp size={17} />}<span>{orderNo ? `This costing is connected to ${orderNo}. Saving will update the stored estimate for this project.` : "Tip: Add all materials, labor, printing and other charges for a more accurate profit estimate."}</span></div>
-        </aside>
+        <aside className="costing-card profit-card"><div className="profit-card-head"><h2>Profit Summary</h2><p>Live calculation based on your inputs.</p></div><div className="profit-hero"><span>{isLoss ? "Estimated Loss" : "Estimated Net Profit"}</span><strong>{money.format(netProfit)}</strong><small>{isLoss ? "Your expenses are higher than your selling price." : "Estimated earnings after all project expenses."}</small></div><div className="profit-rows"><div className="profit-row"><span>Total Project Revenue</span><b>{money.format(sellingPrice)}</b></div><div className="profit-row"><span>Total Expenses</span><b>{money.format(totalExpenses)}</b></div><div className={`profit-row ${isLoss ? "loss" : "highlight"}`}><span>Estimated Net Profit</span><b>{money.format(netProfit)}</b></div><div className="profit-row"><span>Profit Margin</span><b className="margin-pill">{profitMargin.toFixed(2)}%</b></div><div className="profit-row"><span>Cost Per Item</span><b>{money.format(costPerItem)}</b></div><div className="profit-row"><span>Profit Per Item</span><b>{money.format(profitPerItem)}</b></div></div><div className="project-link-note">{orderNo ? <Link2 size={17} /> : <TrendingUp size={17} />}<span>{orderNo ? `This costing is connected to ${orderNo}. Saving will update the stored estimate for this project.` : "Tip: Save your product costs once, then select them here for automatic expense computation."}</span></div></aside>
       </div>
     </section>
   </main>;
