@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, CreditCard, ImagePlus, Loader2, ReceiptText, RotateCcw, Save, Settings2, ShieldCheck, Store, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import Sidebar from "../components/Sidebar";
@@ -58,6 +58,8 @@ export default function SettingsPage() {
   const [warning, setWarning] = useState("");
   const [copied, setCopied] = useState(false);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const initials = useMemo(() => {
     const words = settings.business_name.trim().split(/\s+/).filter(Boolean);
@@ -67,6 +69,41 @@ export default function SettingsPage() {
   const update = (key: keyof CompanySettings, value: any) => {
     setSettings((current) => ({ ...current, [key]: value }));
     setMessage("");
+  };
+
+  const handleLogoUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setMessage("");
+    setWarning("");
+
+    if (!file.type.startsWith("image/")) {
+      setWarning("Please choose a valid image file for the company logo.");
+      event.target.value = "";
+      return;
+    }
+
+    // Keep browser storage and database payloads reasonably small.
+    if (file.size > 2 * 1024 * 1024) {
+      setWarning("Logo image is too large. Please choose an image smaller than 2 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setUploadingLogo(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      update("logo_url", result);
+      setMessage("Logo uploaded successfully. Click Save Changes to keep it.");
+      setUploadingLogo(false);
+    };
+    reader.onerror = () => {
+      setWarning("Unable to read the selected logo file. Please try another image.");
+      setUploadingLogo(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   useEffect(() => {
@@ -79,6 +116,7 @@ export default function SettingsPage() {
         const { data, error } = await supabase
           .from("company_settings")
           .select("*")
+          .order("created_at", { ascending: true })
           .limit(1)
           .maybeSingle();
 
@@ -112,7 +150,7 @@ export default function SettingsPage() {
 
     try {
       const payload = { ...settings } as any;
-      delete payload.id;
+      if (!payload.id) delete payload.id;
       const { data, error } = await supabase
         .from("company_settings")
         .upsert(payload, { onConflict: "id" })
@@ -127,7 +165,7 @@ export default function SettingsPage() {
       setMessage("Company settings saved successfully and synced to Supabase.");
     } catch (e: any) {
       setMessage("Settings saved in this browser. Database sync is not active yet.");
-      setWarning("Run the included company_settings SQL in Supabase to enable cross-device saving.");
+      setWarning("Database sync could not be completed. Run the updated supabase_company_settings.sql in Supabase, then try saving again.");
     } finally {
       setSaving(false);
     }
@@ -179,10 +217,20 @@ export default function SettingsPage() {
               <div className="company-logo-preview">
                 {settings.logo_url ? <img src={settings.logo_url} alt="Company logo" /> : <span>{initials}</span>}
               </div>
-              <div className="logo-copy"><b>Business Logo</b><small>Paste a public image URL. A fallback monogram is shown when no logo is set.</small></div>
-              {settings.logo_url && <button className="clear-logo" onClick={() => update("logo_url", "")} title="Remove logo"><X size={16} /></button>}
+              <div className="logo-copy"><b>Business Logo</b><small>Upload a logo directly from your computer. PNG, JPG, WEBP, or GIF up to 2 MB.</small></div>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="logo-file-input"
+                onChange={handleLogoUpload}
+              />
+              <button type="button" className="upload-logo-btn" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                {uploadingLogo ? <Loader2 className="spin" size={16} /> : <ImagePlus size={16} />}
+                {uploadingLogo ? "UPLOADING..." : "UPLOAD LOGO"}
+              </button>
+              {settings.logo_url && <button type="button" className="clear-logo" onClick={() => { update("logo_url", ""); if (logoInputRef.current) logoInputRef.current.value = ""; }} title="Remove logo"><X size={16} /></button>}
             </div>
-            <label className="field full"><span><ImagePlus size={15} /> Logo URL</span><input value={settings.logo_url} onChange={(e) => update("logo_url", e.target.value)} placeholder="https://.../printwise-logo.png" /></label>
             <div className="field-grid">
               <label className="field"><span>Business Name</span><input value={settings.business_name} onChange={(e) => update("business_name", e.target.value)} /></label>
               <label className="field"><span>Tagline</span><input value={settings.tagline} onChange={(e) => update("tagline", e.target.value)} /></label>

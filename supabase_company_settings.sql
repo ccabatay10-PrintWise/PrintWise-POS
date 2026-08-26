@@ -1,5 +1,8 @@
 -- PRINTWISE COMPANY SETTINGS
--- Run once in Supabase SQL Editor while logged in as project owner.
+-- Run this in Supabase SQL Editor as the project owner.
+-- Safe for a fresh install of this PrintWise settings feature.
+
+create extension if not exists pgcrypto;
 
 create table if not exists public.company_settings (
   id uuid primary key default gen_random_uuid(),
@@ -25,13 +28,18 @@ drop policy if exists "Authenticated users can view company settings" on public.
 create policy "Authenticated users can view company settings"
 on public.company_settings for select to authenticated using (true);
 
-drop policy if exists "Authenticated users can insert company settings" on public.company_settings;
-create policy "Authenticated users can insert company settings"
-on public.company_settings for insert to authenticated
-with check (lower(coalesce(auth.jwt() -> 'app_metadata' ->> 'role', auth.jwt() -> 'user_metadata' ->> 'role', 'admin')) = 'admin');
-
-drop policy if exists "Authenticated admins can update company settings" on public.company_settings;
-create policy "Authenticated admins can update company settings"
-on public.company_settings for update to authenticated
-using (lower(coalesce(auth.jwt() -> 'app_metadata' ->> 'role', auth.jwt() -> 'user_metadata' ->> 'role', 'admin')) = 'admin')
-with check (lower(coalesce(auth.jwt() -> 'app_metadata' ->> 'role', auth.jwt() -> 'user_metadata' ->> 'role', 'admin')) = 'admin');
+drop policy if exists "Authenticated admins can manage company settings" on public.company_settings;
+create policy "Authenticated admins can manage company settings"
+on public.company_settings for all to authenticated
+using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and lower(coalesce(p.role, '')) = 'admin'
+  )
+)
+with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and lower(coalesce(p.role, '')) = 'admin'
+  )
+);
