@@ -12,3 +12,10 @@
 .printing-none-state{margin:18px 0;padding:18px 20px;border:1px dashed #cbd5e1;border-radius:14px;background:#f8fafc;color:#475467;font-weight:600}
 .sublimation-box{border-color:#c7d2fe}.sublimation-box .dtf-kicker{color:#4f46e5}
 @media(max-width:700px){.printing-method-box{padding:15px}.printing-method-select{max-width:none}}
+/* Automatic supplier-rate DTF costing */
+.dtf-settings.automatic{grid-template-columns:1fr 1fr 1.2fr}
+.dtf-auto-card{min-height:74px;border:1px solid #e4d5f7;border-radius:13px;background:#fff;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center}
+.dtf-auto-card span{font-size:11px;color:#7b718b;font-weight:900;text-transform:uppercase;letter-spacing:.06em}
+.dtf-auto-card strong{font-size:18px;color:#3e3850;margin-top:5px}
+.dtf-auto-card small{font-size:11px;color:#8a8295;margin-top:3px;line-height:1.35}
+@media(max-width:760px){.dtf-settings.automatic{grid-template-columns:1fr}}
