@@ -155,17 +155,19 @@ export default function Sidebar() {
             </a>
           ))}
         </div>
+      </div>
 
-        <div className="sidebar-divider" />
-        <div className="nav-label">SYSTEM</div>
-        <a className="nav-item" href="/settings">
+      <div className="sidebar-footer">
+        <a
+          className={`nav-item ${pathname === "/settings" ? "active" : ""}`}
+          href="/settings"
+          style={{ marginBottom: 8 }}
+        >
           <span className="nav-icon"><Settings size={19} /></span>
           <span>Settings</span>
           <ChevronRight className="nav-arrow" size={16} />
         </a>
-      </div>
 
-      <div className="sidebar-footer">
         <a className="sidebar-user-card" href="/dashboard">
           <span className="sidebar-avatar">{avatarLetter}<i /></span>
           <span className="sidebar-user-copy"><b>{userName}</b><small>{roleLabel}</small></span>
