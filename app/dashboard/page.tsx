@@ -366,12 +366,16 @@ export default function DashboardPage() {
           <article className="dash-stat">
             <div className="stat-icon orders"><ReceiptText size={22} /></div>
             <div><span>Completed Orders</span><strong>{data.completedOrders}</strong><small>{data.totalOrders} total orders recorded</small></div>
-          </article>
-          <article className="dash-stat">
-            <div className="stat-icon customers"><Users size={22} /></div>
-            <div><span>Customers</span><strong>{data.customerCount}</strong><small>{data.productCount} active products</small></div>
-          </article>
-        </div>
+         <article className="dash-stat">
+  <div className="stat-icon customers">
+    <Users size={22} />
+  </div>
+  <div>
+    <span>Customers</span>
+    <strong>{data.customerCount}</strong>
+    <small>{data.totalCustomers} total customers</small>
+  </div>
+</article>
 
         <div className="dashboard-analytics-grid">
           <section className="dashboard-card sales-trend-card">
