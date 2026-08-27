@@ -3,7 +3,13 @@
 
 alter table public.received_file_jobs
   add column if not exists pos_order_id uuid,
-  add column if not exists pos_order_no text;
+  add column if not exists pos_order_no text,
+  add column if not exists payment_status text,
+  add column if not exists amount_paid numeric(12,2),
+  add column if not exists payment_method text,
+  add column if not exists payment_date timestamptz,
+  add column if not exists receipt_reference text,
+  add column if not exists completed_at timestamptz;
 
 create unique index if not exists received_file_jobs_pos_order_id_unique
   on public.received_file_jobs(pos_order_id)
