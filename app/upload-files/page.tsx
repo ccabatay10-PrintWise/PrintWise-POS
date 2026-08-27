@@ -45,15 +45,16 @@ export default function UploadFilesPage() {
 
     setBusy(true);
     const reference = makeReference();
-    const { data: job, error: jobError } = await supabase
+    // Generate the job ID in the browser so anonymous customers do not need
+    // SELECT permission just to get the inserted row back.
+    const jobId = crypto.randomUUID();
+    const { error: jobError } = await supabase
       .from("received_file_jobs")
-      .insert({ reference_no: reference, customer_name: name.trim(), contact_number: contact.trim(), status: "RECEIVED", file_count: files.length })
-      .select("id")
-      .single();
+      .insert({ id: jobId, reference_no: reference, customer_name: name.trim(), contact_number: contact.trim(), status: "RECEIVED", file_count: files.length });
 
-    if (jobError || !job) {
+    if (jobError) {
       setBusy(false);
-      setError(jobError?.message || "Unable to create your file job. Please try again.");
+      setError(jobError.message || "Unable to create your file job. Please try again.");
       return;
     }
 
@@ -61,13 +62,13 @@ export default function UploadFilesPage() {
     try {
       for (const [index, file] of files.entries()) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `${job.id}/${String(index + 1).padStart(2, "0")}-${crypto.randomUUID()}-${safeName}`;
+        const path = `${jobId}/${String(index + 1).padStart(2, "0")}-${crypto.randomUUID()}-${safeName}`;
         const { error: uploadError } = await supabase.storage.from("received-files").upload(path, file, { contentType: file.type || undefined, upsert: false });
         if (uploadError) throw uploadError;
         uploaded.push({ original_name: file.name, storage_path: path, mime_type: file.type || "application/octet-stream", size_bytes: file.size });
       }
 
-      const { error: itemsError } = await supabase.from("received_file_items").insert(uploaded.map((file) => ({ ...file, job_id: job.id })));
+      const { error: itemsError } = await supabase.from("received_file_items").insert(uploaded.map((file) => ({ ...file, job_id: jobId })));
       if (itemsError) throw itemsError;
 
       setSuccess({ reference, count: files.length });
