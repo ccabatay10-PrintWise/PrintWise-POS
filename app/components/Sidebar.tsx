@@ -24,7 +24,7 @@ import { supabase } from "../../lib/supabase";
 const nav = [
   [LayoutDashboard, "Dashboard", "/dashboard"],
   [ShoppingCart, "Point of Sale", "/pos"],
-  [ReceiptText, "Orders", "/orders"],
+  [ReceiptText, "Transactions", "/orders"],
   [Wallet, "GCash / Bayad", "/gcash-bayad"],
   [Calculator, "Project Costing", "/project-costing"],
   [Package, "Products & Services", "/products"],
