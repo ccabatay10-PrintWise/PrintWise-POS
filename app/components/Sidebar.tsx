@@ -155,13 +155,13 @@ export default function Sidebar() {
             </a>
           ))}
         </div>
-      </div>
 
-      <div className="sidebar-footer">
+        <div className="sidebar-divider" />
+        <div className="nav-label">ACCOUNT</div>
+
         <a
           className={`nav-item ${pathname === "/settings" ? "active" : ""}`}
           href="/settings"
-          style={{ marginBottom: 8 }}
         >
           <span className="nav-icon"><Settings size={19} /></span>
           <span>Settings</span>
@@ -173,6 +173,7 @@ export default function Sidebar() {
           <span className="sidebar-user-copy"><b>{userName}</b><small>{roleLabel}</small></span>
           <ChevronRight size={18} />
         </a>
+
         <button type="button" className="sidebar-logout" onClick={signOut}>
           <LogOut size={18} />
           <span>LOG OUT</span>
