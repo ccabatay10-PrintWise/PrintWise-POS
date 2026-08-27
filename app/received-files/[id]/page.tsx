@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -44,25 +45,33 @@ function formatBytes(bytes: number) {
   return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
-export default function ReceivedFileJobPage({ params }: { params: { id: string } }) {
+export default function ReceivedFileJobPage() {
+  const params = useParams<{ id: string }>();
+  const jobId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState("");
 
   const loadJob = useCallback(async () => {
+    if (!jobId) {
+      setError("Invalid file job ID.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError("");
     const { data, error: loadError } = await supabase
       .from("received_file_jobs")
       .select("id, reference_no, customer_name, contact_number, status, created_at, received_file_items(id, original_name, storage_path, mime_type, size_bytes)")
-      .eq("id", params.id)
+      .eq("id", jobId)
       .single();
 
     if (loadError) setError(loadError.message || "Unable to load this file job.");
     else setJob(data as Job);
     setLoading(false);
-  }, [params.id]);
+  }, [jobId]);
 
   useEffect(() => {
     loadJob();
