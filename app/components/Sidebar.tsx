@@ -121,7 +121,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="sidebar sidebar-enhanced">
+    <aside className="sidebar sidebar-enhanced sidebar-compact">
       <div className="sidebar-brand-wrap">
         <a className="brand" href="/dashboard" aria-label="PrintWise Dashboard">
           <div className="brand-mark"><Package size={24} /></div>
@@ -179,6 +179,36 @@ export default function Sidebar() {
           <span>LOG OUT</span>
         </button>
       </div>
+
+      <style jsx global>{`
+        /* Compact PrintWise shell: content ends naturally after LOG OUT. */
+        .app-shell:has(.sidebar-compact){align-items:flex-start}
+        .sidebar-compact{align-self:flex-start;flex:0 0 300px;height:auto!important;min-height:0!important}
+        .sidebar-compact .sidebar-scroll{flex:none!important;overflow:visible!important;padding-bottom:12px!important}
+        .sidebar-compact .sidebar-brand-wrap{padding-bottom:14px!important}
+        .sidebar-compact .nav-label{padding-top:0!important;margin-bottom:8px!important}
+        .sidebar-compact .nav-item{min-height:46px!important;margin:1px 0!important}
+        .sidebar-compact .sidebar-divider{margin:12px 0!important}
+        .sidebar-compact .quick-actions-grid{gap:8px!important}
+        .sidebar-compact .quick-action{min-height:84px!important;padding:12px!important}
+        .sidebar-compact .quick-action-icon{width:34px!important;height:34px!important}
+        .sidebar-compact .sidebar-user-card{margin-top:6px!important;min-height:58px!important}
+        .sidebar-compact .sidebar-logout{margin-top:10px!important;margin-bottom:0!important;min-height:48px!important}
+
+        /* Dashboard follows the compact reference: three recent transactions and no bottom filler/actions. */
+        .dashboard-bottom-grid{display:none!important}
+        .dashboard-main-grid{padding-bottom:24px!important;align-items:start!important}
+        .recent-card .transaction-list>.transaction:nth-child(n+4){display:none!important}
+        .recent-card .card-title p{font-size:0!important}
+        .recent-card .card-title p::after{content:"Latest 3 transactions from your PrintWise POS.";font-size:12px!important}
+        .recent-card .transaction{padding:13px 0!important}
+        .recent-card,.inventory-card{min-height:0!important;height:auto!important}
+        .dashboard-card{min-height:0!important}
+        @media(max-width:1100px){
+          .app-shell:has(.sidebar-compact){align-items:stretch}
+          .sidebar-compact{align-self:stretch;height:auto!important;min-height:100vh!important;flex-basis:72px!important}
+        }
+      `}</style>
     </aside>
   );
 }
