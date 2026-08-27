@@ -1,0 +1,13 @@
+/* Keep both dashboard rows on the exact same two-column grid so Sales Trend and Recent Transactions always have identical widths. */
+.dashboard-analytics-grid,
+.dashboard-main-grid{
+  grid-template-columns:minmax(0,1.55fr) minmax(340px,.85fr);
+}
+
+/* Preserve the approved single-column layout on smaller screens. */
+@media(max-width:1100px){
+  .dashboard-analytics-grid,
+  .dashboard-main-grid{
+    grid-template-columns:1fr;
+  }
+}
