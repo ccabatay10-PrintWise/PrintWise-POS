@@ -24,64 +24,45 @@ button { cursor: pointer; }
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes pw-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pw-soft-pop { 0% { opacity: 0; transform: scale(.985); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes pw-row-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pw-bar-grow { from { transform: scaleY(0); opacity: .35; } to { transform: scaleY(1); opacity: 1; } }
 
-@keyframes pw-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes pw-soft-pop {
-  0% { opacity: 0; transform: scale(.985); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes pw-row-in {
-  from { opacity: 0; transform: translateX(-6px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-/* Page content enters smoothly without delaying usability. */
-main, .page-content, .dashboard-main, .dashboard-content, .app-content {
-  animation: pw-fade-up .32s cubic-bezier(.2,.8,.2,1) both;
-}
-
-/* Dashboard cards load with a subtle stagger. */
-.dashboard-card, .stat-card, .kpi-card, .metric-card {
-  animation: pw-soft-pop .3s cubic-bezier(.2,.8,.2,1) both;
-}
+main, .page-content, .dashboard-main, .dashboard-content, .app-content { animation: pw-fade-up .32s cubic-bezier(.2,.8,.2,1) both; }
+.dashboard-card, .stat-card, .kpi-card, .metric-card { animation: pw-soft-pop .3s cubic-bezier(.2,.8,.2,1) both; }
 .dashboard-card:nth-child(1), .stat-card:nth-child(1), .kpi-card:nth-child(1), .metric-card:nth-child(1) { animation-delay: .02s; }
 .dashboard-card:nth-child(2), .stat-card:nth-child(2), .kpi-card:nth-child(2), .metric-card:nth-child(2) { animation-delay: .06s; }
 .dashboard-card:nth-child(3), .stat-card:nth-child(3), .kpi-card:nth-child(3), .metric-card:nth-child(3) { animation-delay: .10s; }
 .dashboard-card:nth-child(4), .stat-card:nth-child(4), .kpi-card:nth-child(4), .metric-card:nth-child(4) { animation-delay: .14s; }
 
-/* Interactive surfaces. */
-a, button, .nav-item, .quick-action, .sidebar-user-card, .sidebar-logout, .dashboard-card, .transaction, .transaction-row, .inventory-item {
-  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease;
-}
+a, button, .nav-item, .quick-action, .sidebar-user-card, .sidebar-logout, .dashboard-card, .transaction, .transaction-row, .inventory-item { transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease; }
+.nav-item:hover, .quick-action:hover, .sidebar-user-card:hover { transform: translateX(2px); }
+.quick-action:hover, .dashboard-card:hover { transform: translateY(-2px); }
+button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active { transform: scale(.985); }
 
-.nav-item:hover, .quick-action:hover, .sidebar-user-card:hover {
-  transform: translateX(2px);
-}
-
-.quick-action:hover, .dashboard-card:hover {
-  transform: translateY(-2px);
-}
-
-button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active {
-  transform: scale(.985);
-}
-
-/* Transaction and list items feel responsive without excessive movement. */
-.transaction, .transaction-row, .inventory-item {
-  animation: pw-row-in .28s ease both;
-}
+.transaction, .transaction-row, .inventory-item { animation: pw-row-in .28s ease both; }
 .transaction:nth-child(1), .transaction-row:nth-child(1), .inventory-item:nth-child(1) { animation-delay: .03s; }
 .transaction:nth-child(2), .transaction-row:nth-child(2), .inventory-item:nth-child(2) { animation-delay: .06s; }
 .transaction:nth-child(3), .transaction-row:nth-child(3), .inventory-item:nth-child(3) { animation-delay: .09s; }
 .transaction:nth-child(4), .transaction-row:nth-child(4), .inventory-item:nth-child(4) { animation-delay: .12s; }
 .transaction:nth-child(5), .transaction-row:nth-child(5), .inventory-item:nth-child(5) { animation-delay: .15s; }
 
-/* Respect users who prefer reduced motion. */
+/* Sales Trend: bars visibly grow from the bottom, left to right. */
+.sales-bar-fill {
+  transform-origin: bottom;
+  animation: pw-bar-grow .72s cubic-bezier(.22,.8,.24,1) both;
+  will-change: transform, opacity;
+}
+.sales-bar-item:nth-child(1) .sales-bar-fill { animation-delay: .03s; }
+.sales-bar-item:nth-child(2) .sales-bar-fill { animation-delay: .10s; }
+.sales-bar-item:nth-child(3) .sales-bar-fill { animation-delay: .17s; }
+.sales-bar-item:nth-child(4) .sales-bar-fill { animation-delay: .24s; }
+.sales-bar-item:nth-child(5) .sales-bar-fill { animation-delay: .31s; }
+.sales-bar-item:nth-child(6) .sales-bar-fill { animation-delay: .38s; }
+.sales-bar-item:nth-child(7) .sales-bar-fill { animation-delay: .45s; }
+.sales-bar-item:nth-child(n+8) .sales-bar-fill { animation-delay: .52s; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
