@@ -13,9 +13,8 @@ import {
   Save,
   Upload,
 } from "lucide-react";
-import Sidebar from "../../../../../components/Sidebar";
-import { supabase } from "../../../../../../lib/supabase";
-import "../../../../../pos/pos.css";
+import Sidebar from "../../../../components/Sidebar";
+import { supabase } from "../../../../../lib/supabase";
 
 type EditableFile = {
   id: string;
@@ -51,6 +50,7 @@ export default function StaffEditFilePage() {
   const params = useParams<{ id: string; fileId: string }>();
   const jobId = Array.isArray(params.id) ? params.id[0] : params.id;
   const fileId = Array.isArray(params.fileId) ? params.fileId[0] : params.fileId;
+
   const [item, setItem] = useState<EditableFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -68,6 +68,7 @@ export default function StaffEditFilePage() {
 
     setLoading(true);
     setError("");
+
     const { data, error: loadError } = await supabase
       .from("received_file_items")
       .select("id, job_id, original_name, storage_path, mime_type, size_bytes, edit_status, final_storage_path, final_name, final_mime_type, final_size_bytes, received_file_jobs(reference_no, customer_name, contact_number)")
@@ -76,7 +77,8 @@ export default function StaffEditFilePage() {
       .single();
 
     if (loadError) setError(loadError.message || "Unable to load this file.");
-    else setItem(data as EditableFile);
+    else setItem(data as unknown as EditableFile);
+
     setLoading(false);
   }, [fileId, jobId]);
 
@@ -87,6 +89,7 @@ export default function StaffEditFilePage() {
   const openStoredFile = async (path: string | null, name: string, download = false) => {
     if (!path) return;
     setError("");
+
     const { data, error: urlError } = await supabase.storage
       .from("received-files")
       .createSignedUrl(path, 60 * 15, download ? { download: name } : undefined);
@@ -100,8 +103,7 @@ export default function StaffEditFilePage() {
   };
 
   const onFileSelected = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextFile = event.target.files?.[0] ?? null;
-    setSelectedFile(nextFile);
+    setSelectedFile(event.target.files?.[0] ?? null);
     setError("");
     setMessage("");
   };
@@ -161,114 +163,133 @@ export default function StaffEditFilePage() {
       setSelectedFile(null);
       if (inputRef.current) inputRef.current.value = "";
       setMessage("Finished file saved successfully. You can now return to the job and continue to print configuration and POS.");
-    } catch (saveError: any) {
-      setError(saveError?.message || "Unable to save the finished file.");
+    } catch (saveError: unknown) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save the finished file.");
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="app-shell staff-edit-shell">
-        <Sidebar />
-        <main className="staff-edit-main"><div className="staff-edit-loading"><LoaderCircle className="spin" size={30} /><b>Loading editing workspace…</b></div></main>
-        <style jsx global>{styles}</style>
-      </div>
-    );
-  }
-
-  if (!item) {
-    return (
-      <div className="app-shell staff-edit-shell">
-        <Sidebar />
-        <main className="staff-edit-main">
-          <button className="staff-back" onClick={() => (window.location.href = `/received-files/${jobId}`)}><ArrowLeft size={18} /> Back to job</button>
-          <div className="staff-edit-empty"><FileText size={42} /><h1>File not found</h1><p>{error || "This file may have been removed."}</p></div>
-        </main>
-        <style jsx global>{styles}</style>
-      </div>
-    );
-  }
-
-  const job = item.received_file_jobs;
+  const goBack = () => {
+    window.location.href = `/received-files/${jobId}`;
+  };
 
   return (
-    <div className="app-shell staff-edit-shell">
+    <div className="staff-page-shell">
       <Sidebar />
-      <main className="staff-edit-main">
-        <div className="staff-edit-topbar">
-          <button className="staff-back" onClick={() => (window.location.href = `/received-files/${item.job_id}`)}><ArrowLeft size={18} /> Back to job</button>
-          <span className={item.edit_status === "FINISHED" ? "edit-status finished" : "edit-status"}>{item.edit_status === "FINISHED" ? "FINISHED VERSION SAVED" : "CUSTOMIZATION WORKSPACE"}</span>
+      <main className="staff-main">
+        <div className="staff-toolbar">
+          <button className="back-button" onClick={goBack}>
+            <ArrowLeft size={18} /> Back to job
+          </button>
+          {item && (
+            <span className={item.edit_status === "FINISHED" ? "status-pill done" : "status-pill"}>
+              {item.edit_status === "FINISHED" ? "FINISHED VERSION SAVED" : "CUSTOMIZATION WORKSPACE"}
+            </span>
+          )}
         </div>
 
-        <section className="staff-edit-hero">
-          <div>
-            <span className="staff-eyebrow">STAFF FILE EDITING</span>
-            <h1>Customize and re-upload</h1>
-            <p>Open the customer’s original file, edit it in Word or another application, then upload the finished version back into this job.</p>
-          </div>
-          <div className="staff-job-summary">
-            <small>JOB</small><b>{job?.reference_no || item.job_id}</b>
-            <span>{job?.customer_name || "Customer file"}</span>
-          </div>
-        </section>
-
-        <section className="staff-edit-grid">
-          <article className="staff-card original-card">
-            <span className="staff-label">1 · ORIGINAL CUSTOMER FILE</span>
-            <div className="file-preview-icon"><FileText size={30} /></div>
-            <h2>{item.original_name}</h2>
-            <p>{item.mime_type || "Unknown file type"} · {formatBytes(Number(item.size_bytes || 0))}</p>
-            <div className="staff-actions">
-              <button onClick={() => openStoredFile(item.storage_path, item.original_name)}><ExternalLink size={17} /> Open original</button>
-              <button onClick={() => openStoredFile(item.storage_path, item.original_name, true)}><Download size={17} /> Download original</button>
-            </div>
-            <div className="staff-tip">After downloading, staff can arrange a JPEG in Word, edit a document, resize content, or make other requested adjustments.</div>
-          </article>
-
-          <article className="staff-card upload-card">
-            <span className="staff-label">2 · UPLOAD FINISHED VERSION</span>
-            <h2>Save the final working file</h2>
-            <p>Choose the file after all editing and customer-requested adjustments are complete.</p>
-
-            <input ref={inputRef} id="finished-file-input" className="hidden-input" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png" onChange={onFileSelected} />
-            <label htmlFor="finished-file-input" className="upload-zone">
-              <Upload size={30} />
-              <b>{selectedFile ? selectedFile.name : "Choose finished file"}</b>
-              <span>{selectedFile ? `${formatBytes(selectedFile.size)} ready to save` : "PDF, Word, Excel, PowerPoint, JPG or PNG"}</span>
-            </label>
-
-            {item.final_storage_path && (
-              <div className="existing-finished">
-                <div><FileCheck2 size={20} /><span><b>Current finished version</b><small>{item.final_name || "Finished file"} · {formatBytes(Number(item.final_size_bytes || 0))}</small></span></div>
-                <div className="existing-actions">
-                  <button onClick={() => openStoredFile(item.final_storage_path, item.final_name || "finished-file")}>Open</button>
-                  <button onClick={() => openStoredFile(item.final_storage_path, item.final_name || "finished-file", true)}>Download</button>
-                </div>
+        {loading ? (
+          <section className="loading-card">
+            <LoaderCircle className="spin" size={30} />
+            <strong>Loading editing workspace…</strong>
+          </section>
+        ) : !item ? (
+          <section className="empty-card">
+            <FileText size={42} />
+            <h1>File not found</h1>
+            <p>{error || "This file may have been removed."}</p>
+          </section>
+        ) : (
+          <>
+            <section className="hero-card">
+              <div>
+                <span className="eyebrow">STAFF FILE EDITING</span>
+                <h1>Customize and re-upload</h1>
+                <p>Open the customer’s original file, edit it in Word or another application, then upload the finished version back into this job.</p>
               </div>
-            )}
+              <div className="job-summary">
+                <small>JOB</small>
+                <strong>{item.received_file_jobs?.reference_no || item.job_id}</strong>
+                <span>{item.received_file_jobs?.customer_name || "Customer file"}</span>
+              </div>
+            </section>
 
-            {error && <div className="staff-error">{error}</div>}
-            {message && <div className="staff-success"><CheckCircle2 size={18} /> {message}</div>}
+            <section className="edit-grid">
+              <article className="workspace-card">
+                <span className="eyebrow">1 · ORIGINAL CUSTOMER FILE</span>
+                <div className="file-icon"><FileText size={30} /></div>
+                <h2>{item.original_name}</h2>
+                <p>{item.mime_type || "Unknown file type"} · {formatBytes(Number(item.size_bytes || 0))}</p>
+                <div className="action-row">
+                  <button onClick={() => openStoredFile(item.storage_path, item.original_name)}><ExternalLink size={17} /> Open original</button>
+                  <button onClick={() => openStoredFile(item.storage_path, item.original_name, true)}><Download size={17} /> Download original</button>
+                </div>
+                <div className="tip-box">After downloading, staff can arrange a JPEG in Word, edit a document, resize content, or make other requested adjustments.</div>
+              </article>
 
-            <div className="save-row">
-              <button className="save-finished-btn" disabled={!selectedFile || saving} onClick={saveFinishedFile}><Save size={18} /> {saving ? "SAVING..." : item.final_storage_path ? "REPLACE FINISHED FILE" : "SAVE FINISHED FILE"}</button>
-            </div>
-          </article>
-        </section>
+              <article className="workspace-card">
+                <span className="eyebrow">2 · UPLOAD FINISHED VERSION</span>
+                <h2>Save the final working file</h2>
+                <p>Choose the file after all editing and customer-requested adjustments are complete.</p>
 
-        <section className="staff-next-card">
-          <CheckCircle2 size={22} />
-          <div><span className="staff-label">NEXT</span><b>Return to the job and configure printing</b><p>Once the finished file is saved, continue with paper size, quality, color, ink coverage, quantity, price calculation, and Add Job to POS.</p></div>
-          <button onClick={() => (window.location.href = `/received-files/${item.job_id}`)}>RETURN TO JOB</button>
-        </section>
+                <input
+                  ref={inputRef}
+                  id="finished-file-input"
+                  className="hidden-input"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                  onChange={onFileSelected}
+                />
+                <label htmlFor="finished-file-input" className="upload-zone">
+                  <Upload size={30} />
+                  <strong>{selectedFile ? selectedFile.name : "Choose finished file"}</strong>
+                  <span>{selectedFile ? `${formatBytes(selectedFile.size)} ready to save` : "PDF, Word, Excel, PowerPoint, JPG or PNG"}</span>
+                </label>
+
+                {item.final_storage_path && (
+                  <div className="finished-box">
+                    <div className="finished-info">
+                      <FileCheck2 size={21} />
+                      <span>
+                        <strong>Current finished version</strong>
+                        <small>{item.final_name || "Finished file"} · {formatBytes(Number(item.final_size_bytes || 0))}</small>
+                      </span>
+                    </div>
+                    <div className="action-row compact">
+                      <button onClick={() => openStoredFile(item.final_storage_path, item.final_name || "finished-file")}>Open</button>
+                      <button onClick={() => openStoredFile(item.final_storage_path, item.final_name || "finished-file", true)}>Download</button>
+                    </div>
+                  </div>
+                )}
+
+                {error && <div className="error-box">{error}</div>}
+                {message && <div className="success-box"><CheckCircle2 size={18} /> {message}</div>}
+
+                <div className="save-row">
+                  <button className="save-button" disabled={!selectedFile || saving} onClick={saveFinishedFile}>
+                    <Save size={18} /> {saving ? "SAVING..." : item.final_storage_path ? "REPLACE FINISHED FILE" : "SAVE FINISHED FILE"}
+                  </button>
+                </div>
+              </article>
+            </section>
+
+            <section className="next-card">
+              <CheckCircle2 size={23} />
+              <div>
+                <span className="eyebrow">NEXT</span>
+                <strong>Return to the job and configure printing</strong>
+                <p>Once the finished file is saved, continue with paper size, quality, color, ink coverage, quantity, price calculation, and Add Job to POS.</p>
+              </div>
+              <button className="return-button" onClick={goBack}>RETURN TO JOB</button>
+            </section>
+          </>
+        )}
       </main>
-      <style jsx global>{styles}</style>
+
+      <style jsx global>{`
+        .staff-page-shell{min-height:100vh;background:#f4f6f8;display:flex}.staff-main{flex:1;min-width:0;padding:28px 32px 40px;max-width:1500px}.staff-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px}.back-button,.action-row button,.return-button{border:1px solid #dfe4e8;background:#fff;border-radius:11px;padding:11px 15px;color:#353b42;font-weight:750;display:inline-flex;align-items:center;gap:8px;cursor:pointer}.status-pill{border-radius:999px;background:#fff1df;color:#a9650b;padding:8px 11px;font-size:11px;font-weight:850;letter-spacing:.04em}.status-pill.done{background:#e9f8ef;color:#237247}.hero-card,.workspace-card,.next-card,.loading-card,.empty-card{background:#fff;border:1px solid #e1e5e9;border-radius:18px;box-shadow:0 10px 30px rgba(26,36,46,.05)}.hero-card{padding:26px 28px;margin:18px 0;display:flex;align-items:center;justify-content:space-between;gap:24px}.eyebrow{font-size:11px;letter-spacing:.14em;font-weight:850;color:#a52a2a}.hero-card h1{margin:7px 0;color:#2d3339;font-size:31px}.hero-card p,.workspace-card>p,.next-card p{margin:0;color:#737b83;line-height:1.55}.job-summary{min-width:220px;padding:15px 17px;border:1px solid #eceff1;border-radius:14px;background:#fafbfb}.job-summary small,.job-summary span{display:block;color:#7c838a;font-size:12px}.job-summary strong{display:block;color:#33393f;margin:5px 0}.edit-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:18px}.workspace-card{padding:25px}.workspace-card h2{margin:8px 0 5px;color:#33383e}.file-icon{width:62px;height:62px;border-radius:16px;background:#fff0f0;color:#c12626;display:grid;place-items:center;margin:22px 0 12px}.action-row{display:flex;flex-wrap:wrap;gap:9px;margin-top:20px}.compact{margin-top:0}.tip-box{margin-top:20px;padding:13px 14px;border-radius:12px;background:#f7fafc;border:1px solid #e5eaee;color:#687078;font-size:13px;line-height:1.5}.hidden-input{display:none}.upload-zone{margin-top:20px;min-height:210px;border:2px dashed #d6dde2;border-radius:16px;background:#fafbfc;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:24px;cursor:pointer;color:#a52a2a}.upload-zone strong{color:#394047;font-size:17px}.upload-zone span{color:#7b838a;font-size:13px}.finished-box{margin-top:16px;padding:14px;border:1px solid #d7eadf;background:#f5fbf7;border-radius:13px;display:flex;align-items:center;justify-content:space-between;gap:12px}.finished-info{display:flex;align-items:center;gap:10px;color:#237247}.finished-info span strong,.finished-info span small{display:block}.finished-info span small{margin-top:3px;color:#718078;font-size:12px}.error-box,.success-box{margin-top:15px;padding:12px 13px;border-radius:11px;font-size:13px}.error-box{background:#fff0f0;color:#b12626}.success-box{background:#eaf8ef;color:#28744a;display:flex;align-items:flex-start;gap:8px}.save-row{display:flex;justify-content:flex-end;margin-top:18px}.save-button{border:0;border-radius:11px;background:#c90f0f;color:#fff;padding:13px 17px;font-weight:850;display:inline-flex;align-items:center;gap:8px;cursor:pointer}.save-button:disabled{opacity:.55;cursor:not-allowed}.next-card{margin-top:18px;padding:20px 22px;display:flex;align-items:center;gap:14px;color:#c90f0f}.next-card>div{flex:1}.next-card strong{display:block;color:#353b42;margin:4px 0}.return-button{border-color:#c90f0f;color:#c90f0f}.loading-card,.empty-card{margin-top:24px;padding:80px 24px;text-align:center;color:#626b73;display:flex;flex-direction:column;align-items:center;gap:12px}.empty-card h1{margin:0;color:#33383e}.spin{animation:staffspin 1s linear infinite}@keyframes staffspin{to{transform:rotate(360deg)}}@media(max-width:900px){.staff-main{padding:20px}.hero-card,.next-card{align-items:flex-start;flex-direction:column}.edit-grid{grid-template-columns:1fr}.job-summary{width:100%}.next-card .return-button{width:100%;justify-content:center}}@media(max-width:560px){.staff-main{padding:14px}.staff-toolbar{align-items:flex-start;flex-direction:column}.hero-card,.workspace-card{padding:20px}.hero-card h1{font-size:26px}.action-row button{width:100%;justify-content:center}.finished-box{align-items:flex-start;flex-direction:column}.save-button{width:100%;justify-content:center}}
+      `}</style>
     </div>
   );
 }
-
-const styles = `
-.staff-edit-shell{min-height:100vh;background:#f4f6f8}.staff-edit-main{width:100%;max-width:1500px;padding:28px 32px 40px;min-width:0}.staff-edit-topbar,.staff-edit-hero,.staff-next-card{display:flex;align-items:center;justify-content:space-between;gap:16px}.staff-back{border:1px solid #dfe3e7;background:#fff;border-radius:11px;padding:11px 15px;color:#373b40;font-weight:750;display:inline-flex;align-items:center;gap:8px;cursor:pointer}.edit-status{border-radius:999px;background:#fff1df;color:#a9650b;padding:8px 11px;font-size:11px;font-weight:850;letter-spacing:.04em}.edit-status.finished{background:#e9f8ef;color:#237247}.staff-edit-hero,.staff-card,.staff-next-card{background:#fff;border:1px solid #e1e5e9;border-radius:18px;box-shadow:0 10px 30px rgba(26,36,46,.05)}.staff-edit-hero{padding:26px 28px;margin:18px 0}.staff-eyebrow,.staff-label{font-size:11px;letter-spacing:.14em;font-weight:800;color:#a52a2a}.staff-edit-hero h1{margin:7px 0;color:#2c3137;font-size:31px}.staff-edit-hero p{margin:0;color:#737a81;max-width:760px;line-height:1.5}.staff-job-summary{min-width:220px;padding:15px 17px;border:1px solid #eceff1;border-radius:14px;background:#fafbfb}.staff-job-summary small,.staff-job-summary span{display:block;color:#7c838a;font-size:12px}.staff-job-summary b{display:block;color:#33393f;margin:5px 0}.staff-edit-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:18px}.staff-card{padding:25px}.staff-card h2{margin:8px 0 5px;color:#33383e}.staff-card>p{margin:0;color:#747b82;line-height:1.5}.file-preview-icon{width:62px;height:62px;border-radius:16px;background:#fff0f0;color:#c12626;display:grid;place-items:center;margin:22px 0 12px}.staff-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:20px}.staff-actions button,.existing-actions button{border:1px solid #dfe3e7;background:#fff;border-radius:10px;padding:10px 12px;color:#42484f;font-weight:750;display:inline-flex;align-items:center;gap:7px;cursor:pointer}.staff-tip{margin-top:20px;padding:13px 14px;border-radius:12px;background:#f7fafc;border:1px solid #e5eaee;color:#687078;font-size:13px;line-height:1.5}.upload-zone{margin-top:20px;min-height:210px;border:2px dashed #d6dde2;border-radius:16px;background:#fafbfc;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:24px;cursor:pointer;color:#9f2a2a}.upload-zone b{color:#394047;font-size:17px}.upload-zone span{color:#7b838a;font-size:13px}.hidden-input{display:none}.existing-finished{margin-top:16px;padding:14px;border:1px solid #d7eadf;background:#f5fbf7;border-radius:13px;display:flex;align-items:center;justify-content:space-between;gap:12px}.existing-finished>div:first-child{display:flex;align-items:center;gap:10px;color:#237247}.existing-finished span b,.existing-finished span small{display:block}.existing-finished span small{margin-top:3px;color:#718078;font-size:12px}.existing-actions{display:flex;gap:8px}.staff-error,.staff-success{margin-top:15px;padding:12px 13px;border-radius:11px;font-size:13px}.staff-error{background:#fff0f0;color:#b12626}.staff-success{background:#eaf8ef;color:#28744a;display:flex;align-items:flex-start;gap:8px}.save-row{display:flex;justify-content:flex-end;margin-top:18px}.save-finished-btn{border:0;border-radius:11px;background:#c90f0f;color:#fff;padding:13px 17px;font-weight:850;display:inline-flex;align-items:center;gap:8px;cursor:pointer}.save-finished-btn:disabled{opacity:.5;cursor:not-allowed}.staff-next-card{margin-top:18px;padding:18px 22px}.staff-next-card>svg{color:#c90f0f}.staff-next-card b{display:block;margin:5px 0;color:#33393f}.staff-next-card p{margin:0;color:#747a81;font-size:13px;line-height:1.45}.staff-next-card button{margin-left:auto;border:0;border-radius:11px;background:#c90f0f;color:#fff;padding:12px 15px;font-weight:850;cursor:pointer;white-space:nowrap}.staff-edit-loading,.staff-edit-empty{min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#666d74}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:980px){.staff-edit-grid{grid-template-columns:1fr}.staff-edit-hero{align-items:flex-start;flex-direction:column}.staff-job-summary{width:100%}}@media(max-width:640px){.staff-edit-main{padding:16px 12px 28px}.staff-edit-topbar,.staff-next-card{align-items:flex-start;flex-direction:column}.staff-edit-hero,.staff-card{padding:20px}.staff-edit-hero h1{font-size:25px}.staff-next-card button{margin-left:0;width:100%}.existing-finished{align-items:flex-start;flex-direction:column}.existing-actions{width:100%}.existing-actions button{flex:1;justify-content:center}.save-finished-btn{width:100%;justify-content:center}}
-`;
