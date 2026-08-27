@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, ExternalLink, FileUp, FolderOpen, QrCode, RefreshCw, Upload } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../../lib/supabase";
+import "../pos/pos.css";
 
 type Job = {
   id: string;
