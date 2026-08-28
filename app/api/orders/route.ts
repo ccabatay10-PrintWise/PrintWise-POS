@@ -28,6 +28,11 @@ function jsonError(error: string, status: number) {
   return NextResponse.json({ error }, { status });
 }
 
+function numberValue(value: unknown) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
 function userRole(user: any) {
   return user?.app_metadata?.role || user?.user_metadata?.role || "";
 }
@@ -50,14 +55,12 @@ async function getAuthenticatedAdmin(request: NextRequest) {
   }
 
   const role = userRole(data.user);
-  // Existing owner accounts created before role metadata are treated as admins.
   if (role && role !== "admin") {
     return { error: jsonError("Admin access is required to void transactions.", 403) };
   }
 
   return { user: data.user };
 }
-
 
 export async function GET(request: NextRequest) {
   if (!url || !anonKey || !serviceKey) {
@@ -100,40 +103,83 @@ export async function GET(request: NextRequest) {
 
   if (error) return jsonError(`Unable to load orders: ${error.message}`, 400);
 
-  // Resolve the existing created_by user ID into the staff/admin name.
-  // This keeps the current database schema unchanged because POS orders already save created_by.
-  const nameCache = new Map<string, string>();
-  const orders = await Promise.all((data ?? []).map(async (order: any) => {
-    const userId = String(order.created_by || "").trim();
-    if (!userId) return { ...order, transacted_by: "Not recorded" };
+  const orderIds = (data ?? []).map((order: any) => String(order.id)).filter(Boolean);
+  const paymentTotals = new Map<string, number>();
+  const itemTotals = new Map<string, number>();
 
-    let name = nameCache.get(userId);
-    if (!name) {
-      try {
-        const { data: userData, error: userError } = await adminClient.auth.admin.getUserById(userId);
-        const user = userData?.user;
-        if (userError || !user) {
-          name = "Not recorded";
-        } else {
-          name = String(
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.email?.split("@")[0] ||
-            "Not recorded"
-          );
-        }
-      } catch {
-        name = "Not recorded";
-      }
-      nameCache.set(userId, name);
+  if (orderIds.length) {
+    const [{ data: payments }, { data: items }] = await Promise.all([
+      adminClient
+        .from("payment_transactions")
+        .select("pos_order_id,amount,status")
+        .in("pos_order_id", orderIds),
+      adminClient
+        .from("pos_order_items")
+        .select("pos_order_id,line_total")
+        .in("pos_order_id", orderIds),
+    ]);
+
+    for (const payment of payments ?? []) {
+      const status = String((payment as any).status || "").toLowerCase();
+      if (status === "voided" || status === "failed") continue;
+      const id = String((payment as any).pos_order_id || "");
+      paymentTotals.set(id, (paymentTotals.get(id) || 0) + numberValue((payment as any).amount));
     }
 
-    return { ...order, transacted_by: name };
+    for (const item of items ?? []) {
+      const id = String((item as any).pos_order_id || "");
+      itemTotals.set(id, (itemTotals.get(id) || 0) + numberValue((item as any).line_total));
+    }
+  }
+
+  const nameCache = new Map<string, string>();
+  const orders = await Promise.all((data ?? []).map(async (order: any) => {
+    const id = String(order.id || "");
+    const savedSubtotal = numberValue(order.subtotal);
+    const savedDiscount = numberValue(order.discount_amount);
+    const savedTotal = numberValue(order.total);
+    const savedPaid = numberValue(order.amount_paid);
+    const itemTotal = itemTotals.get(id) || 0;
+    const paymentTotal = paymentTotals.get(id) || 0;
+
+    // Older/broken rows may contain zero totals even though their items or payment were saved.
+    // Always return the best valid amount so the Transactions screen stays accurate.
+    const resolvedSubtotal = savedSubtotal > 0 ? savedSubtotal : itemTotal;
+    const resolvedTotal = savedTotal > 0
+      ? savedTotal
+      : Math.max(0, resolvedSubtotal - savedDiscount) || paymentTotal;
+    const resolvedPaid = savedPaid > 0 ? savedPaid : paymentTotal;
+
+    const userId = String(order.created_by || "").trim();
+    let transactedBy = "Not recorded";
+    if (userId) {
+      let name = nameCache.get(userId);
+      if (!name) {
+        try {
+          const { data: userData, error: userError } = await adminClient.auth.admin.getUserById(userId);
+          const user = userData?.user;
+          name = userError || !user
+            ? "Not recorded"
+            : String(user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Not recorded");
+        } catch {
+          name = "Not recorded";
+        }
+        nameCache.set(userId, name);
+      }
+      transactedBy = name;
+    }
+
+    return {
+      ...order,
+      subtotal: resolvedSubtotal,
+      total: resolvedTotal,
+      amount_paid: resolvedPaid,
+      transacted_by: transactedBy,
+    };
   }));
 
   return NextResponse.json({ orders });
 }
-
 
 export async function POST(request: NextRequest) {
   const auth = await getAuthenticatedAdmin(request);
@@ -159,7 +205,6 @@ export async function POST(request: NextRequest) {
     return jsonError("The current admin account has no email address.", 400);
   }
 
-  // Re-authenticate with the current admin's password before allowing the void.
   const passwordCheckClient = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -196,7 +241,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, alreadyVoided: true });
   }
 
-  // Preserve the transaction history: mark as voided instead of physically deleting it.
   const { error: orderError } = await adminClient
     .from("pos_orders")
     .update({ status: "voided" })
@@ -206,17 +250,13 @@ export async function POST(request: NextRequest) {
     return jsonError(`Unable to void transaction: ${orderError.message}`, 400);
   }
 
-  // Keep related payment records consistent with the order status.
   const { error: paymentError } = await adminClient
     .from("payment_transactions")
     .update({ status: "voided" })
     .eq("pos_order_id", orderId);
 
   if (paymentError) {
-    return jsonError(
-      `Transaction was voided, but the payment status could not be updated: ${paymentError.message}`,
-      400,
-    );
+    return jsonError(`Transaction was voided, but the payment status could not be updated: ${paymentError.message}`, 400);
   }
 
   return NextResponse.json({ ok: true });
