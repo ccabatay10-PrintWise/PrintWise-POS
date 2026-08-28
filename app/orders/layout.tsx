@@ -3,33 +3,36 @@ export default function OrdersLayout({ children }: { children: React.ReactNode }
     <>
       {children}
       <style>{`
-        /* Keep the Order Details dialog locked to the viewport center. */
+        /* Force the Order Details dialog to the exact visual center of the viewport. */
         .order-details-backdrop {
           position: fixed !important;
           top: 0 !important;
-          right: 0 !important;
-          bottom: 0 !important;
+          right: auto !important;
+          bottom: auto !important;
           left: 0 !important;
           width: 100vw !important;
           height: 100dvh !important;
           min-height: 100dvh !important;
           margin: 0 !important;
-          padding: 22px !important;
+          padding: 0 !important;
           box-sizing: border-box !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
+          background: rgba(15, 23, 42, .58) !important;
+          z-index: 999999 !important;
           overflow: hidden !important;
         }
 
         .order-details-modal {
-          position: relative !important;
+          position: fixed !important;
+          top: 50dvh !important;
+          left: 50vw !important;
+          right: auto !important;
+          bottom: auto !important;
+          transform: translate(-50%, -50%) !important;
           margin: 0 !important;
-          transform: none !important;
-          width: min(1120px, 100%) !important;
+          width: min(1120px, calc(100vw - 44px)) !important;
+          max-width: calc(100vw - 44px) !important;
           max-height: calc(100dvh - 44px) !important;
           box-sizing: border-box !important;
-          flex: 0 1 auto !important;
           overflow-y: auto !important;
         }
 
@@ -38,11 +41,11 @@ export default function OrdersLayout({ children }: { children: React.ReactNode }
         }
 
         @media (max-width: 640px) {
-          .order-details-backdrop {
-            padding: 10px !important;
-          }
-
           .order-details-modal {
+            top: 50dvh !important;
+            left: 50vw !important;
+            width: calc(100vw - 20px) !important;
+            max-width: calc(100vw - 20px) !important;
             max-height: calc(100dvh - 20px) !important;
           }
         }
