@@ -21,13 +21,14 @@ export async function POST(req: Request) {
     const refreshToken = process.env.GMAIL_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN;
     const from = process.env.GMAIL_FROM || process.env.GOOGLE_EMAIL || process.env.EMAIL_FROM;
 
-    const missing: string[] = [];
-    if (!clientId) missing.push("GOOGLE_CLIENT_ID");
-    if (!clientSecret) missing.push("GOOGLE_CLIENT_SECRET");
-    if (!refreshToken) missing.push("GOOGLE_REFRESH_TOKEN");
-    if (!from) missing.push("GOOGLE_EMAIL");
+    // This direct guard lets TypeScript narrow all variables below to string.
+    if (!clientId || !clientSecret || !refreshToken || !from) {
+      const missing: string[] = [];
+      if (!clientId) missing.push("GOOGLE_CLIENT_ID");
+      if (!clientSecret) missing.push("GOOGLE_CLIENT_SECRET");
+      if (!refreshToken) missing.push("GOOGLE_REFRESH_TOKEN");
+      if (!from) missing.push("GOOGLE_EMAIL");
 
-    if (missing.length > 0) {
       return NextResponse.json(
         {
           error: `Gmail is not fully configured. Missing: ${missing.join(", ")}.`,
@@ -37,7 +38,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // The checks above guarantee these values are strings before they are passed to URLSearchParams.
     const tokenParams = new URLSearchParams();
     tokenParams.set("client_id", clientId);
     tokenParams.set("client_secret", clientSecret);
