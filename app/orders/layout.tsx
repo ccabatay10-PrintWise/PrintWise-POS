@@ -3,50 +3,74 @@ export default function OrdersLayout({ children }: { children: React.ReactNode }
     <>
       {children}
       <style>{`
-        /* Force the Order Details dialog to the exact visual center of the viewport. */
+        /* Responsive Order Details dialog: adapts to viewport size and stays centered. */
         .order-details-backdrop {
           position: fixed !important;
-          top: 0 !important;
-          right: auto !important;
-          bottom: auto !important;
-          left: 0 !important;
+          inset: 0 !important;
           width: 100vw !important;
+          width: 100dvw !important;
+          height: 100vh !important;
           height: 100dvh !important;
-          min-height: 100dvh !important;
           margin: 0 !important;
-          padding: 0 !important;
+          padding: clamp(12px, 3vw, 40px) !important;
           box-sizing: border-box !important;
+          display: grid !important;
+          place-items: center !important;
           background: rgba(15, 23, 42, .58) !important;
           z-index: 999999 !important;
           overflow: hidden !important;
         }
 
         .order-details-modal {
-          position: fixed !important;
-          top: 50dvh !important;
-          left: 50vw !important;
-          right: auto !important;
-          bottom: auto !important;
-          transform: translate(-50%, -50%) !important;
+          position: relative !important;
+          inset: auto !important;
+          transform: none !important;
           margin: 0 !important;
-          width: min(1120px, calc(100vw - 44px)) !important;
-          max-width: calc(100vw - 44px) !important;
-          max-height: calc(100dvh - 44px) !important;
+          width: min(1180px, 100%) !important;
+          max-width: 100% !important;
+          max-height: 100% !important;
           box-sizing: border-box !important;
-          overflow-y: auto !important;
+          overflow: auto !important;
+          overscroll-behavior: contain !important;
+          -webkit-overflow-scrolling: touch !important;
         }
 
         body:has(.order-details-backdrop) {
           overflow: hidden !important;
         }
 
-        @media (max-width: 640px) {
+        /* Tablet: use more of the screen while keeping comfortable margins. */
+        @media (max-width: 900px) {
+          .order-details-backdrop {
+            padding: 18px !important;
+          }
+
           .order-details-modal {
-            top: 50dvh !important;
-            left: 50vw !important;
-            width: calc(100vw - 20px) !important;
-            max-width: calc(100vw - 20px) !important;
-            max-height: calc(100dvh - 20px) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+        }
+
+        /* Mobile: nearly full-screen, with safe spacing and internal scrolling. */
+        @media (max-width: 640px) {
+          .order-details-backdrop {
+            padding: 8px !important;
+            place-items: center !important;
+          }
+
+          .order-details-modal {
+            width: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            border-radius: 18px !important;
+          }
+        }
+
+        /* Short screens: preserve the center and let only the modal content scroll. */
+        @media (max-height: 700px) {
+          .order-details-backdrop {
+            padding-top: 10px !important;
+            padding-bottom: 10px !important;
           }
         }
       `}</style>
