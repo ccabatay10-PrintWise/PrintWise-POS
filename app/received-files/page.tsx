@@ -22,7 +22,7 @@ type Job = {
   id: string;
   reference_no: string;
   customer_name: string;
-  contact_number: string;
+  email: string | null;
   status: string;
   created_at: string;
   received_file_items?: { id: string }[];
@@ -43,7 +43,7 @@ export default function ReceivedFilesPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("received_file_jobs")
-      .select("id, reference_no, customer_name, contact_number, status, created_at, received_file_items(id)")
+      .select("id, reference_no, customer_name, email, status, created_at, received_file_items(id)")
       .order("created_at", { ascending: false })
       .limit(50);
     if (!error) setJobs((data ?? []) as Job[]);
@@ -87,7 +87,7 @@ export default function ReceivedFilesPage() {
             <span className="mini-label">CUSTOMER UPLOAD</span>
             <h2>Scan to <strong>send files</strong></h2>
             <span className="title-rule" />
-            <p>Customers scan the code, enter their name and contact number, then upload one or multiple files.</p>
+            <p>Customers scan the code, enter their name and email address, then upload one or multiple files.</p>
             <div className="upload-link"><span>{uploadUrl}</span><button onClick={copyLink} aria-label="Copy upload link" type="button"><Copy size={17} /></button></div>
             <div className="qr-actions">
               <button className="primary-action" onClick={copyLink} type="button"><Copy size={17} />{copied ? "Link Copied" : "Copy Upload Link"}</button>
@@ -97,7 +97,7 @@ export default function ReceivedFilesPage() {
           <div className="qr-panel"><img src={qrUrl} alt="PrintWise customer upload QR code" /></div>
           <div className="upload-steps">
             <div className="step-item"><div className="step-icon"><ScanLine size={22} /></div><div><b>1. Scan QR code</b><span>Use any phone camera.</span></div></div>
-            <div className="step-item"><div className="step-icon"><UserRound size={22} /></div><div><b>2. Name + contact number</b><span>Enter customer details.</span></div></div>
+            <div className="step-item"><div className="step-icon"><UserRound size={22} /></div><div><b>2. Name + email address</b><span>Enter customer details.</span></div></div>
             <div className="step-item"><div className="step-icon"><FileUp size={22} /></div><div><b>3. Upload multiple files</b><span>Send one or multiple files at once.</span></div></div>
             <div className="step-item"><div className="step-icon"><CheckCircle2 size={22} /></div><div><b>4. Job appears here</b><span>The submission is ready for staff review.</span></div></div>
           </div>
@@ -111,9 +111,9 @@ export default function ReceivedFilesPage() {
               <option value="ALL">All Status</option><option value="RECEIVED">Received</option><option value="REVIEWING">Reviewing</option><option value="PROCESSING">Processing</option><option value="READY">Ready</option><option value="COMPLETED">Completed</option>
             </select>
           </div>
-          {loading ? <div className="empty-state"><RefreshCw className="spin" size={24} /><b>Loading received files…</b></div> : filteredJobs.length === 0 ? <div className="empty-state"><FolderOpen size={32} /><b>No files received yet</b><span>Share the QR code with a customer to start receiving files.</span></div> : <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th>Reference No.</th><th>Customer</th><th>Contact Number</th><th>Files</th><th>Date Received</th><th>Status</th><th>Actions</th></tr></thead><tbody>{filteredJobs.map((job) => {
+          {loading ? <div className="empty-state"><RefreshCw className="spin" size={24} /><b>Loading received files…</b></div> : filteredJobs.length === 0 ? <div className="empty-state"><FolderOpen size={32} /><b>No files received yet</b><span>Share the QR code with a customer to start receiving files.</span></div> : <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th>Reference No.</th><th>Customer</th><th>Email</th><th>Files</th><th>Date Received</th><th>Status</th><th>Actions</th></tr></thead><tbody>{filteredJobs.map((job) => {
             const fileCount = job.received_file_items?.length ?? 0;
-            return <tr key={job.id}><td className="reference-cell"><span className="reference-dot" /><b>{job.reference_no}</b></td><td>{job.customer_name}</td><td>{job.contact_number}</td><td><span className="file-count"><FileText size={16} />{fileCount} file{fileCount === 1 ? "" : "s"}</span></td><td>{formatDate(job.created_at)}</td><td><span className={`status ${job.status.toLowerCase()}`}>{job.status.replaceAll("_", " ")}</span></td><td><div className="row-actions"><button type="button" className="review-btn" onClick={() => reviewJob(job.id)}><Eye size={18} />Review</button><button type="button" onClick={() => reviewJob(job.id)} title="Open job"><MoreHorizontal size={20} /></button></div></td></tr>;
+            return <tr key={job.id}><td className="reference-cell"><span className="reference-dot" /><b>{job.reference_no}</b></td><td>{job.customer_name}</td><td>{job.email || "—"}</td><td><span className="file-count"><FileText size={16} />{fileCount} file{fileCount === 1 ? "" : "s"}</span></td><td>{formatDate(job.created_at)}</td><td><span className={`status ${job.status.toLowerCase()}`}>{job.status.replaceAll("_", " ")}</span></td><td><div className="row-actions"><button type="button" className="review-btn" onClick={() => reviewJob(job.id)}><Eye size={18} />Review</button><button type="button" onClick={() => reviewJob(job.id)} title="Open job"><MoreHorizontal size={20} /></button></div></td></tr>;
           })}</tbody></table></div>}
           <div className="jobs-footer"><span>Showing 1 to {filteredJobs.length} of {filteredJobs.length} result{filteredJobs.length === 1 ? "" : "s"}</span><span className="count-pill">{receivedCount} New</span></div>
         </section>
