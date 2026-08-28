@@ -1,5 +1,5 @@
 -- PrintWise Received Files - Automatic POS Payment Completion
--- Links a received-file job to its POS order and automatically marks it PAID/COMPLETED after a successful payment.
+-- Links received-file POS line items to the correct file job and marks the job PAID/COMPLETED after successful payment.
 
 alter table public.received_file_jobs
   add column if not exists pos_order_id uuid,
@@ -23,16 +23,26 @@ set search_path = public
 as $$
 declare
   matched_job_id uuid;
+  normalized_name text;
 begin
-  if new.product_id is not null then return new; end if;
+  -- Regular POS products already have a product_id. Only received-file lines need this link.
+  if new.product_id is not null then
+    return new;
+  end if;
+
+  -- POS stores received-file items as: "Print: <original file name>".
+  normalized_name := regexp_replace(coalesce(new.item_name, ''), '^Print:\\s*', '', 'i');
 
   select j.id into matched_job_id
   from public.received_file_items i
   join public.received_file_jobs j on j.id = i.job_id
   where j.status in ('PROCESSING', 'READY', 'REVIEWING')
     and j.pos_order_id is null
-    and (i.original_name = new.item_name or i.final_name = new.item_name)
-  order by j.updated_at desc
+    and (
+      lower(coalesce(i.original_name, '')) = lower(normalized_name)
+      or lower(coalesce(i.final_name, '')) = lower(normalized_name)
+    )
+  order by j.updated_at desc, j.created_at desc
   limit 1;
 
   if matched_job_id is not null then
@@ -41,7 +51,8 @@ begin
            pos_order_no = (select o.order_no from public.pos_orders o where o.id = new.pos_order_id),
            status = 'PROCESSING',
            updated_at = now()
-     where j.id = matched_job_id and j.pos_order_id is null;
+     where j.id = matched_job_id
+       and j.pos_order_id is null;
   end if;
 
   return new;
@@ -64,11 +75,11 @@ begin
     update public.received_file_jobs
        set status = 'COMPLETED',
            payment_status = 'PAID',
-           amount_paid = new.amount,
-           payment_method = upper(replace(new.channel::text, '_', ' ')),
+           amount_paid = greatest(coalesce(new.amount, 0), 0),
+           payment_method = upper(replace(coalesce(new.channel::text, ''), '_', ' ')),
            payment_date = coalesce(new.created_at, now()),
            receipt_reference = new.transaction_no,
-           completed_at = now(),
+           completed_at = coalesce(completed_at, now()),
            updated_at = now()
      where pos_order_id = new.pos_order_id
        and coalesce(payment_status, '') <> 'PAID';
