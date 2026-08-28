@@ -16,7 +16,7 @@ function makeReference() {
 
 export default function UploadFilesPage() {
   const [name, setName] = useState("");
-  const [contact, setContact] = useState("");
+  const [email, setEmail] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -40,17 +40,17 @@ export default function UploadFilesPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    if (!name.trim() || !contact.trim()) return setError("Please enter your name and contact number.");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!name.trim() || !cleanEmail) return setError("Please enter your name and email address.");
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) return setError("Please enter a valid email address.");
     if (!files.length) return setError("Please attach at least one file.");
 
     setBusy(true);
     const reference = makeReference();
-    // Generate the job ID in the browser so anonymous customers do not need
-    // SELECT permission just to get the inserted row back.
     const jobId = crypto.randomUUID();
     const { error: jobError } = await supabase
       .from("received_file_jobs")
-      .insert({ id: jobId, reference_no: reference, customer_name: name.trim(), contact_number: contact.trim(), status: "RECEIVED", file_count: files.length });
+      .insert({ id: jobId, reference_no: reference, customer_name: name.trim(), email: cleanEmail, status: "RECEIVED", file_count: files.length });
 
     if (jobError) {
       setBusy(false);
@@ -74,7 +74,7 @@ export default function UploadFilesPage() {
       setSuccess({ reference, count: files.length });
       setFiles([]);
       setName("");
-      setContact("");
+      setEmail("");
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "Some files could not be uploaded.";
       setError(`Upload could not be completed: ${message}`);
@@ -85,7 +85,7 @@ export default function UploadFilesPage() {
 
   if (success) return <main className="upload-page"><section className="upload-card success-card"><CheckCircle2 size={52} /><span className="eyebrow">FILES RECEIVED</span><h1>Thank you!</h1><p>Your files have been successfully sent to PrintWise.</p><div className="reference-box"><span>Your Reference Number</span><b>{success.reference}</b><small>{success.count} file{success.count === 1 ? "" : "s"} received</small></div><p className="success-note">Please keep this reference number for your record.</p><button onClick={() => setSuccess(null)}>Send Another File</button></section><style jsx global>{baseStyles}</style></main>;
 
-  return <main className="upload-page"><section className="upload-card"><div className="brand-line"><div className="brand-dot">P</div><div><b>PRINTWISE</b><span>Printing & Customized Services</span></div></div><span className="eyebrow">CUSTOMER FILE UPLOAD</span><h1>Send your files to PrintWise</h1><p className="lead">Enter your details and attach the file or files you need us to receive.</p><form onSubmit={submit}><label>Full Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter your full name" autoComplete="name" /></label><label>Contact Number<input value={contact} onChange={(event) => setContact(event.target.value)} placeholder="09XXXXXXXXX" inputMode="tel" autoComplete="tel" /></label><div className="upload-area"><input id="files" type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png" onChange={addFiles} /><label htmlFor="files" className="drop-zone"><UploadCloud size={28} /><b>Choose files to upload</b><span>PDF, Word, Excel, PowerPoint, JPG or PNG</span><small>Up to {maxFiles} files · 25 MB each</small></label></div>{files.length > 0 && <div className="file-list">{files.map((file, index) => <div className="file-item" key={`${file.name}-${index}`}><span className="file-icon">{file.type.startsWith("image/") ? <ImageIcon size={18} /> : <FileText size={18} />}</span><div><b>{file.name}</b><small>{(file.size / 1024 / 1024).toFixed(file.size > 1024 * 1024 ? 2 : 1)} {file.size > 1024 * 1024 ? "MB" : "KB"}</small></div><button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}><Trash2 size={17} /></button></div>)}</div>}<div className="upload-summary"><Paperclip size={16} /> {files.length} file{files.length === 1 ? "" : "s"} selected · {(totalSize / 1024 / 1024).toFixed(2)} MB total</div>{error && <div className="error-message">{error}</div>}<button className="submit-btn" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={18} /> Sending files…</> : <><UploadCloud size={18} /> Submit Files</>}</button></form><p className="privacy-note">Your files are received for PrintWise service processing.</p></section><style jsx global>{baseStyles}</style></main>;
+  return <main className="upload-page"><section className="upload-card"><div className="brand-line"><div className="brand-dot">P</div><div><b>PRINTWISE</b><span>Printing & Customized Services</span></div></div><span className="eyebrow">CUSTOMER FILE UPLOAD</span><h1>Send your files to PrintWise</h1><p className="lead">Enter your details and attach the file or files you need us to receive.</p><form onSubmit={submit}><label>Full Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter your full name" autoComplete="name" /></label><label>Email Address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" inputMode="email" autoComplete="email" /></label><div className="upload-area"><input id="files" type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png" onChange={addFiles} /><label htmlFor="files" className="drop-zone"><UploadCloud size={28} /><b>Choose files to upload</b><span>PDF, Word, Excel, PowerPoint, JPG or PNG</span><small>Up to {maxFiles} files · 25 MB each</small></label></div>{files.length > 0 && <div className="file-list">{files.map((file, index) => <div className="file-item" key={`${file.name}-${index}`}><span className="file-icon">{file.type.startsWith("image/") ? <ImageIcon size={18} /> : <FileText size={18} />}</span><div><b>{file.name}</b><small>{(file.size / 1024 / 1024).toFixed(file.size > 1024 * 1024 ? 2 : 1)} {file.size > 1024 * 1024 ? "MB" : "KB"}</small></div><button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}><Trash2 size={17} /></button></div>)}</div>}<div className="upload-summary"><Paperclip size={16} /> {files.length} file{files.length === 1 ? "" : "s"} selected · {(totalSize / 1024 / 1024).toFixed(2)} MB total</div>{error && <div className="error-message">{error}</div>}<button className="submit-btn" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={18} /> Sending files…</> : <><UploadCloud size={18} /> Submit Files</>}</button></form><p className="privacy-note">Your files are received for PrintWise service processing.</p></section><style jsx global>{baseStyles}</style></main>;
 }
 
 const baseStyles = `
