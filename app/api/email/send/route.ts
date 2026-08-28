@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing email details." }, { status: 400 });
     }
 
-    // Support both the existing GMAIL_* names and the GOOGLE_* names already configured in Vercel.
+    // Support both GMAIL_* and GOOGLE_* environment variable names.
     const clientId = process.env.GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
     const refreshToken = process.env.GMAIL_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN;
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     if (!refreshToken) missing.push("GOOGLE_REFRESH_TOKEN");
     if (!from) missing.push("GOOGLE_EMAIL");
 
-    if (missing.length) {
+    if (missing.length > 0) {
       return NextResponse.json(
         {
           error: `Gmail is not fully configured. Missing: ${missing.join(", ")}.`,
@@ -37,15 +37,17 @@ export async function POST(req: Request) {
       );
     }
 
+    // The checks above guarantee these values are strings before they are passed to URLSearchParams.
+    const tokenParams = new URLSearchParams();
+    tokenParams.set("client_id", clientId);
+    tokenParams.set("client_secret", clientSecret);
+    tokenParams.set("refresh_token", refreshToken);
+    tokenParams.set("grant_type", "refresh_token");
+
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: clientId!,
-        client_secret: clientSecret!,
-        refresh_token: refreshToken!,
-        grant_type: "refresh_token",
-      }),
+      body: tokenParams,
     });
 
     const token = await tokenRes.json();
@@ -53,7 +55,7 @@ export async function POST(req: Request) {
       throw new Error(token.error_description || "Unable to authorize Gmail.");
     }
 
-    const raw = `From: PrintWise <${from!}>\r\nTo: ${to}\r\nSubject: ${subject}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${message}`;
+    const raw = `From: PrintWise <${from}>\r\nTo: ${to}\r\nSubject: ${subject}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${message}`;
 
     const sendRes = await fetch(
       "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
