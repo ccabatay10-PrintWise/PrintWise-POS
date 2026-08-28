@@ -11,9 +11,9 @@ import {
   FileText,
   FolderOpen,
   LoaderCircle,
+  Mail,
   MessageSquare,
   Palette,
-  Phone,
   Printer,
   RefreshCw,
   Settings2,
@@ -37,6 +37,7 @@ type Job = {
   reference_no: string;
   customer_name: string;
   contact_number: string;
+  email: string | null;
   status: string;
   created_at: string;
   received_file_items?: FileItem[];
@@ -105,7 +106,7 @@ export default function ReceivedFileJobPage() {
     setError("");
     const { data, error: loadError } = await supabase
       .from("received_file_jobs")
-      .select("id, reference_no, customer_name, contact_number, status, created_at, received_file_items(id, original_name, storage_path, mime_type, size_bytes)")
+      .select("id, reference_no, customer_name, contact_number, email, status, created_at, received_file_items(id, original_name, storage_path, mime_type, size_bytes)")
       .eq("id", jobId)
       .single();
 
@@ -271,7 +272,7 @@ export default function ReceivedFileJobPage() {
           <article className="job-card customer-card">
             <span className="mini-label">CUSTOMER DETAILS</span>
             <div className="customer-row"><span className="detail-icon"><UserRound size={20} /></span><div><small>Customer Name</small><b>{job.customer_name}</b></div></div>
-            <div className="customer-row"><span className="detail-icon"><Phone size={20} /></span><div><small>Contact Number</small><b>{job.contact_number}</b></div></div>
+            <div className="customer-row"><span className="detail-icon"><Mail size={20} /></span><div><small>Email</small><b>{job.email || "No email provided"}</b></div></div>
           </article>
 
           <article className="job-card workflow-card">
