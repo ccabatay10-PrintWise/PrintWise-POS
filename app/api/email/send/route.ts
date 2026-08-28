@@ -41,9 +41,9 @@ export async function POST(req: Request) {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
+        client_id: clientId!,
+        client_secret: clientSecret!,
+        refresh_token: refreshToken!,
         grant_type: "refresh_token",
       }),
     });
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       throw new Error(token.error_description || "Unable to authorize Gmail.");
     }
 
-    const raw = `From: PrintWise <${from}>\r\nTo: ${to}\r\nSubject: ${subject}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${message}`;
+    const raw = `From: PrintWise <${from!}>\r\nTo: ${to}\r\nSubject: ${subject}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${message}`;
 
     const sendRes = await fetch(
       "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
