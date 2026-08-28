@@ -59,6 +59,7 @@ export default function POSPage() {
   const [tendered, setTendered] = useState(0);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [completedReceipt, setCompletedReceipt] = useState<CompletedReceipt | null>(null);
   const [handoffLoaded, setHandoffLoaded] = useState(false);
 
@@ -183,6 +184,7 @@ export default function POSPage() {
     setCustomer("");
     setDiscount(0);
     setTendered(0);
+    setPaymentModalOpen(false);
     setMessage("");
   };
 
@@ -192,6 +194,13 @@ export default function POSPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setAuthMessage(error.message);
     setAuthLoading(false);
+  };
+
+  const openPaymentModal = () => {
+    if (!cart.length) return setMessage("Add at least one item to the order.");
+    setMessage("");
+    if (payment !== "Cash") setTendered(total);
+    setPaymentModalOpen(true);
   };
 
   const processPayment = async () => {
@@ -278,6 +287,7 @@ export default function POSPage() {
       items: cart.map((item) => ({ ...item })),
     };
 
+    setPaymentModalOpen(false);
     setCompletedReceipt(receipt);
     setMessage(`Payment successful. Order ${orderNo} was saved to PrintWise.`);
     setSaving(false);
@@ -344,11 +354,13 @@ export default function POSPage() {
               <div className="discount-row"><span>Discount</span><input type="number" min="0" max={subtotal} value={discount || ""} onChange={(e) => setDiscount(Math.min(subtotal, Math.max(0, Number(e.target.value) || 0)))} placeholder="0.00" /></div>
               <div className="total-row"><span>Amount Due</span><b>₱{total.toFixed(2)}</b></div>
             </div>
-            <div className="payment-section"><h3>Payment Method</h3><div className="payment-grid">{[[Banknote, "Cash"], [Phone, "GCash"], [ReceiptText, "Bayad"], [CreditCard, "Bank"]].map(([Icon, label]: any) => { const PaymentIcon = Icon; return <button key={label} onClick={() => setPayment(label)} className={`payment-option ${payment === label ? "chosen" : ""}`}><PaymentIcon size={19} /><span>{label}</span></button>; })}</div>{payment === "Cash" && <div className="tendered"><span>Amount Paid</span><input type="number" min="0" value={tendered || ""} onChange={(e) => setTendered(Math.max(0, Number(e.target.value) || 0))} placeholder="0.00" /><small>Change: <b>₱{change.toFixed(2)}</b></small></div>}</div>
-            <button className="process-btn" disabled={saving} onClick={processPayment}><ReceiptText size={20} /> {saving ? "SAVING..." : "PROCESS PAYMENT"} <strong>₱{total.toFixed(2)}</strong></button>
+            <div className="payment-section"><h3>Payment Method</h3><div className="payment-grid">{[[Banknote, "Cash"], [Phone, "GCash"], [ReceiptText, "Bayad"], [CreditCard, "Bank"]].map(([Icon, label]: any) => { const PaymentIcon = Icon; return <button key={label} onClick={() => setPayment(label)} className={`payment-option ${payment === label ? "chosen" : ""}`}><PaymentIcon size={19} /><span>{label}</span></button>; })}</div></div>
+            <button className="process-btn" disabled={saving} onClick={openPaymentModal}><ReceiptText size={20} /> {saving ? "SAVING..." : "PROCESS PAYMENT"} <strong>₱{total.toFixed(2)}</strong></button>
           </aside>
         </div>
       </section>
+
+      {paymentModalOpen && <div className="payment-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title"><div className="payment-modal-card"><button className="payment-modal-close" onClick={() => setPaymentModalOpen(false)} aria-label="Close payment window"><X size={20} /></button><div className="payment-modal-icon"><Banknote size={28} /></div><span className="payment-modal-kicker">PROCESS PAYMENT</span><h2 id="payment-modal-title">Confirm customer payment</h2><p>Review the payment amount before completing this transaction.</p><div className="payment-modal-method"><span>Payment Method</span><b>{payment}</b></div><div className="payment-modal-summary"><div><span>Total Amount</span><strong>₱{total.toFixed(2)}</strong></div><label><span>Amount Paid</span><input autoFocus type="number" min="0" step="0.01" value={tendered || ""} onChange={(e) => setTendered(Math.max(0, Number(e.target.value) || 0))} onFocus={(e) => e.currentTarget.select()} readOnly={payment !== "Cash"} placeholder="0.00" /></label><div className="payment-modal-change"><span>Change</span><strong>₱{change.toFixed(2)}</strong></div></div>{payment === "Cash" && tendered > 0 && tendered < total && <div className="payment-modal-error">Amount paid is not enough. Please enter at least ₱{total.toFixed(2)}.</div>}<div className="payment-modal-actions"><button className="payment-modal-cancel" disabled={saving} onClick={() => setPaymentModalOpen(false)}>CANCEL</button><button className="payment-modal-confirm" disabled={saving || (payment === "Cash" && tendered < total)} onClick={processPayment}><CheckCircle2 size={19} /> {saving ? "PROCESSING..." : "CONFIRM PAYMENT"}</button></div></div></div>}
 
       {completedReceipt && <>
         <div className="receipt-choice-overlay" role="dialog" aria-modal="true"><div className="receipt-choice-card"><div className="receipt-choice-icon"><CheckCircle2 size={30} /></div><div className="receipt-choice-copy"><span>PAYMENT SUCCESSFUL</span><h2>Print customer receipt?</h2><p>Order <b>{completedReceipt.orderNo}</b> has been completed. You can print an 80mm thermal receipt now or continue without printing.</p></div><div className="receipt-choice-total"><small>TOTAL PRICE</small><strong>₱{completedReceipt.subtotal.toFixed(2)}</strong>{completedReceipt.discount > 0 && <><small>DISCOUNT</small><strong>-₱{completedReceipt.discount.toFixed(2)}</strong></>}<small>AMOUNT DUE</small><strong>₱{completedReceipt.total.toFixed(2)}</strong><small>AMOUNT PAID</small><strong>₱{completedReceipt.amountPaid.toFixed(2)}</strong>{completedReceipt.payment === "Cash" && <><small>CHANGE</small><strong>₱{completedReceipt.change.toFixed(2)}</strong></>}</div><div className="receipt-choice-actions"><button className="receipt-skip-btn" onClick={finishCompletedOrder}>NO, CONTINUE WITHOUT PRINTING</button><button className="receipt-print-btn" onClick={printThermalReceipt}><Printer size={19} /> PRINT THERMAL RECEIPT</button></div><button className="receipt-done-link" onClick={finishCompletedOrder}>Done</button></div></div>
