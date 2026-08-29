@@ -4,8 +4,11 @@ import { useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 
 const ACTIVE_JOB_KEY = "printwise_active_received_file_job";
+const ORDER: Record<string, number> = { RECEIVED: 1, REVIEWING: 2, PROCESSING: 3, READY: 4, READY_FOR_PICKUP: 4, COMPLETED: 5 };
 
-async function notify(jobId: string, trigger: "VALIDATING" | "PROCESSING" | "READY") {
+type Trigger = "VALIDATING" | "PROCESSING" | "READY";
+
+async function notify(jobId: string, trigger: Trigger) {
   try {
     await fetch("/api/email/send", {
       method: "POST",
@@ -13,13 +16,36 @@ async function notify(jobId: string, trigger: "VALIDATING" | "PROCESSING" | "REA
       body: JSON.stringify({ jobId, trigger, automatic: true }),
     });
   } catch {
-    // Staff workflow should continue even if the email provider is temporarily unavailable.
+    // A temporary email problem must never block the staff workflow.
   }
 }
 
-async function updateJob(jobId: string, status: string, trigger: "VALIDATING" | "PROCESSING" | "READY") {
-  const { error } = await supabase.from("received_file_jobs").update({ status }).eq("id", jobId);
-  if (!error) await notify(jobId, trigger);
+async function moveJobForward(jobId: string, nextStatus: "REVIEWING" | "PROCESSING" | "READY", trigger: Trigger) {
+  const { data: current, error: readError } = await supabase
+    .from("received_file_jobs")
+    .select("status")
+    .eq("id", jobId)
+    .single();
+
+  if (readError || !current) return;
+
+  const currentStatus = String(current.status || "RECEIVED").toUpperCase();
+  const currentOrder = ORDER[currentStatus] || 0;
+  const nextOrder = ORDER[nextStatus];
+
+  // Never move a job backward. Repeated clicks also do not create a new status transition.
+  if (currentOrder >= nextOrder) return;
+
+  const { error: updateError } = await supabase
+    .from("received_file_jobs")
+    .update({ status: nextStatus })
+    .eq("id", jobId);
+
+  if (updateError) return;
+
+  // Tell any open screen about the confirmed transition immediately.
+  window.dispatchEvent(new CustomEvent("printwise-job-status", { detail: { jobId, status: nextStatus } }));
+  await notify(jobId, trigger);
 }
 
 export default function ReceivedFileNotificationBridge() {
@@ -37,12 +63,12 @@ export default function ReceivedFileNotificationBridge() {
         const jobId = detailMatch[1];
 
         if (label === "OPEN" || label === "DOWNLOAD") {
-          void updateJob(jobId, "REVIEWING", "VALIDATING");
+          void moveJobForward(jobId, "REVIEWING", "VALIDATING");
           return;
         }
 
         if (label === "PRINT DIRECTLY") {
-          void updateJob(jobId, "PROCESSING", "PROCESSING");
+          void moveJobForward(jobId, "PROCESSING", "PROCESSING");
           return;
         }
 
@@ -54,7 +80,7 @@ export default function ReceivedFileNotificationBridge() {
       if (path === "/pos" && label === "DONE") {
         const jobId = sessionStorage.getItem(ACTIVE_JOB_KEY);
         if (!jobId) return;
-        void updateJob(jobId, "READY", "READY").then(() => {
+        void moveJobForward(jobId, "READY", "READY").finally(() => {
           sessionStorage.removeItem(ACTIVE_JOB_KEY);
         });
       }
