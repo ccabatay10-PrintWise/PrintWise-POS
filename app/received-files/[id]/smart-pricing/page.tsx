@@ -45,12 +45,88 @@ function paperFromPoints(w:number,h:number) {
   return `${Math.round(a/72*25.4)} × ${Math.round(b/72*25.4)} mm`;
 }
 
+function levelFromDensity(density:number):"Light"|"Medium"|"Heavy" {
+  if(density<0.10) return "Light";
+  if(density<0.28) return "Medium";
+  return "Heavy";
+}
+
 function classify(isColor:boolean,density:number,pages:number,paper:string,method:string):Analysis {
   const result:Analysis = { ...emptyAnalysis, pages:Math.max(1,Math.round(pages)), paper, density, isColor, method };
-  const level = density < 0.12 ? "Light" : density < 0.35 ? "Medium" : "Heavy";
-  const key = `${isColor ? "color" : "bw"}${level}` as keyof Analysis;
-  (result as any)[key] = result.pages;
+  const level=levelFromDensity(density);
+  const key=`${isColor?"color":"bw"}${level}` as keyof Analysis;
+  (result as any)[key]=result.pages;
   return result;
+}
+
+function addPageBucket(result:Analysis,isColor:boolean,density:number) {
+  const level=levelFromDensity(density);
+  const key=`${isColor?"color":"bw"}${level}` as keyof Analysis;
+  (result as any)[key]=Number((result as any)[key]||0)+1;
+}
+
+function classifyPages(pageSamples:{isColor:boolean; density:number}[],paper:string,method:string):Analysis {
+  const result:Analysis={...emptyAnalysis,pages:Math.max(1,pageSamples.length),paper,method};
+  let densityTotal=0;
+  for(const sample of pageSamples){ addPageBucket(result,sample.isColor,sample.density); densityTotal+=sample.density; if(sample.isColor) result.isColor=true; }
+  result.density=pageSamples.length?densityTotal/pageSamples.length:0;
+  return result;
+}
+
+function xmlText(fragment:string) {
+  return (fragment.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[])
+    .map(v=>v.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").trim())
+    .join(" ");
+}
+
+function splitDocxIntoPages(xml:string,pages:number) {
+  const renderedParts=xml.split(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g);
+  if(renderedParts.length===pages && pages>1) return renderedParts;
+
+  const paragraphs=xml.match(/<w:p\b[\s\S]*?<\/w:p>/g)||[];
+  if(paragraphs.length>=pages){
+    const weights=paragraphs.map(p=>Math.max(1,xmlText(p).length + (p.match(/<a:blip\b/g)||[]).length*900));
+    const total=weights.reduce((a,b)=>a+b,0);
+    const target=Math.max(1,total/pages);
+    const result:string[]=[];
+    let current:string[]=[];
+    let weight=0;
+    for(let i=0;i<paragraphs.length;i++){
+      const pagesLeft=pages-result.length;
+      const itemsLeft=paragraphs.length-i;
+      if(current.length && weight>=target && pagesLeft>1 && itemsLeft>=pagesLeft){ result.push(current.join("")); current=[]; weight=0; }
+      current.push(paragraphs[i]); weight+=weights[i];
+    }
+    if(current.length) result.push(current.join(""));
+    while(result.length<pages) result.push("");
+    if(result.length>pages){
+      const merged=result.slice(0,pages-1);
+      merged.push(result.slice(pages-1).join(""));
+      return merged;
+    }
+    return result;
+  }
+
+  const chunkSize=Math.max(1,Math.ceil(xml.length/pages));
+  return Array.from({length:pages},(_,i)=>xml.slice(i*chunkSize,(i+1)*chunkSize));
+}
+
+function inspectDocxPage(fragment:string) {
+  const text=xmlText(fragment);
+  const textLength=text.length;
+  const colorValues=(fragment.match(/w:color=["']([^"']+)["']/g)||[])
+    .filter(v=>!/auto|000000|ffffff/i.test(v)).length;
+  const highlights=(fragment.match(/w:highlight=["'](?!none|auto)[^"']+["']/g)||[]).length;
+  const shading=(fragment.match(/<w:shd\b/g)||[]).length;
+  const drawings=(fragment.match(/<a:blip\b/g)||[]).length;
+  const shapes=(fragment.match(/<w:drawing\b|<v:shape\b/g)||[]).length;
+  const tables=(fragment.match(/<w:tbl\b/g)||[]).length;
+  const isColor=colorValues+highlights+shading+drawings+shapes>0;
+  const contentDensity=Math.min(0.32,textLength/5200);
+  const graphicDensity=Math.min(0.42,drawings*0.14+shapes*0.07+shading*0.012+highlights*0.008);
+  const structureDensity=Math.min(0.10,tables*0.015);
+  const density=Math.min(0.75,contentDensity+graphicDensity+structureDensity);
+  return {isColor,density};
 }
 
 async function analyzeImage(blob:Blob):Promise<Analysis> {
@@ -86,29 +162,25 @@ async function analyzeDocx(blob:Blob):Promise<Analysis> {
   const xmlFile=zip.file("word/document.xml");
   if(!xmlFile) throw new Error("This DOCX file is missing its main document data.");
   const xml=await xmlFile.async("string");
-  const text=(xml.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[]).map(v=>v.replace(/<[^>]+>/g,"").trim()).join(" ");
+  const text=xmlText(xml);
 
-  // Word usually saves the last known page count in docProps/app.xml.
-  // This is more accurate than estimating pages from text length.
   const appPropsFile=zip.file("docProps/app.xml");
   const appProps=appPropsFile?await appPropsFile.async("string"):"";
   const metadataMatch=appProps.match(/<Pages>(\d+)<\/Pages>/i);
   const metadataPages=metadataMatch?Number(metadataMatch[1]):0;
-
-  // If metadata is unavailable, prefer Word's own last-rendered page breaks.
   const renderedBreaks=(xml.match(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g)||[]).length;
   const manualBreaks=(xml.match(/<w:br[^>]*w:type=["']page["'][^>]*\/?\s*>/g)||[]).length;
   const renderedPages=renderedBreaks>0?renderedBreaks+1:0;
   const manualPages=manualBreaks>0?manualBreaks+1:0;
-
-  // Only use a text-based fallback when the document contains no Word page metadata at all.
   const fallbackPages=Math.max(1,Math.ceil(text.length/2200));
   const pages=metadataPages>0?metadataPages:(renderedPages||manualPages||fallbackPages);
 
   const size=xml.match(/<w:pgSz[^>]*w:w=["'](\d+)["'][^>]*w:h=["'](\d+)["']/);
   const paper=size?paperFromTwips(Number(size[1]),Number(size[2])):"Not detected";
-  const colorSignals=(xml.match(/w:color=["'](?!auto|000000)[^"']+["']|w:highlight=|<w:shd\b|<a:blip\b/g)||[]).length;
-  const density=Math.min(0.65,(text.length/Math.max(1,pages))/4200+Math.min(0.2,renderedBreaks*0.03));
+  const fragments=splitDocxIntoPages(xml,pages);
+  const pageSamples=fragments.slice(0,pages).map(inspectDocxPage);
+  while(pageSamples.length<pages) pageSamples.push({isColor:false,density:0});
+
   const pageMethod=metadataPages>0
     ? `Word document metadata reports ${metadataPages} pages.`
     : renderedPages>0
@@ -117,7 +189,7 @@ async function analyzeDocx(blob:Blob):Promise<Analysis> {
         ? `Explicit page breaks report ${manualPages} pages.`
         : `No Word page metadata was available, so the page count was estimated from document content.`;
 
-  return classify(colorSignals>0,density,pages,paper,`${pageMethod} Paper size and color/content markers were also inspected.`);
+  return classifyPages(pageSamples,paper,`${pageMethod} Each page was assessed separately using its text amount, graphics, color markers, highlights, shading and document structure.`);
 }
 
 function getPaperRate(paper:string,p:Pricing) {
