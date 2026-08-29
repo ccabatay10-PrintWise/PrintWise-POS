@@ -88,7 +88,10 @@ export default function SmartPriceApprovalPage() {
 
     setSaving(true);
     try {
-      const { error: insertError } = await supabase.from("smart_pricing_approvals").insert({
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+      const approvedByName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || null;
+      const baseApproval = {
         job_id: job.id,
         file_id: file.id,
         suggested_price: suggested,
@@ -97,12 +100,20 @@ export default function SmartPriceApprovalPage() {
         adjustment_reason: adjusted ? reason.trim() : null,
         staff_notes: notes.trim() || null,
         status: "APPROVED",
+      };
+
+      // New audit columns are used when available. The fallback keeps approval working
+      // until the safe Supabase audit-trail SQL upgrade has been run.
+      let { error: insertError } = await supabase.from("smart_pricing_approvals").insert({
+        ...baseApproval,
+        approved_by_name: approvedByName,
+        approved_by_user_id: user?.id || null,
       });
+      if (insertError && /approved_by_name|approved_by_user_id|column/i.test(insertError.message || "")) {
+        ({ error: insertError } = await supabase.from("smart_pricing_approvals").insert(baseApproval));
+      }
       if (insertError) throw new Error(insertError.message);
 
-      // The File Processing page already reads computation.suggested from this key.
-      // Store the FINAL APPROVED PRICE there so the exact staff-approved amount is
-      // used in Review & Configure Files, the job total, and the POS handoff.
       const transfer: SmartTransfer = {
         fileId: file.id,
         jobId: job.id,
@@ -163,7 +174,7 @@ export default function SmartPriceApprovalPage() {
         {adjusted && <label className="field-label">Reason for Adjustment <span className="required">Required</span><textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Example: Returning customer discount, special promo, customer-approved custom price..." /></label>}
         <label className="field-label">Staff Notes <span className="optional">Optional</span><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add any internal notes for this pricing decision..." /></label>
         <button className="approve-btn" disabled={saving || finalNumber <= 0} onClick={approve}>{saving ? <LoaderCircle className="spin" size={18} /> : <CheckCircle2 size={18} />}{saving ? "SAVING APPROVAL..." : "APPROVE FINAL PRICE"}</button>
-        <p className="approval-note"><PencilLine size={15} /> The exact final approved price will now be transferred to File Processing and then to the POS.</p>
+        <p className="approval-note"><PencilLine size={15} /> The exact final approved price and its audit details will be preserved in Smart Pricing History.</p>
       </section>
     </div>}
 
