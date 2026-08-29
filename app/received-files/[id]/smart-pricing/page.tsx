@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import JSZip from "jszip";
-import { ArrowLeft, FileText, LoaderCircle, Sparkles, CheckCircle2, Settings2, AlertCircle } from "lucide-react";
+import { ArrowLeft, FileText, LoaderCircle, Sparkles, CheckCircle2, Settings2, AlertCircle, ShieldCheck } from "lucide-react";
 import Sidebar from "../../../components/Sidebar";
 import { supabase } from "../../../../lib/supabase";
 import "../../../pos/pos.css";
@@ -11,300 +11,35 @@ import "../../../pos/pos.css";
 type FileItem = { id:string; original_name:string; storage_path:string; mime_type:string; size_bytes:number };
 type Job = { id:string; reference_no:string; customer_name:string; email:string|null };
 type Analysis = { pages:number; paper:string; bwLight:number; bwMedium:number; bwHeavy:number; colorLight:number; colorMedium:number; colorHeavy:number; density:number; isColor:boolean; method:string };
-type Pricing = { business_id:string; paper_a4_cost:number; paper_legal_cost:number; paper_letter_cost:number; paper_photo_cost:number; paper_sticker_cost:number; bw_light_rate:number; bw_medium_rate:number; bw_heavy_rate:number; color_light_rate:number; color_medium_rate:number; color_heavy_rate:number; machine_cost_per_page:number; labor_cost_per_job:number; waste_allowance_percent:number; markup_percent:number; minimum_job_price:number; round_to:number };
-type Computation = { material:number; ink:number; machine:number; labor:number; waste:number; production:number; markup:number; suggested:number };
+type Pricing = { business_id:string; paper_a4_cost:number; paper_legal_cost:number; paper_letter_cost:number; paper_photo_cost:number; paper_sticker_cost:number; bw_light_rate:number; bw_medium_rate:number; bw_heavy_rate:number; color_light_rate:number; color_medium_rate:number; color_heavy_rate:number; machine_cost_per_page:number; labor_cost_per_job:number; waste_allowance_percent:number; markup_percent:number; minimum_job_price:number; round_to:number; minimum_bw_page_price:number; minimum_color_light_page_price:number; minimum_color_medium_page_price:number; minimum_color_heavy_page_price:number };
+type Computation = { material:number; ink:number; machine:number; labor:number; waste:number; production:number; markup:number; pageFloor:number; suggested:number };
 
-const numericKeys = ["paper_a4_cost","paper_legal_cost","paper_letter_cost","paper_photo_cost","paper_sticker_cost","bw_light_rate","bw_medium_rate","bw_heavy_rate","color_light_rate","color_medium_rate","color_heavy_rate","machine_cost_per_page","labor_cost_per_job","waste_allowance_percent","markup_percent","minimum_job_price","round_to"] as const;
-const defaultPricing:Pricing = { business_id:"default", paper_a4_cost:0, paper_legal_cost:0, paper_letter_cost:0, paper_photo_cost:0, paper_sticker_cost:0, bw_light_rate:0, bw_medium_rate:0, bw_heavy_rate:0, color_light_rate:0, color_medium_rate:0, color_heavy_rate:0, machine_cost_per_page:0, labor_cost_per_job:0, waste_allowance_percent:0, markup_percent:0, minimum_job_price:0, round_to:0 };
-const emptyAnalysis:Analysis = { pages:0, paper:"Not analyzed", bwLight:0, bwMedium:0, bwHeavy:0, colorLight:0, colorMedium:0, colorHeavy:0, density:0, isColor:false, method:"Click Analyze File to inspect this document." };
-const money = (value:number) => `₱${Number(value || 0).toFixed(2)}`;
-const n = (value:any) => Number(value || 0);
+const numericKeys = ["paper_a4_cost","paper_legal_cost","paper_letter_cost","paper_photo_cost","paper_sticker_cost","bw_light_rate","bw_medium_rate","bw_heavy_rate","color_light_rate","color_medium_rate","color_heavy_rate","machine_cost_per_page","labor_cost_per_job","waste_allowance_percent","markup_percent","minimum_job_price","round_to","minimum_bw_page_price","minimum_color_light_page_price","minimum_color_medium_page_price","minimum_color_heavy_page_price"] as const;
+const defaultPricing:Pricing = { business_id:"default",paper_a4_cost:0,paper_legal_cost:0,paper_letter_cost:0,paper_photo_cost:0,paper_sticker_cost:0,bw_light_rate:0,bw_medium_rate:0,bw_heavy_rate:0,color_light_rate:0,color_medium_rate:0,color_heavy_rate:0,machine_cost_per_page:0,labor_cost_per_job:0,waste_allowance_percent:0,markup_percent:0,minimum_job_price:0,round_to:0,minimum_bw_page_price:2,minimum_color_light_page_price:3,minimum_color_medium_page_price:5,minimum_color_heavy_page_price:8 };
+const emptyAnalysis:Analysis = { pages:0,paper:"Not analyzed",bwLight:0,bwMedium:0,bwHeavy:0,colorLight:0,colorMedium:0,colorHeavy:0,density:0,isColor:false,method:"Click Analyze File to inspect this document." };
+const money=(value:number)=>`₱${Number(value||0).toFixed(2)}`;
+const n=(value:any)=>Number(value||0);
 
-function normalizePricing(raw:any):Pricing {
-  const next:any = { ...defaultPricing, ...(raw || {}) };
-  for (const key of numericKeys) next[key] = Number(next[key] || 0);
-  next.business_id = String(next.business_id || "default");
-  return next as Pricing;
-}
+function normalizePricing(raw:any):Pricing{const next:any={...defaultPricing,...(raw||{})};for(const key of numericKeys)next[key]=Number(next[key]||0);next.business_id=String(next.business_id||"default");return next as Pricing}
+function paperFromTwips(w:number,h:number){const a=Math.min(w,h),b=Math.max(w,h),near=(x:number,y:number,tx:number,ty:number,t=180)=>Math.abs(x-tx)<=t&&Math.abs(y-ty)<=t;if(near(a,b,11906,16838))return"A4";if(near(a,b,12240,15840))return"Letter";if(near(a,b,12240,20160)||near(a,b,12240,19080))return"Legal";return`${Math.round(a/1440*25.4)} × ${Math.round(b/1440*25.4)} mm`}
+function paperFromPoints(w:number,h:number){const a=Math.min(w,h),b=Math.max(w,h),near=(x:number,y:number,tx:number,ty:number,t=14)=>Math.abs(x-tx)<=t&&Math.abs(y-ty)<=t;if(near(a,b,595,842))return"A4";if(near(a,b,612,792))return"Letter";if(near(a,b,612,1008)||near(a,b,612,936))return"Legal";return`${Math.round(a/72*25.4)} × ${Math.round(b/72*25.4)} mm`}
+function levelFromDensity(d:number):"Light"|"Medium"|"Heavy"{if(d<.10)return"Light";if(d<.28)return"Medium";return"Heavy"}
+function xmlText(fragment:string){return(fragment.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[]).map(v=>v.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").trim()).join(" ")}
+function addBucket(result:Analysis,isColor:boolean,density:number){const level=levelFromDensity(density);const key=`${isColor?"color":"bw"}${level}` as keyof Analysis;(result as any)[key]=Number((result as any)[key]||0)+1}
+function classifyPages(samples:{isColor:boolean;density:number}[],paper:string,method:string):Analysis{const result:Analysis={...emptyAnalysis,pages:Math.max(1,samples.length),paper,method};let total=0;for(const sample of samples){addBucket(result,sample.isColor,sample.density);total+=sample.density;if(sample.isColor)result.isColor=true}result.density=samples.length?total/samples.length:0;return result}
+function splitDocxIntoPages(xml:string,pages:number){const rendered=xml.split(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g);if(rendered.length===pages&&pages>1)return rendered;const paragraphs=xml.match(/<w:p\b[\s\S]*?<\/w:p>/g)||[];if(paragraphs.length>=pages){const weights=paragraphs.map(p=>Math.max(1,xmlText(p).length+(p.match(/<a:blip\b/g)||[]).length*900));const total=weights.reduce((a,b)=>a+b,0),target=Math.max(1,total/pages);const result:string[]=[];let current:string[]=[],weight=0;for(let i=0;i<paragraphs.length;i++){const pagesLeft=pages-result.length,itemsLeft=paragraphs.length-i;if(current.length&&weight>=target&&pagesLeft>1&&itemsLeft>=pagesLeft){result.push(current.join(""));current=[];weight=0}current.push(paragraphs[i]);weight+=weights[i]}if(current.length)result.push(current.join(""));while(result.length<pages)result.push("");if(result.length>pages){const merged=result.slice(0,pages-1);merged.push(result.slice(pages-1).join(""));return merged}return result}const size=Math.max(1,Math.ceil(xml.length/pages));return Array.from({length:pages},(_,i)=>xml.slice(i*size,(i+1)*size))}
+function inspectDocxPage(fragment:string){const text=xmlText(fragment),textLength=text.length;const colors=(fragment.match(/w:color=["']([^"']+)["']/g)||[]).filter(v=>!/auto|000000|ffffff/i.test(v)).length;const highlights=(fragment.match(/w:highlight=["'](?!none|auto)[^"']+["']/g)||[]).length;const shading=(fragment.match(/<w:shd\b/g)||[]).length;const drawings=(fragment.match(/<a:blip\b/g)||[]).length;const shapes=(fragment.match(/<w:drawing\b|<v:shape\b/g)||[]).length;const tables=(fragment.match(/<w:tbl\b/g)||[]).length;const isColor=colors+highlights+shading+drawings+shapes>0;const density=Math.min(.75,Math.min(.32,textLength/5200)+Math.min(.42,drawings*.14+shapes*.07+shading*.012+highlights*.008)+Math.min(.10,tables*.015));return{isColor,density}}
+async function analyzeImage(blob:Blob):Promise<Analysis>{const url=URL.createObjectURL(blob);try{const image=await new Promise<HTMLImageElement>((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=url});const max=420,scale=Math.min(1,max/Math.max(image.naturalWidth,image.naturalHeight)),canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));const ctx=canvas.getContext("2d",{willReadFrequently:true});if(!ctx)throw new Error("Image analysis is unavailable in this browser.");ctx.drawImage(image,0,0,canvas.width,canvas.height);const data=ctx.getImageData(0,0,canvas.width,canvas.height).data;let ink=0,color=0,total=0;for(let i=0;i<data.length;i+=16){const r=data[i],g=data[i+1],b=data[i+2],a=data[i+3];if(a<20)continue;total++;if(Math.min(r,g,b)<238){ink++;if(Math.max(r,g,b)-Math.min(r,g,b)>20)color++}}const density=total?ink/total:0,isColor=color>Math.max(8,total*.01);const result:Analysis={...emptyAnalysis,pages:1,paper:"Detected image size",density,isColor,method:"Pixel sampling measured non-white coverage and color variance."};addBucket(result,isColor,density);return result}finally{URL.revokeObjectURL(url)}}
+async function analyzePdf(blob:Blob):Promise<Analysis>{const text=new TextDecoder("latin1").decode(await blob.arrayBuffer());const pages=Math.max(1,(text.match(/\/Type\s*\/Page(?!s)\b/g)||[]).length),media=text.match(/\/MediaBox\s*\[\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)\s*\]/),paper=media?paperFromPoints(Number(media[1]),Number(media[2])):"Not detected",colorSignals=(text.match(/\b(?:DeviceRGB|DeviceCMYK|RG|rg|SCN|scn)\b/g)||[]).length,inkSignals=(text.match(/\b(?:TJ|Tj|Do|re|f|F|S|s)\b/g)||[]).length,density=Math.min(.75,inkSignals/Math.max(120,pages*260)),isColor=colorSignals>2;const result:Analysis={...emptyAnalysis,pages,paper,density,isColor,method:"PDF structure, page objects, paper metadata and print-content signals were inspected."};for(let i=0;i<pages;i++)addBucket(result,isColor,density);return result}
+async function analyzeDocx(blob:Blob):Promise<Analysis>{const zip=await JSZip.loadAsync(blob),xmlFile=zip.file("word/document.xml");if(!xmlFile)throw new Error("This DOCX file is missing its main document data.");const xml=await xmlFile.async("string"),text=xmlText(xml),appFile=zip.file("docProps/app.xml"),app=appFile?await appFile.async("string"):"",metadataMatch=app.match(/<Pages>(\d+)<\/Pages>/i),metadataPages=metadataMatch?Number(metadataMatch[1]):0,renderedBreaks=(xml.match(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g)||[]).length,manualBreaks=(xml.match(/<w:br[^>]*w:type=["']page["'][^>]*\/?\s*>/g)||[]).length,renderedPages=renderedBreaks>0?renderedBreaks+1:0,manualPages=manualBreaks>0?manualBreaks+1:0,fallbackPages=Math.max(1,Math.ceil(text.length/2200)),pages=metadataPages>0?metadataPages:(renderedPages||manualPages||fallbackPages);const size=xml.match(/<w:pgSz[^>]*w:w=["'](\d+)["'][^>]*w:h=["'](\d+)["']/),paper=size?paperFromTwips(Number(size[1]),Number(size[2])):"Not detected",fragments=splitDocxIntoPages(xml,pages),samples=fragments.slice(0,pages).map(inspectDocxPage);while(samples.length<pages)samples.push({isColor:false,density:0});const pageMethod=metadataPages>0?`Word document metadata reports ${metadataPages} pages.`:renderedPages>0?`Word last-rendered page markers report ${renderedPages} pages.`:manualPages>0?`Explicit page breaks report ${manualPages} pages.`:`No Word page metadata was available, so the page count was estimated from document content.`;return classifyPages(samples,paper,`${pageMethod} Each page was assessed separately using its text amount, graphics, color markers, highlights, shading and document structure.`)}
+function getPaperRate(paper:string,p:Pricing){const value=paper.toLowerCase();if(value.includes("legal"))return n(p.paper_legal_cost);if(value.includes("letter"))return n(p.paper_letter_cost);if(value.includes("photo"))return n(p.paper_photo_cost);if(value.includes("sticker"))return n(p.paper_sticker_cost);return n(p.paper_a4_cost)}
+function computePrice(a:Analysis,p:Pricing,copies:number):Computation{if(a.pages<=0)return{material:0,ink:0,machine:0,labor:0,waste:0,production:0,markup:0,pageFloor:0,suggested:0};const multiplier=Math.max(1,n(copies));const material=getPaperRate(a.paper,p)*a.pages*multiplier;const ink=(a.bwLight*n(p.bw_light_rate)+a.bwMedium*n(p.bw_medium_rate)+a.bwHeavy*n(p.bw_heavy_rate)+a.colorLight*n(p.color_light_rate)+a.colorMedium*n(p.color_medium_rate)+a.colorHeavy*n(p.color_heavy_rate))*multiplier;const machine=a.pages*n(p.machine_cost_per_page)*multiplier,labor=n(p.labor_cost_per_job),base=material+ink+machine+labor,waste=base*n(p.waste_allowance_percent)/100,production=base+waste,markup=production*n(p.markup_percent)/100,pageFloor=((a.bwLight+a.bwMedium+a.bwHeavy)*n(p.minimum_bw_page_price)+a.colorLight*n(p.minimum_color_light_page_price)+a.colorMedium*n(p.minimum_color_medium_page_price)+a.colorHeavy*n(p.minimum_color_heavy_page_price))*multiplier;let suggested=Math.max(n(p.minimum_job_price),production+markup,pageFloor);if(n(p.round_to)>0)suggested=Math.ceil(suggested/n(p.round_to))*n(p.round_to);return{material,ink,machine,labor,waste,production,markup,pageFloor,suggested}}
 
-function paperFromTwips(w:number,h:number) {
-  const a=Math.min(w,h), b=Math.max(w,h);
-  const near=(x:number,y:number,tx:number,ty:number,t=180)=>Math.abs(x-tx)<=t && Math.abs(y-ty)<=t;
-  if(near(a,b,11906,16838)) return "A4";
-  if(near(a,b,12240,15840)) return "Letter";
-  if(near(a,b,12240,20160) || near(a,b,12240,19080)) return "Legal";
-  return `${Math.round(a/1440*25.4)} × ${Math.round(b/1440*25.4)} mm`;
-}
-
-function paperFromPoints(w:number,h:number) {
-  const a=Math.min(w,h), b=Math.max(w,h);
-  const near=(x:number,y:number,tx:number,ty:number,t=14)=>Math.abs(x-tx)<=t && Math.abs(y-ty)<=t;
-  if(near(a,b,595,842)) return "A4";
-  if(near(a,b,612,792)) return "Letter";
-  if(near(a,b,612,1008) || near(a,b,612,936)) return "Legal";
-  return `${Math.round(a/72*25.4)} × ${Math.round(b/72*25.4)} mm`;
-}
-
-function levelFromDensity(density:number):"Light"|"Medium"|"Heavy" {
-  if(density<0.10) return "Light";
-  if(density<0.28) return "Medium";
-  return "Heavy";
-}
-
-function classify(isColor:boolean,density:number,pages:number,paper:string,method:string):Analysis {
-  const result:Analysis = { ...emptyAnalysis, pages:Math.max(1,Math.round(pages)), paper, density, isColor, method };
-  const level=levelFromDensity(density);
-  const key=`${isColor?"color":"bw"}${level}` as keyof Analysis;
-  (result as any)[key]=result.pages;
-  return result;
-}
-
-function addPageBucket(result:Analysis,isColor:boolean,density:number) {
-  const level=levelFromDensity(density);
-  const key=`${isColor?"color":"bw"}${level}` as keyof Analysis;
-  (result as any)[key]=Number((result as any)[key]||0)+1;
-}
-
-function classifyPages(pageSamples:{isColor:boolean; density:number}[],paper:string,method:string):Analysis {
-  const result:Analysis={...emptyAnalysis,pages:Math.max(1,pageSamples.length),paper,method};
-  let densityTotal=0;
-  for(const sample of pageSamples){ addPageBucket(result,sample.isColor,sample.density); densityTotal+=sample.density; if(sample.isColor) result.isColor=true; }
-  result.density=pageSamples.length?densityTotal/pageSamples.length:0;
-  return result;
-}
-
-function xmlText(fragment:string) {
-  return (fragment.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[])
-    .map(v=>v.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").trim())
-    .join(" ");
-}
-
-function splitDocxIntoPages(xml:string,pages:number) {
-  const renderedParts=xml.split(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g);
-  if(renderedParts.length===pages && pages>1) return renderedParts;
-
-  const paragraphs=xml.match(/<w:p\b[\s\S]*?<\/w:p>/g)||[];
-  if(paragraphs.length>=pages){
-    const weights=paragraphs.map(p=>Math.max(1,xmlText(p).length + (p.match(/<a:blip\b/g)||[]).length*900));
-    const total=weights.reduce((a,b)=>a+b,0);
-    const target=Math.max(1,total/pages);
-    const result:string[]=[];
-    let current:string[]=[];
-    let weight=0;
-    for(let i=0;i<paragraphs.length;i++){
-      const pagesLeft=pages-result.length;
-      const itemsLeft=paragraphs.length-i;
-      if(current.length && weight>=target && pagesLeft>1 && itemsLeft>=pagesLeft){ result.push(current.join("")); current=[]; weight=0; }
-      current.push(paragraphs[i]); weight+=weights[i];
-    }
-    if(current.length) result.push(current.join(""));
-    while(result.length<pages) result.push("");
-    if(result.length>pages){
-      const merged=result.slice(0,pages-1);
-      merged.push(result.slice(pages-1).join(""));
-      return merged;
-    }
-    return result;
-  }
-
-  const chunkSize=Math.max(1,Math.ceil(xml.length/pages));
-  return Array.from({length:pages},(_,i)=>xml.slice(i*chunkSize,(i+1)*chunkSize));
-}
-
-function inspectDocxPage(fragment:string) {
-  const text=xmlText(fragment);
-  const textLength=text.length;
-  const colorValues=(fragment.match(/w:color=["']([^"']+)["']/g)||[])
-    .filter(v=>!/auto|000000|ffffff/i.test(v)).length;
-  const highlights=(fragment.match(/w:highlight=["'](?!none|auto)[^"']+["']/g)||[]).length;
-  const shading=(fragment.match(/<w:shd\b/g)||[]).length;
-  const drawings=(fragment.match(/<a:blip\b/g)||[]).length;
-  const shapes=(fragment.match(/<w:drawing\b|<v:shape\b/g)||[]).length;
-  const tables=(fragment.match(/<w:tbl\b/g)||[]).length;
-  const isColor=colorValues+highlights+shading+drawings+shapes>0;
-  const contentDensity=Math.min(0.32,textLength/5200);
-  const graphicDensity=Math.min(0.42,drawings*0.14+shapes*0.07+shading*0.012+highlights*0.008);
-  const structureDensity=Math.min(0.10,tables*0.015);
-  const density=Math.min(0.75,contentDensity+graphicDensity+structureDensity);
-  return {isColor,density};
-}
-
-async function analyzeImage(blob:Blob):Promise<Analysis> {
-  const url=URL.createObjectURL(blob);
-  try {
-    const image=await new Promise<HTMLImageElement>((resolve,reject)=>{ const img=new Image(); img.onload=()=>resolve(img); img.onerror=reject; img.src=url; });
-    const max=420; const scale=Math.min(1,max/Math.max(image.naturalWidth,image.naturalHeight));
-    const canvas=document.createElement("canvas"); canvas.width=Math.max(1,Math.round(image.naturalWidth*scale)); canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
-    const ctx=canvas.getContext("2d",{willReadFrequently:true}); if(!ctx) throw new Error("Image analysis is unavailable in this browser.");
-    ctx.drawImage(image,0,0,canvas.width,canvas.height);
-    const data=ctx.getImageData(0,0,canvas.width,canvas.height).data;
-    let ink=0,color=0,total=0;
-    for(let i=0;i<data.length;i+=16){ const r=data[i],g=data[i+1],b=data[i+2],a=data[i+3]; if(a<20) continue; total++; if(Math.min(r,g,b)<238){ ink++; if(Math.max(r,g,b)-Math.min(r,g,b)>20) color++; } }
-    const density=total?ink/total:0;
-    const isColor=color>Math.max(8,total*0.01);
-    return classify(isColor,density,1,"Detected image size","Pixel sampling measured non-white coverage and color variance.");
-  } finally { URL.revokeObjectURL(url); }
-}
-
-async function analyzePdf(blob:Blob):Promise<Analysis> {
-  const text=new TextDecoder("latin1").decode(await blob.arrayBuffer());
-  const pages=Math.max(1,(text.match(/\/Type\s*\/Page(?!s)\b/g)||[]).length);
-  const media=text.match(/\/MediaBox\s*\[\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)\s*\]/);
-  const paper=media?paperFromPoints(Number(media[1]),Number(media[2])):"Not detected";
-  const colorSignals=(text.match(/\b(?:DeviceRGB|DeviceCMYK|RG|rg|SCN|scn)\b/g)||[]).length;
-  const inkSignals=(text.match(/\b(?:TJ|Tj|Do|re|f|F|S|s)\b/g)||[]).length;
-  const density=Math.min(0.75,inkSignals/Math.max(120,pages*260));
-  return classify(colorSignals>2,density,pages,paper,"PDF structure, page objects, paper metadata and print-content signals were inspected.");
-}
-
-async function analyzeDocx(blob:Blob):Promise<Analysis> {
-  const zip=await JSZip.loadAsync(blob);
-  const xmlFile=zip.file("word/document.xml");
-  if(!xmlFile) throw new Error("This DOCX file is missing its main document data.");
-  const xml=await xmlFile.async("string");
-  const text=xmlText(xml);
-
-  const appPropsFile=zip.file("docProps/app.xml");
-  const appProps=appPropsFile?await appPropsFile.async("string"):"";
-  const metadataMatch=appProps.match(/<Pages>(\d+)<\/Pages>/i);
-  const metadataPages=metadataMatch?Number(metadataMatch[1]):0;
-  const renderedBreaks=(xml.match(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g)||[]).length;
-  const manualBreaks=(xml.match(/<w:br[^>]*w:type=["']page["'][^>]*\/?\s*>/g)||[]).length;
-  const renderedPages=renderedBreaks>0?renderedBreaks+1:0;
-  const manualPages=manualBreaks>0?manualBreaks+1:0;
-  const fallbackPages=Math.max(1,Math.ceil(text.length/2200));
-  const pages=metadataPages>0?metadataPages:(renderedPages||manualPages||fallbackPages);
-
-  const size=xml.match(/<w:pgSz[^>]*w:w=["'](\d+)["'][^>]*w:h=["'](\d+)["']/);
-  const paper=size?paperFromTwips(Number(size[1]),Number(size[2])):"Not detected";
-  const fragments=splitDocxIntoPages(xml,pages);
-  const pageSamples=fragments.slice(0,pages).map(inspectDocxPage);
-  while(pageSamples.length<pages) pageSamples.push({isColor:false,density:0});
-
-  const pageMethod=metadataPages>0
-    ? `Word document metadata reports ${metadataPages} pages.`
-    : renderedPages>0
-      ? `Word last-rendered page markers report ${renderedPages} pages.`
-      : manualPages>0
-        ? `Explicit page breaks report ${manualPages} pages.`
-        : `No Word page metadata was available, so the page count was estimated from document content.`;
-
-  return classifyPages(pageSamples,paper,`${pageMethod} Each page was assessed separately using its text amount, graphics, color markers, highlights, shading and document structure.`);
-}
-
-function getPaperRate(paper:string,p:Pricing) {
-  const value=paper.toLowerCase();
-  if(value.includes("legal")) return n(p.paper_legal_cost);
-  if(value.includes("letter")) return n(p.paper_letter_cost);
-  if(value.includes("photo")) return n(p.paper_photo_cost);
-  if(value.includes("sticker")) return n(p.paper_sticker_cost);
-  return n(p.paper_a4_cost);
-}
-
-function computePrice(a:Analysis,p:Pricing,copies:number):Computation {
-  if(a.pages<=0) return { material:0, ink:0, machine:0, labor:0, waste:0, production:0, markup:0, suggested:0 };
-  const multiplier=Math.max(1,n(copies));
-  const material=getPaperRate(a.paper,p)*a.pages*multiplier;
-  const ink=(a.bwLight*n(p.bw_light_rate)+a.bwMedium*n(p.bw_medium_rate)+a.bwHeavy*n(p.bw_heavy_rate)+a.colorLight*n(p.color_light_rate)+a.colorMedium*n(p.color_medium_rate)+a.colorHeavy*n(p.color_heavy_rate))*multiplier;
-  const machine=a.pages*n(p.machine_cost_per_page)*multiplier;
-  const labor=n(p.labor_cost_per_job);
-  const base=material+ink+machine+labor;
-  const waste=base*(n(p.waste_allowance_percent)/100);
-  const production=base+waste;
-  const markup=production*(n(p.markup_percent)/100);
-  let suggested=Math.max(n(p.minimum_job_price),production+markup);
-  if(n(p.round_to)>0) suggested=Math.ceil(suggested/n(p.round_to))*n(p.round_to);
-  return { material, ink, machine, labor, waste, production, markup, suggested };
-}
-
-export default function SmartPricingPage(){
-  const params=useParams<{id:string}>();
-  const searchParams=useSearchParams();
-  const jobId=Array.isArray(params.id)?params.id[0]:params.id;
-  const requestedFileId=searchParams.get("fileId")||"";
-  const [job,setJob]=useState<Job|null>(null);
-  const [file,setFile]=useState<FileItem|null>(null);
-  const [pricing,setPricing]=useState<Pricing>(defaultPricing);
-  const [analysis,setAnalysis]=useState<Analysis>(emptyAnalysis);
-  const [loading,setLoading]=useState(true);
-  const [analyzing,setAnalyzing]=useState(false);
-  const [copies,setCopies]=useState(1);
-  const [error,setError]=useState("");
-  const [settingsWarning,setSettingsWarning]=useState("");
-
-  useEffect(()=>{ (async()=>{
-    if(!jobId||!requestedFileId){ setError("No selected file was provided for Smart Pricing."); setLoading(false); return; }
-    const [{data:jobData,error:jobError},{data:pricingData,error:pricingError}]=await Promise.all([
-      supabase.from("received_file_jobs").select("id, reference_no, customer_name, email, received_file_items(id, original_name, storage_path, mime_type, size_bytes)").eq("id",jobId).single(),
-      supabase.from("smart_pricing_settings").select("*").eq("business_id","default").maybeSingle()
-    ]);
-    if(jobError||!jobData){ setError(jobError?.message||"Unable to load the Smart Pricing job."); setLoading(false); return; }
-    setJob(jobData as Job);
-    const selected=((jobData as any).received_file_items||[]).find((item:FileItem)=>item.id===requestedFileId)||null;
-    setFile(selected);
-    if(!selected) setError("The selected file no longer exists in this incoming job.");
-    if(pricingError) setSettingsWarning("Smart Pricing Settings could not be loaded. Please check the Smart Pricing Settings page.");
-    else if(pricingData) setPricing(normalizePricing(pricingData));
-    else setSettingsWarning("No Smart Pricing Settings were found yet. Set your costs first.");
-    setLoading(false);
-  })(); },[jobId,requestedFileId]);
-
-  const computation=useMemo(()=>computePrice(analysis,pricing,copies),[analysis,pricing,copies]);
-  const settingsReady=n(pricing.paper_a4_cost)+n(pricing.paper_legal_cost)+n(pricing.paper_letter_cost)+n(pricing.paper_photo_cost)+n(pricing.paper_sticker_cost)+n(pricing.bw_light_rate)+n(pricing.bw_medium_rate)+n(pricing.bw_heavy_rate)+n(pricing.color_light_rate)+n(pricing.color_medium_rate)+n(pricing.color_heavy_rate)+n(pricing.machine_cost_per_page)+n(pricing.labor_cost_per_job)>0;
-
-  const runAnalysis=async()=>{
-    if(!file||analyzing) return;
-    setAnalyzing(true); setError("");
-    try{
-      const {data,error:downloadError}=await supabase.storage.from("received-files").download(file.storage_path);
-      if(downloadError||!data) throw new Error(downloadError?.message||"Unable to read the selected file.");
-      const name=file.original_name.toLowerCase(), type=(file.mime_type||"").toLowerCase();
-      let result:Analysis;
-      if(type.includes("pdf")||name.endsWith(".pdf")) result=await analyzePdf(data);
-      else if(type.includes("wordprocessingml")||name.endsWith(".docx")) result=await analyzeDocx(data);
-      else if(type.startsWith("image/")||/\.(png|jpe?g|webp|gif|bmp)$/i.test(name)) result=await analyzeImage(data);
-      else result={...emptyAnalysis,pages:1,paper:"Not detected",method:"This file format is not yet supported for automatic page and ink analysis."};
-      setAnalysis(result);
-    }catch(e:any){ setError(e?.message||"Unable to analyze this file."); }
-    finally{ setAnalyzing(false); }
-  };
-
-  const useSmartPrice=()=>{
-    if(!file||computation.suggested<=0) return;
-    sessionStorage.setItem(`printwise-smart-price-${file.id}`,JSON.stringify({fileId:file.id,jobId:job?.id,analysis,copies,pricing,computation,usedAt:new Date().toISOString()}));
-    window.location.href=`/received-files/${jobId}?smartFileId=${encodeURIComponent(file.id)}&smartPrice=${encodeURIComponent(computation.suggested.toFixed(2))}`;
-  };
-
-  if(loading) return <div className="app-shell received-shell"><Sidebar/><main className="received-main"><div className="job-loading"><LoaderCircle className="spin" size={30}/><b>Loading selected file…</b></div></main></div>;
-  if(!job||!file) return <div className="app-shell received-shell"><Sidebar/><main className="received-main"><button className="back-btn" onClick={()=>window.location.href=`/received-files/${jobId}`}><ArrowLeft size={18}/> Back to File Processing</button><div className="job-empty"><FileText size={38}/><h1>Smart Pricing unavailable</h1><p>{error||"The selected file could not be loaded."}</p></div></main></div>;
-
-  const rows:[string,number][]=[["B&W Light",analysis.bwLight],["B&W Medium",analysis.bwMedium],["B&W Heavy",analysis.bwHeavy],["Color Light",analysis.colorLight],["Color Medium",analysis.colorMedium],["Color Heavy",analysis.colorHeavy]];
-  const bwPages=analysis.bwLight+analysis.bwMedium+analysis.bwHeavy;
-  const colorPages=analysis.colorLight+analysis.colorMedium+analysis.colorHeavy;
-
-  return <div className="app-shell received-shell"><Sidebar/><main className="received-main smart-main">
-    <div className="job-topbar"><button className="back-btn" onClick={()=>window.location.href=`/received-files/${job.id}`}><ArrowLeft size={18}/> Back to File Processing</button><button className="settings-link" onClick={()=>window.location.href="/smart-pricing"}><Settings2 size={17}/> Smart Pricing Settings</button></div>
-    <section className="smart-hero"><div><span className="eyebrow">SMART PRICING · FILE ASSESSMENT</span><h1>Analyze and compute this file</h1><p>The file was automatically selected from the Incoming File Job.</p></div><Sparkles size={34}/></section>
-    <section className="selected-file-card"><div className="selected-file-icon"><FileText size={28}/></div><div><span className="mini-label">AUTOMATICALLY SELECTED FILE</span><h2>{file.original_name}</h2><p>{file.mime_type||"Unknown file type"} · {(Number(file.size_bytes||0)/1024).toFixed(1)} KB</p></div><div className="selected-file-meta"><span>Customer</span><b>{job.customer_name}</b><span>Reference</span><b>{job.reference_no}</b></div></section>
-    {settingsWarning&&<div className="smart-alert"><AlertCircle size={18}/>{settingsWarning}</div>}
-    {!settingsWarning&&!settingsReady&&<div className="smart-alert"><AlertCircle size={18}/>Your Smart Pricing Settings currently contain ₱0.00 costs. Add your actual paper and ink rates before using the suggested price.</div>}
-    {error&&<div className="smart-error"><AlertCircle size={18}/>{error}</div>}
-    <div className="smart-grid">
-      <section className="smart-card"><div className="card-head"><div><span className="eyebrow">PHASE 1 · SYSTEM ASSESSMENT</span><h2>Document analysis</h2></div><button className="analyze-btn" onClick={runAnalysis} disabled={analyzing}>{analyzing?<LoaderCircle className="spin" size={18}/>:<Sparkles size={18}/>} {analyzing?"ANALYZING...":analysis.pages>0?"ANALYZE AGAIN":"ANALYZE FILE"}</button></div>
-        <p className="card-desc">The system analyzes the selected file and classifies pages by paper size, print color and ink-coverage level.</p>
-        <div className="analysis-stats"><div><span>Pages</span><b>{analysis.pages}</b></div><div><span>Paper Size</span><b>{analysis.paper}</b></div><div><span>B&W Pages</span><b>{bwPages}</b></div><div><span>Color Pages</span><b>{colorPages}</b></div></div>
-        <div className="coverage-list">{rows.map(([label,value])=><div className={value>0?"coverage-row active":"coverage-row"} key={label}><span>{label}</span><b>{value} {value===1?"page":"pages"}</b></div>)}</div>
-        <div className="analysis-note"><b>Analysis result:</b> {analysis.method}</div>
-      </section>
-      <section className="smart-card"><div><span className="eyebrow">PHASE 2 · AUTOMATIC COMPUTATION</span><h2>Suggested price</h2></div>
-        <label className="copies-field">Copies / Quantity<input type="number" min="1" value={copies} onChange={e=>setCopies(Math.max(1,Number(e.target.value)||1))}/></label>
-        <div className="price-list"><div><span>Material Cost</span><b>{money(computation.material)}</b></div><div><span>Print / Ink Cost</span><b>{money(computation.ink)}</b></div><div><span>Machine Cost</span><b>{money(computation.machine)}</b></div><div><span>Labor</span><b>{money(computation.labor)}</b></div><div><span>Waste Allowance</span><b>{money(computation.waste)}</b></div><div><span>Markup</span><b>{money(computation.markup)}</b></div></div>
-        <div className="suggested"><span>SUGGESTED PRICE</span><strong>{money(computation.suggested)}</strong></div>
-        <button className="use-price-btn" disabled={analysis.pages<=0||computation.suggested<=0} onClick={useSmartPrice}><CheckCircle2 size={18}/> USE SMART PRICE</button>
-      </section>
-    </div>
-    <style jsx global>{`
-      .smart-main{padding:24px 28px 48px}.job-topbar{display:flex;justify-content:space-between;gap:12px;margin-bottom:18px}.back-btn,.settings-link{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid #d7dde4;border-radius:10px;background:#fff;color:#47515b;font-weight:750;cursor:pointer}.smart-hero,.selected-file-card,.smart-card{background:#fff;border:1px solid #e1e6eb;border-radius:20px;box-shadow:0 8px 28px rgba(20,30,40,.05)}.smart-hero{padding:28px;display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.eyebrow,.mini-label{display:block;font-size:11px;letter-spacing:.14em;font-weight:900;color:#b21f1f}.smart-hero h1{margin:8px 0 4px;font-size:32px}.smart-hero p,.selected-file-card p,.card-desc{margin:0;color:#66717c}.selected-file-card{padding:20px;display:flex;gap:16px;align-items:center;margin-bottom:18px}.selected-file-card h2{margin:6px 0 4px;font-size:25px}.selected-file-icon{width:58px;height:58px;border-radius:16px;background:#fff0f0;color:#e01d1d;display:grid;place-items:center}.selected-file-meta{margin-left:auto;display:grid;grid-template-columns:auto auto;gap:4px 14px;text-align:right;font-size:13px;color:#6b7480}.selected-file-meta b{color:#434b53}.smart-alert,.smart-error{padding:13px 16px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;gap:9px}.smart-alert{background:#fff7e8;color:#966313;border:1px solid #f2d59d}.smart-error{background:#fff0f0;color:#b21f1f;border:1px solid #f0c1c1}.smart-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(340px,.9fr);gap:18px}.smart-card{padding:26px}.card-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.smart-card h2{font-size:26px;margin:8px 0 14px}.card-desc{line-height:1.55;margin-bottom:18px}.analyze-btn,.use-price-btn{border:0;border-radius:12px;background:#ef1616;color:#fff;font-weight:850;padding:14px 20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}.analyze-btn:disabled,.use-price-btn:disabled{opacity:.5;cursor:not-allowed}.analysis-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.analysis-stats>div{border:1px solid #dce2e7;border-radius:14px;padding:14px;background:#fafbfc}.analysis-stats span{display:block;font-size:12px;color:#6b7480;font-weight:700;margin-bottom:6px}.analysis-stats b{font-size:18px;color:#4b5560}.coverage-list{border-top:1px solid #e5e8eb}.coverage-row{display:flex;justify-content:space-between;padding:13px 4px;border-bottom:1px solid #e5e8eb;color:#69737d}.coverage-row.active{color:#b21f1f;font-weight:800;background:#fffafa}.coverage-row b{color:#4d5660}.coverage-row.active b{color:#d21f1f}.analysis-note{margin-top:14px;padding-top:14px;color:#69737d;font-size:13px;line-height:1.5}.copies-field{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:800;color:#5e6872;margin-bottom:14px}.copies-field input{padding:13px;border:1px solid #dce2e7;border-radius:12px;font-size:17px}.price-list{border:1px solid #e2e6ea;border-radius:14px;overflow:hidden}.price-list>div{display:flex;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e7eaed;color:#66717b}.price-list>div:last-child{border-bottom:0}.suggested{margin-top:14px;padding:16px;border-radius:14px;background:#fff0f0;color:#b21f1f;display:flex;justify-content:space-between;align-items:center}.suggested span{font-size:12px;font-weight:900;letter-spacing:.1em}.suggested strong{font-size:28px}.use-price-btn{width:100%;margin-top:16px}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:950px){.smart-grid{grid-template-columns:1fr}.analysis-stats{grid-template-columns:1fr 1fr}.selected-file-meta{display:none}}@media(max-width:640px){.smart-main{padding:16px}.job-topbar{align-items:stretch}.settings-link{display:none}.smart-hero h1{font-size:25px}.selected-file-card{align-items:flex-start}.card-head{flex-direction:column}.analysis-stats{grid-template-columns:1fr}.analyze-btn{width:100%}}
-    `}</style>
-  </main></div>;
-}
+export default function SmartPricingPage(){const params=useParams<{id:string}>(),searchParams=useSearchParams(),jobId=Array.isArray(params.id)?params.id[0]:params.id,requestedFileId=searchParams.get("fileId")||"";const[job,setJob]=useState<Job|null>(null),[file,setFile]=useState<FileItem|null>(null),[pricing,setPricing]=useState<Pricing>(defaultPricing),[analysis,setAnalysis]=useState<Analysis>(emptyAnalysis),[loading,setLoading]=useState(true),[analyzing,setAnalyzing]=useState(false),[copies,setCopies]=useState(1),[error,setError]=useState(""),[settingsWarning,setSettingsWarning]=useState("");
+useEffect(()=>{(async()=>{if(!jobId||!requestedFileId){setError("No selected file was provided for Smart Pricing.");setLoading(false);return}const[{data:jobData,error:jobError},{data:pricingData,error:pricingError}]=await Promise.all([supabase.from("received_file_jobs").select("id, reference_no, customer_name, email, received_file_items(id, original_name, storage_path, mime_type, size_bytes)").eq("id",jobId).single(),supabase.from("smart_pricing_settings").select("*").eq("business_id","default").maybeSingle()]);if(jobError||!jobData){setError(jobError?.message||"Unable to load the Smart Pricing job.");setLoading(false);return}setJob(jobData as Job);const selected=((jobData as any).received_file_items||[]).find((item:FileItem)=>item.id===requestedFileId)||null;setFile(selected);if(!selected)setError("The selected file no longer exists in this incoming job.");if(pricingError)setSettingsWarning("Smart Pricing Settings could not be loaded. Please run the updated Smart Pricing database script and check the Settings page.");else if(pricingData)setPricing(normalizePricing(pricingData));else setSettingsWarning("No Smart Pricing Settings were found yet. Set your costs first.");setLoading(false)})()},[jobId,requestedFileId]);
+const computation=useMemo(()=>computePrice(analysis,pricing,copies),[analysis,pricing,copies]);const settingsReady=n(pricing.paper_a4_cost)+n(pricing.paper_legal_cost)+n(pricing.paper_letter_cost)+n(pricing.paper_photo_cost)+n(pricing.paper_sticker_cost)+n(pricing.bw_light_rate)+n(pricing.bw_medium_rate)+n(pricing.bw_heavy_rate)+n(pricing.color_light_rate)+n(pricing.color_medium_rate)+n(pricing.color_heavy_rate)+n(pricing.machine_cost_per_page)+n(pricing.labor_cost_per_job)>0;
+const runAnalysis=async()=>{if(!file||analyzing)return;setAnalyzing(true);setError("");try{const{data,error:downloadError}=await supabase.storage.from("received-files").download(file.storage_path);if(downloadError||!data)throw new Error(downloadError?.message||"Unable to read the selected file.");const name=file.original_name.toLowerCase(),type=(file.mime_type||"").toLowerCase();let result:Analysis;if(type.includes("pdf")||name.endsWith(".pdf"))result=await analyzePdf(data);else if(type.includes("wordprocessingml")||name.endsWith(".docx"))result=await analyzeDocx(data);else if(type.startsWith("image/")||/\.(png|jpe?g|webp|gif|bmp)$/i.test(name))result=await analyzeImage(data);else result={...emptyAnalysis,pages:1,paper:"Not detected",method:"This file format is not yet supported for automatic page and ink analysis."};setAnalysis(result)}catch(e:any){setError(e?.message||"Unable to analyze this file.")}finally{setAnalyzing(false)}};
+const useSmartPrice=()=>{if(!file||computation.suggested<=0)return;sessionStorage.setItem(`printwise-smart-price-${file.id}`,JSON.stringify({fileId:file.id,jobId:job?.id,analysis,copies,pricing,computation,usedAt:new Date().toISOString()}));window.location.href=`/received-files/${jobId}?smartFileId=${encodeURIComponent(file.id)}&smartPrice=${encodeURIComponent(computation.suggested.toFixed(2))}`};
+if(loading)return <div className="app-shell received-shell"><Sidebar/><main className="received-main"><div className="job-loading"><LoaderCircle className="spin" size={30}/><b>Loading selected file…</b></div></main></div>;if(!job||!file)return <div className="app-shell received-shell"><Sidebar/><main className="received-main"><button className="back-btn" onClick={()=>window.location.href=`/received-files/${jobId}`}><ArrowLeft size={18}/> Back to File Processing</button><div className="job-empty"><FileText size={38}/><h1>Smart Pricing unavailable</h1><p>{error||"The selected file could not be loaded."}</p></div></main></div>;
+const rows:[string,number][]=[["B&W Light",analysis.bwLight],["B&W Medium",analysis.bwMedium],["B&W Heavy",analysis.bwHeavy],["Color Light",analysis.colorLight],["Color Medium",analysis.colorMedium],["Color Heavy",analysis.colorHeavy]],bwPages=analysis.bwLight+analysis.bwMedium+analysis.bwHeavy,colorPages=analysis.colorLight+analysis.colorMedium+analysis.colorHeavy;
+return <div className="app-shell received-shell"><Sidebar/><main className="received-main smart-main"><div className="job-topbar"><button className="back-btn" onClick={()=>window.location.href=`/received-files/${job.id}`}><ArrowLeft size={18}/> Back to File Processing</button><button className="settings-link" onClick={()=>window.location.href="/smart-pricing"}><Settings2 size={17}/> Smart Pricing Settings</button></div><section className="smart-hero"><div><span className="eyebrow">SMART PRICING · FILE ASSESSMENT</span><h1>Analyze and compute this file</h1><p>The file was automatically selected from the Incoming File Job.</p></div><Sparkles size={34}/></section><section className="selected-file-card"><div className="selected-file-icon"><FileText size={28}/></div><div><span className="mini-label">AUTOMATICALLY SELECTED FILE</span><h2>{file.original_name}</h2><p>{file.mime_type||"Unknown file type"} · {(Number(file.size_bytes||0)/1024).toFixed(1)} KB</p></div><div className="selected-file-meta"><span>Customer</span><b>{job.customer_name}</b><span>Reference</span><b>{job.reference_no}</b></div></section>{settingsWarning&&<div className="smart-alert"><AlertCircle size={18}/>{settingsWarning}</div>}{!settingsWarning&&!settingsReady&&<div className="smart-alert"><AlertCircle size={18}/>Your Smart Pricing Settings currently contain ₱0.00 costs. Add your actual paper and ink rates before using the suggested price.</div>}{error&&<div className="smart-error"><AlertCircle size={18}/>{error}</div>}<div className="smart-grid"><section className="smart-card"><div className="card-head"><div><span className="eyebrow">PHASE 1 · SYSTEM ASSESSMENT</span><h2>Document analysis</h2></div><button className="analyze-btn" onClick={runAnalysis} disabled={analyzing}>{analyzing?<LoaderCircle className="spin" size={18}/>:<Sparkles size={18}/>} {analyzing?"ANALYZING...":analysis.pages>0?"ANALYZE AGAIN":"ANALYZE FILE"}</button></div><p className="card-desc">The system analyzes the selected file and classifies pages by paper size, print color and ink-coverage level.</p><div className="analysis-stats"><div><span>Pages</span><b>{analysis.pages}</b></div><div><span>Paper Size</span><b>{analysis.paper}</b></div><div><span>B&W Pages</span><b>{bwPages}</b></div><div><span>Color Pages</span><b>{colorPages}</b></div></div><div className="coverage-list">{rows.map(([label,value])=><div className={value>0?"coverage-row active":"coverage-row"} key={label}><span>{label}</span><b>{value} {value===1?"page":"pages"}</b></div>)}</div><div className="analysis-note"><b>Analysis result:</b> {analysis.method}</div></section><section className="smart-card"><div><span className="eyebrow">PHASE 2 · AUTOMATIC COMPUTATION</span><h2>Suggested price</h2></div><label className="copies-field">Copies / Quantity<input type="number" min="1" value={copies} onChange={e=>setCopies(Math.max(1,Number(e.target.value)||1))}/></label><div className="price-list"><div><span>Material Cost</span><b>{money(computation.material)}</b></div><div><span>Print / Ink Cost</span><b>{money(computation.ink)}</b></div><div><span>Machine Cost</span><b>{money(computation.machine)}</b></div><div><span>Labor</span><b>{money(computation.labor)}</b></div><div><span>Waste Allowance</span><b>{money(computation.waste)}</b></div><div><span>Markup</span><b>{money(computation.markup)}</b></div><div className="floor-row"><span><ShieldCheck size={15}/> Minimum Page Price Floor</span><b>{money(computation.pageFloor)}</b></div></div><div className="suggested"><span>SUGGESTED PRICE</span><strong>{money(computation.suggested)}</strong></div><div className="floor-note">The final price uses whichever is higher: your actual cost + markup, minimum job price, or analyzed page price floor.</div><button className="use-price-btn" disabled={analysis.pages<=0||computation.suggested<=0} onClick={useSmartPrice}><CheckCircle2 size={18}/> USE SMART PRICE</button></section></div><style jsx global>{`.smart-main{padding:24px 28px 48px}.job-topbar{display:flex;justify-content:space-between;gap:12px;margin-bottom:18px}.back-btn,.settings-link{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid #d7dde4;border-radius:10px;background:#fff;color:#47515b;font-weight:750;cursor:pointer}.smart-hero,.selected-file-card,.smart-card{background:#fff;border:1px solid #e1e6eb;border-radius:20px;box-shadow:0 8px 28px rgba(20,30,40,.05)}.smart-hero{padding:28px;display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.eyebrow,.mini-label{display:block;font-size:11px;letter-spacing:.14em;font-weight:900;color:#b21f1f}.smart-hero h1{margin:8px 0 4px;font-size:32px}.smart-hero p,.selected-file-card p,.card-desc{margin:0;color:#66717c}.selected-file-card{padding:20px;display:flex;gap:16px;align-items:center;margin-bottom:18px}.selected-file-card h2{margin:6px 0 4px;font-size:25px}.selected-file-icon{width:58px;height:58px;border-radius:16px;background:#fff0f0;color:#e01d1d;display:grid;place-items:center}.selected-file-meta{margin-left:auto;display:grid;grid-template-columns:auto auto;gap:4px 14px;text-align:right;font-size:13px;color:#6b7480}.selected-file-meta b{color:#434b53}.smart-alert,.smart-error{padding:13px 16px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;gap:9px}.smart-alert{background:#fff7e8;color:#966313;border:1px solid #f2d59d}.smart-error{background:#fff0f0;color:#b21f1f;border:1px solid #f0c1c1}.smart-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(340px,.9fr);gap:18px}.smart-card{padding:26px}.card-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.smart-card h2{font-size:26px;margin:8px 0 14px}.card-desc{line-height:1.55;margin-bottom:18px}.analyze-btn,.use-price-btn{border:0;border-radius:12px;background:#ef1616;color:#fff;font-weight:850;padding:14px 20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}.analyze-btn:disabled,.use-price-btn:disabled{opacity:.5;cursor:not-allowed}.analysis-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.analysis-stats>div{border:1px solid #dce2e7;border-radius:14px;padding:14px;background:#fafbfc}.analysis-stats span{display:block;font-size:12px;color:#6b7480;font-weight:700;margin-bottom:6px}.analysis-stats b{font-size:18px;color:#4b5560}.coverage-list{border-top:1px solid #e5e8eb}.coverage-row{display:flex;justify-content:space-between;padding:13px 4px;border-bottom:1px solid #e5e8eb;color:#69737d}.coverage-row.active{color:#b21f1f;font-weight:800;background:#fffafa}.coverage-row b{color:#4d5660}.coverage-row.active b{color:#d21f1f}.analysis-note{margin-top:14px;padding-top:14px;color:#69737d;font-size:13px;line-height:1.5}.copies-field{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:800;color:#5e6872;margin-bottom:14px}.copies-field input{padding:13px;border:1px solid #dce2e7;border-radius:12px;font-size:17px}.price-list{border:1px solid #e2e6ea;border-radius:14px;overflow:hidden}.price-list>div{display:flex;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e7eaed;color:#66717b}.price-list>div:last-child{border-bottom:0}.floor-row{background:#fff8f8;color:#a81d1d!important;font-weight:800}.floor-row span{display:flex;align-items:center;gap:7px}.suggested{margin-top:14px;padding:16px;border-radius:14px;background:#fff0f0;color:#b21f1f;display:flex;justify-content:space-between;align-items:center}.suggested span{font-size:12px;font-weight:900;letter-spacing:.1em}.suggested strong{font-size:28px}.floor-note{font-size:12px;line-height:1.5;color:#747d86;margin-top:10px}.use-price-btn{width:100%;margin-top:16px}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:950px){.smart-grid{grid-template-columns:1fr}.analysis-stats{grid-template-columns:1fr 1fr}.selected-file-meta{display:none}}@media(max-width:640px){.smart-main{padding:16px}.job-topbar{align-items:stretch}.settings-link{display:none}.smart-hero h1{font-size:25px}.selected-file-card{align-items:flex-start}.card-head{flex-direction:column}.analysis-stats{grid-template-columns:1fr}.analyze-btn{width:100%}}`}</style></main></div>}
