@@ -7,36 +7,43 @@ const b64url = (s: string) =>
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
 
-const automaticEmail = (status: string, job: any) => {
+const automaticEmail = (trigger: string, job: any) => {
   const name = job.customer_name || "Customer";
   const reference = job.reference_no;
-  const amount = Number(job.amount_paid || 0).toFixed(2);
-  const receipt = job.receipt_reference || "N/A";
+  const amount = Number(job.amount_paid || job.total_amount || 0).toFixed(2);
 
-  switch (status) {
-    case "REVIEWING":
+  switch (trigger) {
+    case "RECEIVED":
       return {
-        notificationType: "REVIEWING",
-        subject: `Your PrintWise Request ${reference} is Under Review`,
-        message: `Hi ${name},\n\nYour PrintWise file request ${reference} is now under review. Our staff is checking your submitted files and requirements.\n\nWe will email you again when processing begins.\n\nThank you,\nPrintWise`,
+        notificationType: "RECEIVED",
+        subject: `We Received Your Files — ${reference}`,
+        message: `Hi ${name},\n\nWe have successfully received your PrintWise files. Our team will review your submission shortly.\n\nReference No.: ${reference}\n\nThank you,\nPrintWise`,
+      };
+    case "REVIEWING":
+    case "VALIDATING":
+      return {
+        notificationType: "VALIDATING",
+        subject: `Your Files Are Being Validated — ${reference}`,
+        message: `Hi ${name},\n\nWe are currently validating your submitted files to ensure they are ready for processing.\n\nReference No.: ${reference}\n\nWe will update you once processing begins.\n\nThank you,\nPrintWise`,
       };
     case "PROCESSING":
       return {
         notificationType: "PROCESSING",
-        subject: `Your PrintWise Order ${reference} is Being Processed`,
-        message: `Hi ${name},\n\nYour PrintWise request ${reference} is now being processed. We will email you again once it is ready.\n\nThank you,\nPrintWise`,
+        subject: `Your Files Are Now Being Processed — ${reference}`,
+        message: `Hi ${name},\n\nGreat news! We have started processing your files.\n\nReference No.: ${reference}\n\nWe will notify you once your documents are ready for pickup.\n\nThank you,\nPrintWise`,
       };
     case "READY":
+    case "READY_FOR_PICKUP":
       return {
         notificationType: "READY",
-        subject: `Your PrintWise Order ${reference} is Ready for Pickup`,
-        message: `Hi ${name},\n\nGood news! Your PrintWise request ${reference} is ready for pickup.\n\nTotal Amount: ₱${amount}\n\nThank you,\nPrintWise`,
+        subject: `Your Order Is Ready for Pickup — ${reference}`,
+        message: `Hi ${name},\n\nYour documents have been successfully processed and are now ready for pickup.\n\nReference No.: ${reference}${amount !== "0.00" ? `\nTotal Amount: ₱${amount}` : ""}\n\nThank you,\nPrintWise`,
       };
     case "COMPLETED":
       return {
         notificationType: "COMPLETED",
-        subject: `Your PrintWise Order ${reference} is Completed`,
-        message: `Hi ${name},\n\nYour PrintWise request ${reference} has been completed.\n\nPayment Reference: ${receipt}\n\nThank you for choosing PrintWise!`,
+        subject: `Your PrintWise Order Is Completed — ${reference}`,
+        message: `Hi ${name},\n\nYour PrintWise request ${reference} has been completed.\n\nThank you for choosing PrintWise!`,
       };
     default:
       return null;
@@ -53,8 +60,8 @@ export async function POST(req: Request) {
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (automatic) {
-      const status = String(body.status || "").toUpperCase();
-      if (!jobId || !status || !url || !service) {
+      const trigger = String(body.trigger || body.status || "").toUpperCase();
+      if (!jobId || !trigger || !url || !service) {
         return NextResponse.json({ error: "Automatic email is missing job details or server configuration." }, { status: 400 });
       }
 
@@ -62,7 +69,7 @@ export async function POST(req: Request) {
       const db = createClient(url, service);
       const { data: job, error: jobError } = await db
         .from("received_file_jobs")
-        .select("id, reference_no, customer_name, email, customer_email, amount_paid, receipt_reference")
+        .select("id, reference_no, customer_name, email, customer_email, amount_paid, total_amount")
         .eq("id", jobId)
         .single();
 
@@ -71,9 +78,21 @@ export async function POST(req: Request) {
       }
 
       to = job.email || job.customer_email || null;
-      const template = automaticEmail(status, job);
+      const template = automaticEmail(trigger, job);
       if (!to || !template) {
-        return NextResponse.json({ ok: true, skipped: true, reason: !to ? "No customer email provided." : "No automatic email for this status." });
+        return NextResponse.json({ ok: true, skipped: true, reason: !to ? "No customer email provided." : "No automatic email for this trigger." });
+      }
+
+      const { data: existing, error: existingError } = await db
+        .from("customer_notifications")
+        .select("id, status")
+        .eq("job_id", jobId)
+        .eq("notification_type", template.notificationType)
+        .in("status", ["SENT", "SENDING"])
+        .limit(1);
+
+      if (!existingError && existing && existing.length > 0) {
+        return NextResponse.json({ ok: true, skipped: true, duplicate: true, notificationType: template.notificationType });
       }
 
       notificationType = template.notificationType;
@@ -141,7 +160,7 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ ok: true, id: sent.id, status: "SENT" });
+    return NextResponse.json({ ok: true, id: sent.id, status: "SENT", notificationType });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Unable to send email." }, { status: 500 });
   }
