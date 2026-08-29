@@ -19,9 +19,20 @@ create table if not exists public.smart_pricing_settings (
   markup_percent numeric not null default 0,
   minimum_job_price numeric not null default 0,
   round_to numeric not null default 0,
+  minimum_bw_page_price numeric not null default 2,
+  minimum_color_light_page_price numeric not null default 3,
+  minimum_color_medium_page_price numeric not null default 5,
+  minimum_color_heavy_page_price numeric not null default 8,
   updated_at timestamptz not null default now(),
   unique (business_id)
 );
+
+-- Safe upgrade for an existing Smart Pricing table.
+alter table public.smart_pricing_settings
+  add column if not exists minimum_bw_page_price numeric not null default 2,
+  add column if not exists minimum_color_light_page_price numeric not null default 3,
+  add column if not exists minimum_color_medium_page_price numeric not null default 5,
+  add column if not exists minimum_color_heavy_page_price numeric not null default 8;
 
 alter table public.smart_pricing_settings enable row level security;
 
@@ -36,3 +47,11 @@ create policy "Authenticated users can manage smart pricing settings"
 insert into public.smart_pricing_settings (business_id)
 values ('default')
 on conflict (business_id) do nothing;
+
+update public.smart_pricing_settings
+set
+  minimum_bw_page_price = coalesce(minimum_bw_page_price, 2),
+  minimum_color_light_page_price = coalesce(minimum_color_light_page_price, 3),
+  minimum_color_medium_page_price = coalesce(minimum_color_medium_page_price, 5),
+  minimum_color_heavy_page_price = coalesce(minimum_color_heavy_page_price, 8)
+where business_id = 'default';
