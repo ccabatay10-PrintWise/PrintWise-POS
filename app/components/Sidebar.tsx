@@ -12,7 +12,6 @@ const nav = [
   [FileUp, "Received Files", "/received-files"],
   [Wallet, "GCash / Bayad", "/gcash-bayad"],
   [Calculator, "Project Costing", "/project-costing"],
-  [Calculator, "Smart Pricing", "/smart-pricing"],
   [Package, "Products & Services", "/products"],
   [Users, "Customers", "/customers"],
   [Layers3, "Inventory", "/inventory"],
