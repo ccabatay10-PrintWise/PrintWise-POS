@@ -1,6 +1,6 @@
 -- PrintWise Received Files - Automatic POS Payment Completion
--- Keeps received-file jobs linked to POS orders and automatically marks paid jobs READY.
--- COMPLETED remains a separate manual final step when the physical job is released/finished.
+-- Keeps received-file jobs linked to POS orders and automatically marks paid jobs COMPLETED.
+-- A successful POS payment is the final completion step for the received-file workflow.
 
 alter table public.received_file_jobs
   add column if not exists pos_order_id uuid,
@@ -108,16 +108,16 @@ begin
     update public.received_file_jobs
        set pos_order_id = coalesce(pos_order_id, new.pos_order_id),
            pos_order_no = coalesce(pos_order_no, order_no_text),
-           status = 'READY',
+           status = 'COMPLETED',
            payment_status = 'PAID',
            amount_paid = greatest(coalesce(new.amount, 0), 0),
            payment_method = upper(replace(coalesce(new.channel::text, ''), '_', ' ')),
            payment_date = coalesce(new.created_at, now()),
            paid_at = coalesce(paid_at, new.created_at, now()),
            receipt_reference = new.transaction_no,
+           completed_at = coalesce(completed_at, new.created_at, now()),
            updated_at = now()
-     where id = target_job_id
-       and upper(coalesce(payment_status, 'UNPAID')) <> 'PAID';
+     where id = target_job_id;
   end if;
 
   return new;
