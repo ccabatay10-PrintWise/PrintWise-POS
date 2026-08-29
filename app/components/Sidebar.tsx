@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Calculator, ChevronRight, FilePlus2, FileText, FileUp, LayoutDashboard, Layers3, LogOut, Package, Plus, ReceiptText, Settings, ShoppingCart, UserPlus, Users, Wallet } from "lucide-react";
+import { Calculator, ChevronRight, FilePlus2, FileText, FileUp, LayoutDashboard, Layers3, LogOut, Package, Plus, ReceiptText, Settings, ShoppingCart, Sparkles, UserPlus, Users, Wallet } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 const nav = [
@@ -12,6 +12,7 @@ const nav = [
   [FileUp, "Received Files", "/received-files"],
   [Wallet, "GCash / Bayad", "/gcash-bayad"],
   [Calculator, "Project Costing", "/project-costing"],
+  [Sparkles, "Smart Pricing Settings", "/smart-pricing"],
   [Package, "Products & Services", "/products"],
   [Users, "Customers", "/customers"],
   [Layers3, "Inventory", "/inventory"],
