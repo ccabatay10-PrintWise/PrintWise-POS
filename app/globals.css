@@ -63,6 +63,15 @@ button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active { 
 .sales-bar-item:nth-child(7) .sales-bar-fill { animation-delay: .45s; }
 .sales-bar-item:nth-child(n+8) .sales-bar-fill { animation-delay: .52s; }
 
+/* Remove only the legacy Smart Pricing Settings action from file processing.
+   The red .smart-pricing-btn is intentionally retained. */
+.file-actions .smart-pricing-settings,
+.file-actions .smart-pricing-settings-btn,
+.file-actions [data-smart-pricing-settings="true"],
+.file-actions [data-action="smart-pricing-settings"] {
+  display: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
