@@ -83,16 +83,41 @@ async function analyzePdf(blob:Blob):Promise<Analysis> {
 
 async function analyzeDocx(blob:Blob):Promise<Analysis> {
   const zip=await JSZip.loadAsync(blob);
-  const xmlFile=zip.file("word/document.xml"); if(!xmlFile) throw new Error("This DOCX file is missing its main document data.");
+  const xmlFile=zip.file("word/document.xml");
+  if(!xmlFile) throw new Error("This DOCX file is missing its main document data.");
   const xml=await xmlFile.async("string");
   const text=(xml.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[]).map(v=>v.replace(/<[^>]+>/g,"").trim()).join(" ");
-  const explicit=(xml.match(/<w:lastRenderedPageBreak\b|<w:br[^>]*w:type=["']page["']/g)||[]).length;
-  const estimated=Math.max(1,explicit+Math.ceil(text.length/1800));
+
+  // Word usually saves the last known page count in docProps/app.xml.
+  // This is more accurate than estimating pages from text length.
+  const appPropsFile=zip.file("docProps/app.xml");
+  const appProps=appPropsFile?await appPropsFile.async("string"):"";
+  const metadataMatch=appProps.match(/<Pages>(\d+)<\/Pages>/i);
+  const metadataPages=metadataMatch?Number(metadataMatch[1]):0;
+
+  // If metadata is unavailable, prefer Word's own last-rendered page breaks.
+  const renderedBreaks=(xml.match(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g)||[]).length;
+  const manualBreaks=(xml.match(/<w:br[^>]*w:type=["']page["'][^>]*\/?\s*>/g)||[]).length;
+  const renderedPages=renderedBreaks>0?renderedBreaks+1:0;
+  const manualPages=manualBreaks>0?manualBreaks+1:0;
+
+  // Only use a text-based fallback when the document contains no Word page metadata at all.
+  const fallbackPages=Math.max(1,Math.ceil(text.length/2200));
+  const pages=metadataPages>0?metadataPages:(renderedPages||manualPages||fallbackPages);
+
   const size=xml.match(/<w:pgSz[^>]*w:w=["'](\d+)["'][^>]*w:h=["'](\d+)["']/);
   const paper=size?paperFromTwips(Number(size[1]),Number(size[2])):"Not detected";
   const colorSignals=(xml.match(/w:color=["'](?!auto|000000)[^"']+["']|w:highlight=|<w:shd\b|<a:blip\b/g)||[]).length;
-  const density=Math.min(0.65,(text.length/Math.max(1,estimated))/4200+Math.min(0.2,explicit*0.03));
-  return classify(colorSignals>0,density,estimated,paper,"DOCX XML, explicit page breaks, document size and color/content markers were inspected. Page count is an estimate because browser DOCX layout depends on fonts and printer metrics.");
+  const density=Math.min(0.65,(text.length/Math.max(1,pages))/4200+Math.min(0.2,renderedBreaks*0.03));
+  const pageMethod=metadataPages>0
+    ? `Word document metadata reports ${metadataPages} pages.`
+    : renderedPages>0
+      ? `Word last-rendered page markers report ${renderedPages} pages.`
+      : manualPages>0
+        ? `Explicit page breaks report ${manualPages} pages.`
+        : `No Word page metadata was available, so the page count was estimated from document content.`;
+
+  return classify(colorSignals>0,density,pages,paper,`${pageMethod} Paper size and color/content markers were also inspected.`);
 }
 
 function getPaperRate(paper:string,p:Pricing) {
