@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, Check, Loader2, Percent, RotateCcw, Save, Settings2, WalletCards } from "lucide-react";
+import { Calculator, Check, History, Loader2, Percent, RotateCcw, Save, Settings2, WalletCards } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
@@ -19,7 +19,7 @@ export default function SmartPricingPage(){
  if(loading)return <main className="app-shell"><Sidebar/><section className="workspace"><div style={{padding:40,display:"flex",gap:10,alignItems:"center"}}><Loader2 className="spin"/>Loading Smart Pricing Settings...</div></section></main>;
  const Field=({label,k,step=0.01}:{label:string;k:keyof Pricing;step?:number})=><label className="sp-field"><span>{label}</span><input type="number" min="0" step={step} value={Number(p[k])||0} onChange={e=>set(k,Number(e.target.value)||0)}/></label>;
  return <main className="app-shell"><Sidebar/><section className="workspace" style={{padding:"28px 32px",maxWidth:1600}}>
- <header style={{display:"flex",justifyContent:"space-between",gap:20,alignItems:"center",marginBottom:20}}><div><div style={{fontSize:12,fontWeight:800,letterSpacing:".12em",color:"#b21f1f",display:"flex",gap:7,alignItems:"center"}}><Settings2 size={16}/> SMART PRICING ENGINE</div><h1 style={{margin:"7px 0 5px"}}>Smart Pricing Settings</h1><p style={{margin:0,color:"#6b7280"}}>Set your real printing costs and minimum customer selling prices. Smart Computation will never go below your price floors.</p></div><div style={{display:"flex",gap:10}}><button className="sp-btn secondary" onClick={()=>setP(defaults)}><RotateCcw size={17}/>Reset</button><button className="sp-btn primary" onClick={save} disabled={saving}>{saving?<Loader2 className="spin" size={17}/>:<Save size={17}/>} {saving?"SAVING...":"SAVE SETTINGS"}</button></div></header>
+ <header style={{display:"flex",justifyContent:"space-between",gap:20,alignItems:"center",marginBottom:20}}><div><div style={{fontSize:12,fontWeight:800,letterSpacing:".12em",color:"#b21f1f",display:"flex",gap:7,alignItems:"center"}}><Settings2 size={16}/> SMART PRICING ENGINE</div><h1 style={{margin:"7px 0 5px"}}>Smart Pricing Settings</h1><p style={{margin:0,color:"#6b7280"}}>Set your real printing costs and minimum customer selling prices. Smart Computation will never go below your price floors.</p></div><div style={{display:"flex",gap:10}}><button className="sp-btn secondary" onClick={()=>window.location.href="/smart-pricing/history"}><History size={17}/>Pricing History</button><button className="sp-btn secondary" onClick={()=>setP(defaults)}><RotateCcw size={17}/>Reset</button><button className="sp-btn primary" onClick={save} disabled={saving}>{saving?<Loader2 className="spin" size={17}/>:<Save size={17}/>} {saving?"SAVING...":"SAVE SETTINGS"}</button></div></header>
  {message&&<div className="sp-alert ok"><Check size={17}/>{message}</div>}{warning&&<div className="sp-alert warn">{warning}</div>}
  <div className="sp-grid">
  <section className="sp-card"><h2>📄 Paper & Material Cost</h2><p>Enter your actual cost per sheet.</p><div className="sp-fields"><Field label="A4 Bond Paper (₱/sheet)" k="paper_a4_cost"/><Field label="Legal Bond Paper (₱/sheet)" k="paper_legal_cost"/><Field label="Letter Paper (₱/sheet)" k="paper_letter_cost"/><Field label="Photo Paper (₱/sheet)" k="paper_photo_cost"/><Field label="Sticker Paper (₱/sheet)" k="paper_sticker_cost"/></div></section>
