@@ -10,6 +10,20 @@ import "../../../../pos/pos.css";
 type Job = { id: string; reference_no: string; customer_name: string };
 type FileItem = { id: string; original_name: string; mime_type: string; size_bytes: number };
 
+type SmartTransfer = {
+  fileId: string;
+  jobId: string;
+  analysis: { pages: number; paper: string };
+  copies: number;
+  computation: { suggested: number; originalSuggested: number; finalApproved: number };
+  suggestedPrice: number;
+  finalPrice: number;
+  adjustmentReason: string | null;
+  staffNotes: string | null;
+  approvedAt: string;
+  status: "APPROVED";
+};
+
 const money = (value: number) => `₱${Number(value || 0).toFixed(2)}`;
 
 export default function SmartPriceApprovalPage() {
@@ -36,16 +50,19 @@ export default function SmartPriceApprovalPage() {
         setLoading(false);
         return;
       }
+
       const { data, error: loadError } = await supabase
         .from("received_file_jobs")
         .select("id, reference_no, customer_name, received_file_items(id, original_name, mime_type, size_bytes)")
         .eq("id", jobId)
         .single();
+
       if (loadError || !data) {
         setError(loadError?.message || "Unable to load the selected file.");
         setLoading(false);
         return;
       }
+
       setJob(data as Job);
       const selected = ((data as any).received_file_items || []).find((item: FileItem) => item.id === fileId) || null;
       setFile(selected);
@@ -83,20 +100,28 @@ export default function SmartPriceApprovalPage() {
       });
       if (insertError) throw new Error(insertError.message);
 
-      sessionStorage.setItem(
-        `printwise-smart-price-${file.id}`,
-        JSON.stringify({
-          fileId: file.id,
-          jobId: job.id,
-          suggestedPrice: suggested,
-          finalPrice: finalNumber,
-          copies,
-          adjustmentReason: adjusted ? reason.trim() : null,
-          staffNotes: notes.trim() || null,
-          approvedAt: new Date().toISOString(),
-          status: "APPROVED",
-        })
-      );
+      // The File Processing page already reads computation.suggested from this key.
+      // Store the FINAL APPROVED PRICE there so the exact staff-approved amount is
+      // used in Review & Configure Files, the job total, and the POS handoff.
+      const transfer: SmartTransfer = {
+        fileId: file.id,
+        jobId: job.id,
+        analysis: { pages: 1, paper: "A4" },
+        copies,
+        computation: {
+          suggested: Number(finalNumber.toFixed(2)),
+          originalSuggested: Number(suggested.toFixed(2)),
+          finalApproved: Number(finalNumber.toFixed(2)),
+        },
+        suggestedPrice: Number(suggested.toFixed(2)),
+        finalPrice: Number(finalNumber.toFixed(2)),
+        adjustmentReason: adjusted ? reason.trim() : null,
+        staffNotes: notes.trim() || null,
+        approvedAt: new Date().toISOString(),
+        status: "APPROVED",
+      };
+
+      sessionStorage.setItem(`printwise-smart-price-${file.id}`, JSON.stringify(transfer));
 
       window.location.href = `/received-files/${job.id}?smartFileId=${encodeURIComponent(file.id)}&smartPrice=${encodeURIComponent(finalNumber.toFixed(2))}&smartApproved=1`;
     } catch (e: any) {
@@ -105,7 +130,9 @@ export default function SmartPriceApprovalPage() {
     }
   };
 
-  if (loading) return <div className="app-shell received-shell"><Sidebar /><main className="received-main"><div className="job-loading"><LoaderCircle className="spin" size={30} /><b>Loading approval review…</b></div></main></div>;
+  if (loading) {
+    return <div className="app-shell received-shell"><Sidebar /><main className="received-main"><div className="job-loading"><LoaderCircle className="spin" size={30} /><b>Loading approval review…</b></div></main></div>;
+  }
 
   return <div className="app-shell received-shell"><Sidebar /><main className="received-main approval-main">
     <button className="back-btn" onClick={() => window.location.href = `/received-files/${jobId}/smart-pricing?fileId=${encodeURIComponent(fileId)}`}><ArrowLeft size={18} /> Back to Smart Pricing</button>
@@ -122,7 +149,6 @@ export default function SmartPriceApprovalPage() {
         <span className="eyebrow">SELECTED FILE</span>
         <div className="file-head"><div className="file-icon"><FileText size={26} /></div><div><h2>{file.original_name}</h2><p>{file.mime_type || "Unknown file type"} · {(Number(file.size_bytes || 0) / 1024).toFixed(1)} KB</p></div></div>
         <div className="file-meta"><div><span>Customer</span><b>{job.customer_name}</b></div><div><span>Reference</span><b>{job.reference_no}</b></div><div><span>Copies</span><b>{copies}</b></div></div>
-
         <div className="suggested-box"><span>SMART SUGGESTED PRICE</span><strong>{money(suggested)}</strong><p>This is the original amount calculated by the Smart Pricing Engine.</p></div>
       </section>
 
@@ -137,7 +163,7 @@ export default function SmartPriceApprovalPage() {
         {adjusted && <label className="field-label">Reason for Adjustment <span className="required">Required</span><textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Example: Returning customer discount, special promo, customer-approved custom price..." /></label>}
         <label className="field-label">Staff Notes <span className="optional">Optional</span><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add any internal notes for this pricing decision..." /></label>
         <button className="approve-btn" disabled={saving || finalNumber <= 0} onClick={approve}>{saving ? <LoaderCircle className="spin" size={18} /> : <CheckCircle2 size={18} />}{saving ? "SAVING APPROVAL..." : "APPROVE FINAL PRICE"}</button>
-        <p className="approval-note"><PencilLine size={15} /> The Smart Suggested Price is preserved in the approval history even when the staff changes the final amount.</p>
+        <p className="approval-note"><PencilLine size={15} /> The exact final approved price will now be transferred to File Processing and then to the POS.</p>
       </section>
     </div>}
 
