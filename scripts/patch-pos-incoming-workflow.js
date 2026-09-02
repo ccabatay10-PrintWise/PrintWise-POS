@@ -6,15 +6,14 @@ function patchSmartPricing() {
   const smartPath = path.join(root, "app", "received-files", "[id]", "smart-pricing", "page.tsx");
   let smart = fs.readFileSync(smartPath, "utf8");
 
-  // Find the existing navigation statement without relying on exact formatting.
-  if (!smart.includes('window.location.href="/pos"')) {
-    const marker = smart.indexOf("useSmartPrice");
-    const href = marker >= 0 ? smart.indexOf("window.location.href", marker) : -1;
-    const end = href >= 0 ? smart.indexOf(";", href) : -1;
-    if (href >= 0 && end >= 0) {
-      const handoff = 'const handoff={jobId:job?.id||jobId,referenceNo:job?.reference_no||"",customerName:job?.customer_name||"",contactNumber:"",items:[{id:`received-file-${file.id}`,name:file.original_name,price:Number(computation.suggested.toFixed(2)),quantity:Math.max(1,copies)}]};sessionStorage.setItem("printwise_received_file_cart",JSON.stringify(handoff));window.location.href="/pos";';
-      smart = smart.slice(0, href) + handoff + smart.slice(end + 1);
-    }
+  // Replace the whole Smart Pricing action so the build patch cannot leave a dangling brace.
+  const useSmartPrice = /const useSmartPrice\s*=\s*\(\)\s*=>\s*\{[\s\S]*?\};/;
+  const replacement = `const useSmartPrice=()=>{if(!file||computation.suggested<=0)return;sessionStorage.setItem(\`printwise-smart-price-\${file.id}\`,JSON.stringify({fileId:file.id,jobId:job?.id,analysis,copies,sides,pricing,computation,usedAt:new Date().toISOString()}));const handoff={jobId:job?.id||jobId,referenceNo:job?.reference_no||"",customerName:job?.customer_name||"",contactNumber:"",items:[{id:\`received-file-\${file.id}\`,name:file.original_name,price:Number(computation.suggested.toFixed(2)),quantity:Math.max(1,copies)}]};sessionStorage.setItem("printwise_received_file_cart",JSON.stringify(handoff));window.location.href="/pos";};`;
+
+  if (useSmartPrice.test(smart)) {
+    smart = smart.replace(useSmartPrice, replacement);
+  } else if (!smart.includes('window.location.href="/pos"')) {
+    throw new Error("PrintWise: Smart Pricing useSmartPrice handler was not found; refusing to patch.");
   }
 
   smart = smart.replace(/Back to File Processing/g, "Back to Incoming Files");
@@ -26,7 +25,6 @@ function patchPos() {
   const posPath = path.join(root, "app", "pos", "page.tsx");
   let pos = fs.readFileSync(posPath, "utf8");
 
-  // Ensure Plus is imported for the Add Transaction button.
   const lucideImport = pos.match(/import \{([^}]+)\} from ["']lucide-react["'];/);
   if (lucideImport && !/\bPlus\b/.test(lucideImport[1])) {
     const icons = lucideImport[1].trim();
@@ -36,7 +34,12 @@ function patchPos() {
   if (!/const addTransaction\s*=/.test(pos)) {
     const clear = pos.match(/const clearOrder\s*=\s*\(\)\s*=>\s*\{[\s\S]*?\};/);
     if (clear) {
-      const addition = `${clear[0]}\n\n  const addTransaction = () => {\n    if (cart.length && !window.confirm("Start a new transaction? The current unpaid order will be cleared.")) return;\n    clearOrder();\n  };`;
+      const addition = `${clear[0]}
+
+  const addTransaction = () => {
+    if (cart.length && !window.confirm("Start a new transaction? The current unpaid order will be cleared.")) return;
+    clearOrder();
+  };`;
       pos = pos.replace(clear[0], addition);
     }
   }
@@ -51,11 +54,25 @@ function patchPos() {
     }
   }
 
-  // Read the one-time Smart Pricing handoff before the POS renders.
   if (!pos.includes("printwise_received_file_cart")) {
     const returnAt = pos.indexOf("return (");
     if (returnAt >= 0) {
-      const effect = `useEffect(() => {\n    const raw = sessionStorage.getItem("printwise_received_file_cart");\n    if (!raw) return;\n    try {\n      const handoff = JSON.parse(raw);\n      if (handoff?.items?.length) {\n        setCart(handoff.items);\n        if (handoff.customerName) setCustomer(handoff.customerName);\n      }\n      sessionStorage.removeItem("printwise_received_file_cart");\n    } catch {\n      sessionStorage.removeItem("printwise_received_file_cart");\n    }\n  }, []);\n\n  `;
+      const effect = `useEffect(() => {
+    const raw = sessionStorage.getItem("printwise_received_file_cart");
+    if (!raw) return;
+    try {
+      const handoff = JSON.parse(raw);
+      if (handoff?.items?.length) {
+        setCart(handoff.items);
+        if (handoff.customerName) setCustomer(handoff.customerName);
+      }
+      sessionStorage.removeItem("printwise_received_file_cart");
+    } catch {
+      sessionStorage.removeItem("printwise_received_file_cart");
+    }
+  }, []);
+
+  `;
       pos = pos.slice(0, returnAt) + effect + pos.slice(returnAt);
     }
   }
