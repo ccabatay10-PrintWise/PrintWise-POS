@@ -6,17 +6,14 @@ function patchSmartPricing() {
   const smartPath = path.join(root, "app", "received-files", "[id]", "smart-pricing", "page.tsx");
   let smart = fs.readFileSync(smartPath, "utf8");
 
-  // Do not depend on the exact formatting of the handler. Find the existing
-  // Smart Pricing navigation statement and replace only that statement.
+  // Find the existing navigation statement without relying on exact formatting.
   if (!smart.includes('window.location.href="/pos"')) {
     const marker = smart.indexOf("useSmartPrice");
     const href = marker >= 0 ? smart.indexOf("window.location.href", marker) : -1;
-    if (href >= 0) {
-      const end = smart.indexOf(";", href);
-      if (end >= 0) {
-        const handoff = 'const handoff={jobId:job?.id||jobId,referenceNo:job?.reference_no||"",customerName:job?.customer_name||"",contactNumber:"",items:[{id:`received-file-${file.id}`,name:file.original_name,price:Number(computation.suggested.toFixed(2)),quantity:Math.max(1,copies)}]};sessionStorage.setItem("printwise_received_file_cart",JSON.stringify(handoff));window.location.href="/pos";';
-        smart = smart.slice(0, href) + handoff + smart.slice(end + 1);
-      }
+    const end = href >= 0 ? smart.indexOf(";", href) : -1;
+    if (href >= 0 && end >= 0) {
+      const handoff = 'const handoff={jobId:job?.id||jobId,referenceNo:job?.reference_no||"",customerName:job?.customer_name||"",contactNumber:"",items:[{id:`received-file-${file.id}`,name:file.original_name,price:Number(computation.suggested.toFixed(2)),quantity:Math.max(1,copies)}]};sessionStorage.setItem("printwise_received_file_cart",JSON.stringify(handoff));window.location.href="/pos";';
+      smart = smart.slice(0, href) + handoff + smart.slice(end + 1);
     }
   }
 
@@ -30,11 +27,10 @@ function patchPos() {
   let pos = fs.readFileSync(posPath, "utf8");
 
   // Ensure Plus is imported for the Add Transaction button.
-  if (!/\bPlus\b/.test(pos.slice(0, Math.min(pos.length, 2500)))) {
-    pos = pos.replace(/import \{([^}]+)\} from ["']lucide-react["'];/, (m, icons) => {
-      const next = icons.trim().startsWith("Plus") ? icons : `Plus, ${icons.trim()}`;
-      return `import { ${next} } from "lucide-react";`;
-    });
+  const lucideImport = pos.match(/import \{([^}]+)\} from ["']lucide-react["'];/);
+  if (lucideImport && !/\bPlus\b/.test(lucideImport[1])) {
+    const icons = lucideImport[1].trim();
+    pos = pos.replace(lucideImport[0], `import { Plus, ${icons} } from "lucide-react";`);
   }
 
   if (!/const addTransaction\s*=/.test(pos)) {
@@ -55,16 +51,12 @@ function patchPos() {
     }
   }
 
-  // Incoming-file handoffs are loaded into the POS automatically.
+  // Read the one-time Smart Pricing handoff before the POS renders.
   if (!pos.includes("printwise_received_file_cart")) {
-    const hook = "useEffect(() => {";
-    const start = pos.indexOf(hook);
-    if (start >= 0) {
-      const end = pos.indexOf("}, [", start);
-      if (end >= 0) {
-        const effect = `useEffect(() => {\n    const raw = sessionStorage.getItem("printwise_received_file_cart");\n    if (!raw) return;\n    try {\n      const handoff = JSON.parse(raw);\n      if (handoff?.items?.length) {\n        setCart(handoff.items);\n        if (handoff.customerName) setCustomer(handoff.customerName);\n      }\n      sessionStorage.removeItem("printwise_received_file_cart");\n    } catch {\n      sessionStorage.removeItem("printwise_received_file_cart");\n    }\n  }, []);\n\n  `;
-        pos = pos.slice(0, start) + effect + pos.slice(end + 3);
-      }
+    const returnAt = pos.indexOf("return (");
+    if (returnAt >= 0) {
+      const effect = `useEffect(() => {\n    const raw = sessionStorage.getItem("printwise_received_file_cart");\n    if (!raw) return;\n    try {\n      const handoff = JSON.parse(raw);\n      if (handoff?.items?.length) {\n        setCart(handoff.items);\n        if (handoff.customerName) setCustomer(handoff.customerName);\n      }\n      sessionStorage.removeItem("printwise_received_file_cart");\n    } catch {\n      sessionStorage.removeItem("printwise_received_file_cart");\n    }\n  }, []);\n\n  `;
+      pos = pos.slice(0, returnAt) + effect + pos.slice(returnAt);
     }
   }
 
