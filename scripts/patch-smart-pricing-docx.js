@@ -4,28 +4,24 @@ const path = require("path");
 const filePath = path.join(process.cwd(), "app", "received-files", "[id]", "smart-pricing", "page.tsx");
 const source = fs.readFileSync(filePath, "utf8");
 
-if (source.includes("Image-based DOCX detected. Embedded raster images were extracted and analyzed at pixel level.")) {
-  process.exit(0);
-}
+if (source.includes("Image-based DOCX detected. Embedded raster images were extracted and analyzed at pixel level.")) process.exit(0);
 
 const start = source.indexOf("async function analyzeDocx(blob:Blob):Promise<Analysis>{");
 const end = source.indexOf("function getPaperRate(", start);
-if (start < 0 || end < 0) {
-  throw new Error("Smart Pricing analyzeDocx function markers were not found; refusing to patch the working page.");
-}
+if (start < 0 || end < 0) throw new Error("Smart Pricing analyzeDocx markers were not found; refusing to patch.");
 
 const replacement = String.raw`function resolveDocxMediaTarget(target:string){
   const clean=target.replace(/\\/g,"/").replace(/^\\/+/,"");
   if(clean.startsWith("word/"))return clean;
-  return \`word/\${clean}\`;
+  return "word/"+clean;
 }
 function docxMediaRefs(fragment:string){
   return Array.from(new Set(Array.from(fragment.matchAll(/<a:blip\\b[^>]*r:embed=["']([^"']+)["'][^>]*>/g)).map(m=>m[1])));
 }
 function combineImageAnalyses(images:Analysis[],paper:string){
   if(!images.length)return null;
-  const total=images.reduce((sum,item)=>sum+Math.max(.0001,item.density),0);
-  const density=images.reduce((sum,item)=>sum+item.density*Math.max(.0001,item.density),0)/total;
+  const weight=images.reduce((sum,item)=>sum+Math.max(.0001,item.density),0);
+  const density=images.reduce((sum,item)=>sum+item.density*Math.max(.0001,item.density),0)/weight;
   const isColor=images.some(item=>item.isColor);
   const result:Analysis={...emptyAnalysis,pages:1,paper,density,isColor,method:"Embedded raster image content was extracted from the DOCX and analyzed at pixel level."};
   addBucket(result,isColor,density);
@@ -37,19 +33,18 @@ async function analyzeDocx(blob:Blob):Promise<Analysis>{
   const xml=await xmlFile.async("string"),text=xmlText(xml),appFile=zip.file("docProps/app.xml"),app=appFile?await appFile.async("string"):"",metadataMatch=app.match(/<Pages>(\\d+)<\\/Pages>/i),metadataPages=metadataMatch?Number(metadataMatch[1]):0,renderedBreaks=(xml.match(/<w:lastRenderedPageBreak\\b[^>]*\\/?\\s*>/g)||[]).length,manualBreaks=(xml.match(/<w:br[^>]*w:type=["']page["'][^>]*\\/?\\s*>/g)||[]).length,renderedPages=renderedBreaks>0?renderedBreaks+1:0,manualPages=manualBreaks>0?manualBreaks+1:0,fallbackPages=Math.max(1,Math.ceil(text.length/2200)),pages=metadataPages>0?metadataPages:(renderedPages||manualPages||fallbackPages);
   const size=xml.match(/<w:pgSz[^>]*w:w=["'](\\d+)["'][^>]*w:h=["'](\\d+)["']/),paper=size?paperFromTwips(Number(size[1]),Number(size[2])):"Not detected";
   const fragments=splitDocxIntoPages(xml,pages);
-  const relFile=zip.file("word/_rels/document.xml.rels");
-  const relXml=relFile?await relFile.async("string"):"";
+  const relFile=zip.file("word/_rels/document.xml.rels"),relXml=relFile?await relFile.async("string"):"";
   const relMap=new Map<string,string>();
   for(const match of relXml.matchAll(/<Relationship\\b[^>]*Id=["']([^"']+)["'][^>]*Target=["']([^"']+)["'][^>]*>/g)){
     const target=match[2];
     if(/(?:\\.jpe?g|\\.png|\\.webp|\\.gif|\\.bmp)$/i.test(target))relMap.set(match[1],resolveDocxMediaTarget(target));
   }
-  const mediaNames=Array.from(new Set(Array.from(zip.files).map(([name])=>name).filter(name=>/^word\\/media\\//i.test(name)&&/(?:\\.jpe?g|\\.png|\\.webp|\\.gif|\\.bmp)$/i.test(name))));
+  const mediaNames=Array.from(new Set(Object.keys(zip.files).filter(name=>/^word\\/media\\//i.test(name)&&/(?:\\.jpe?g|\\.png|\\.webp|\\.gif|\\.bmp)$/i.test(name))));
   const imageCache=new Map<string,Promise<Analysis>>();
   const analyzeMedia=async(name:string)=>{
     if(!imageCache.has(name)){
       const media=zip.file(name);
-      if(!media)throw new Error(\`DOCX image \${name} could not be read.\`);
+      if(!media)throw new Error("DOCX image could not be read: "+name);
       imageCache.set(name,(async()=>{
         const bytes=await media.async("uint8array");
         const ext=(name.match(/\\.([^.]+)$/)?.[1]||"jpg").toLowerCase();
@@ -57,7 +52,7 @@ async function analyzeDocx(blob:Blob):Promise<Analysis>{
         return analyzeImage(new Blob([bytes],{type:mime}));
       })());
     }
-    return imageCache.get(name);
+    return imageCache.get(name)!;
   };
   const samples:{isColor:boolean;density:number}[]=[];
   let pagesWithEmbeddedImages=0;
@@ -66,34 +61,28 @@ async function analyzeDocx(blob:Blob):Promise<Analysis>{
     const refs=docxMediaRefs(fragment).map(ref=>relMap.get(ref)).filter(Boolean) as string[];
     const uniqueRefs=Array.from(new Set(refs));
     if(uniqueRefs.length){
-      const analyses=(await Promise.all(uniqueRefs.map(analyzeMedia))).filter(Boolean) as Analysis[];
+      const analyses=await Promise.all(uniqueRefs.map(analyzeMedia));
       const combined=combineImageAnalyses(analyses,paper);
       if(combined){samples.push({isColor:combined.isColor,density:combined.density});pagesWithEmbeddedImages++;continue;}
     }
     samples.push(inspectDocxPage(fragment));
   }
   if(mediaNames.length>0&&pagesWithEmbeddedImages===0){
-    const mediaAnalyses=(await Promise.all(mediaNames.map(analyzeMedia))).filter(Boolean) as Analysis[];
-    if(mediaAnalyses.length){
-      samples.length=0;
-      for(let i=0;i<pages;i++){
-        const image=mediaAnalyses[i%mediaAnalyses.length];
-        samples.push({isColor:image.isColor,density:image.density});
-      }
-      pagesWithEmbeddedImages=pages;
+    const analyses=await Promise.all(mediaNames.map(analyzeMedia));
+    samples.length=0;
+    for(let i=0;i<pages;i++){
+      const image=analyses[i%analyses.length];
+      samples.push({isColor:image.isColor,density:image.density});
     }
+    pagesWithEmbeddedImages=pages;
   }
   while(samples.length<pages)samples.push({isColor:false,density:0});
-  const pageMethod=metadataPages>0?\`Word document metadata reports \${metadataPages} pages.\`:renderedPages>0?\`Word last-rendered page markers report \${renderedPages} pages.\`:manualPages>0?\`Explicit page breaks report \${manualPages} pages.\`:\`No Word page metadata was available, so the page count was estimated from document content.\`;
-  const imageMethod=mediaNames.length>0?` Image-based DOCX detected. Embedded raster images were extracted and analyzed at pixel level; \${mediaNames.length} embedded image file(s) were found.`:" No embedded raster images were found, so Word XML structure and text were used for page-content estimation.";
+  const pageMethod=metadataPages>0?"Word document metadata reports "+metadataPages+" pages.":renderedPages>0?"Word last-rendered page markers report "+renderedPages+" pages.":manualPages>0?"Explicit page breaks report "+manualPages+" pages.":"No Word page metadata was available, so the page count was estimated from document content.";
+  const imageMethod=mediaNames.length>0?" Image-based DOCX detected. Embedded raster images were extracted and analyzed at pixel level; "+mediaNames.length+" embedded image file(s) were found.":" No embedded raster images were found, so Word XML structure and text were used for page-content estimation.";
   return classifyPages(samples,paper,pageMethod+imageMethod);
 }
 `;
 
-const patched = source.slice(0,start) + replacement + source.slice(end);
-fs.writeFileSync(filePath, patched, "utf8");
-console.log("PrintWise: Smart Pricing DOCX image analyzer patched.");
-`;
-
-fs.writeFileSync(filePath, patched, "utf8");
+const patched=source.slice(0,start)+replacement+source.slice(end);
+fs.writeFileSync(filePath,patched,"utf8");
 console.log("PrintWise: Smart Pricing DOCX image analyzer patched.");
