@@ -6,15 +6,19 @@ function patchSmartPricing() {
   const smartPath = path.join(root, "app", "received-files", "[id]", "smart-pricing", "page.tsx");
   let smart = fs.readFileSync(smartPath, "utf8");
 
-  // Replace the whole Smart Pricing action so the build patch cannot leave a dangling brace.
-  const useSmartPrice = /const useSmartPrice\s*=\s*\(\)\s*=>\s*\{[\s\S]*?\};/;
-  const replacement = `const useSmartPrice=()=>{if(!file||computation.suggested<=0)return;sessionStorage.setItem(\`printwise-smart-price-\${file.id}\`,JSON.stringify({fileId:file.id,jobId:job?.id,analysis,copies,sides,pricing,computation,usedAt:new Date().toISOString()}));const handoff={jobId:job?.id||jobId,referenceNo:job?.reference_no||"",customerName:job?.customer_name||"",contactNumber:"",items:[{id:\`received-file-\${file.id}\`,name:file.original_name,price:Number(computation.suggested.toFixed(2)),quantity:Math.max(1,copies)}]};sessionStorage.setItem("printwise_received_file_cart",JSON.stringify(handoff));window.location.href="/pos";};`;
+  // Replace only the existing useSmartPrice function through its navigation line.
+  // Do not match on `};`, because the handler contains several object literals.
+  const handler = /const\s+useSmartPrice\s*=\s*\(\)\s*=>\s*\{[\s\S]*?window\.location\.href\s*=\s*[^;]+;\s*\}?/;
+  const replacement = 'const useSmartPrice=()=>{if(!file||computation.suggested<=0)return;sessionStorage.setItem(`printwise-smart-price-${file.id}`,JSON.stringify({fileId:file.id,jobId:job?.id,analysis,copies,sides,pricing,computation,usedAt:new Date().toISOString()}));const handoff={jobId:job?.id||jobId,referenceNo:job?.reference_no||"",customerName:job?.customer_name||"",contactNumber:"",items:[{id:`received-file-${file.id}`,name:file.original_name,price:Number(computation.suggested.toFixed(2)),quantity:Math.max(1,copies)}]};sessionStorage.setItem("printwise_received_file_cart",JSON.stringify(handoff));window.location.href="/pos";};';
 
-  if (useSmartPrice.test(smart)) {
-    smart = smart.replace(useSmartPrice, replacement);
+  if (handler.test(smart)) {
+    smart = smart.replace(handler, replacement);
   } else if (!smart.includes('window.location.href="/pos"')) {
     throw new Error("PrintWise: Smart Pricing useSmartPrice handler was not found; refusing to patch.");
   }
+
+  // Safety guard: the generated handler must be closed before the next top-level statement.
+  smart = smart.replace(/(window\.location\.href="\/pos";)(?!\s*\})/, '$1};');
 
   smart = smart.replace(/Back to File Processing/g, "Back to Incoming Files");
   smart = smart.replace(/> USE SMART PRICE<\/button>/g, "> USE SMART PRICING AMOUNT</button>");
