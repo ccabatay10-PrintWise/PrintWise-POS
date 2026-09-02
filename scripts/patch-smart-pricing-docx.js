@@ -2,7 +2,6 @@ const fs = require("fs");
 const path = require("path");
 const root = process.cwd();
 const smartPath = path.join(root,"app","received-files","[id]","smart-pricing","page.tsx");
-const receivedPath = path.join(root,"app","received-files","[id]","page.tsx");
 const patchPath = path.join(root,"scripts","smart-pricing-docx-function.txt");
 function replaceOptional(source,from,to){if(source.includes(to))return source;return source.includes(from)?source.replace(from,to):source;}
 let source=fs.readFileSync(smartPath,"utf8");
@@ -21,10 +20,4 @@ source=replaceOptional(source,"<label className=\"copies-field\">Copies / Quanti
 source=replaceOptional(source,".copies-field{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:800;color:#5e6872;margin-bottom:14px}",".smart-print-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}.copies-field{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:800;color:#5e6872;margin-bottom:14px}.copies-field select,.copies-field input{padding:13px;border:1px solid #dce2e7;border-radius:12px;font-size:17px;background:#fff}");
 source=replaceOptional(source,"@media(max-width:640px){.smart-main{padding:16px}","@media(max-width:640px){.smart-main{padding:16px}.smart-print-options{grid-template-columns:1fr}");
 fs.writeFileSync(smartPath,source,"utf8");
-let received=fs.readFileSync(receivedPath,"utf8");
-received=replaceOptional(received,"type SmartTransfer={fileId:string;jobId?:string;analysis?", "type SmartTransfer={fileId:string;jobId?:string;sides?:string;analysis?");
-received=replaceOptional(received,"return {mode:\"PRINT\",paperSize:paper,colorMode:colorTotal>0?\"Colored\":\"Black & White\",inkCoverage:coverage||\"Normal\",pages:Math.max(1,Number(a.pages)||1),copies:Math.max(1,Number(transfer.copies)||1),smartPrice:Number(suggested.toFixed(2)),smartApplied:true,smartComputation:transfer.computation||undefined};","return {mode:\"PRINT\",paperSize:paper,colorMode:colorTotal>0?\"Colored\":\"Black & White\",inkCoverage:coverage||\"Normal\",sides:transfer.sides===\"Double-sided\"?\"Double-sided\":\"Single-sided\",pages:Math.max(1,Number(a.pages)||1),copies:Math.max(1,Number(transfer.copies)||1),smartPrice:Number(suggested.toFixed(2)),smartApplied:true,smartComputation:transfer.computation||undefined};");
-received=replaceOptional(received,"const duplex=Math.max(pageFloor,production+markup);\n   return Number(Math.min(Number(s.smartPrice),duplex).toFixed(2));","const duplex=Math.max(pageFloor,production+markup);\n   if(duplex<=0)return Number(s.smartPrice);\n   return Number(Math.min(Number(s.smartPrice),duplex).toFixed(2));");
-received=replaceOptional(received,"<option>Single-sided</option><option>Double-sided</option>","<option value=\"Single-sided\">Single-sided</option><option value=\"Double-sided\">Back-to-Back (Duplex)</option>");
-fs.writeFileSync(receivedPath,received,"utf8");
 console.log("PrintWise: Smart Pricing duplex transfer patched.");
