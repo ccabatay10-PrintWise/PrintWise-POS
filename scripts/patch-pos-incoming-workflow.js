@@ -11,8 +11,8 @@ function replaceOnce(source, regex, replacement, label) {
 const smartPath = path.join(root, "app", "received-files", "[id]", "smart-pricing", "page.tsx");
 let smart = fs.readFileSync(smartPath, "utf8");
 
-// Match the whole handler regardless of earlier Smart Pricing/duplex patches.
-const smartHandler = /const useSmartPrice=\(\)=>\{[\s\S]*?\};(?=if\(loading\)|if\(!job\|\|!file\))/;
+// Match the handler regardless of whether an earlier patch ended it with ; or not.
+const smartHandler = /const useSmartPrice=\(\)=>\{[\s\S]*?\}(?:;)?(?=if\(loading\)|if\(!job\|\|!file\))/;
 const newUseSmartPrice = 'const useSmartPrice=()=>{if(!file||computation.suggested<=0)return;const handoff={jobId:job?.id||jobId,referenceNo:job?.reference_no||"",customerName:job?.customer_name||"",contactNumber:"",items:[{id:`received-file-${file.id}`,name:file.original_name,price:Number(computation.suggested.toFixed(2)),quantity:Math.max(1,copies)}]};sessionStorage.setItem("printwise_received_file_cart",JSON.stringify(handoff));sessionStorage.setItem(`printwise-smart-price-${file.id}`,JSON.stringify({fileId:file.id,jobId:job?.id,analysis,copies,pricing,computation,usedAt:new Date().toISOString()}));window.location.href="/pos"};';
 smart = replaceOnce(smart, smartHandler, newUseSmartPrice, "Smart Pricing POS handoff");
 smart = smart.replace(/window\.location\.href=`\/received-files\/\$\{jobId\}`/g, 'window.location.href="/received-files"');
