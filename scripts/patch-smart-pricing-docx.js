@@ -23,20 +23,16 @@ source = source.slice(0, start) + replacement + source.slice(end);
 source = replaceOptional(source,
   "const[job,setJob]=useState<Job|null>(null),[file,setFile]=useState<FileItem|null>(null),[pricing,setPricing]=useState<Pricing>(defaultPricing),[analysis,setAnalysis]=useState<Analysis>(emptyAnalysis),[loading,setLoading]=useState(true),[analyzing,setAnalyzing]=useState(false),[copies,setCopies]=useState(1),[error,setError]=useState(\"\"),[settingsWarning,setSettingsWarning]=useState(\"\");",
   "const[job,setJob]=useState<Job|null>(null),[file,setFile]=useState<FileItem|null>(null),[pricing,setPricing]=useState<Pricing>(defaultPricing),[analysis,setAnalysis]=useState<Analysis>(emptyAnalysis),[loading,setLoading]=useState(true),[analyzing,setAnalyzing]=useState(false),[copies,setCopies]=useState(1),[sides,setSides]=useState(\"Single-sided\"),[error,setError]=useState(\"\"),[settingsWarning,setSettingsWarning]=useState(\"\");");
-
 source = replaceOptional(source,
   "function computePrice(a:Analysis,p:Pricing,copies:number):Computation{",
   "function computePrice(a:Analysis,p:Pricing,copies:number,sides:string=\"Single-sided\"):Computation{");
 source = replaceOptional(source,
   "const multiplier=Math.max(1,n(copies));const material=getPaperRate(a.paper,p)*a.pages*multiplier;const ink=",
-  "const multiplier=Math.max(1,n(copies));const physicalSheets=sides===\"Double-sided\"?Math.ceil(a.pages/2):a.pages;const material=getPaperRate(a.paper,p)*physicalSheets*multiplier;const ink=");
+  "const multiplier=Math.max(1,n(copies));const physicalSheets=sides===\"Double-sided\"?Math.ceil(a.pages/2):a.pages;const material=getPaperRate(a.paper,p)*physicalSheets*multiplier;const ink="," 
+  );
 source = replaceOptional(source,
   "const machine=a.pages*n(p.machine_cost_per_page)*multiplier,labor=n(p.labor_cost_per_job),",
   "const machine=physicalSheets*n(p.machine_cost_per_page)*multiplier,labor=n(p.labor_cost_per_job),");
-
-// Intentionally do not patch the page-floor formula. The minimum per-page floor is
-// already based on printed pages; material and machine costs use physical sheets.
-
 source = replaceOptional(source,
   "const computation=useMemo(()=>computePrice(analysis,pricing,copies),[analysis,pricing,copies]);",
   "const computation=useMemo(()=>computePrice(analysis,pricing,copies,sides),[analysis,pricing,copies,sides]);");
@@ -64,5 +60,18 @@ received = replaceOptional(received,
 received = replaceOptional(received,
   "<option>Single-sided</option><option>Double-sided</option>",
   "<option value=\"Single-sided\">Single-sided</option><option value=\"Double-sided\">Back-to-Back (Duplex)</option>");
+
+// Move the file actions into the Incoming File Job header area.
+const oldHero = "  <section className=\"job-hero\"><div><span className=\"eyebrow\">INCOMING FILE JOB</span><h1>{job.reference_no}</h1><p>Received {date}</p></div><span className={`status ${job.status.toLowerCase()}`}>{job.status.replaceAll(\"_\",\" \")}</span></section>";
+const newHero = "  <section className=\"job-hero incoming-file-job\"><div className=\"incoming-job-main\"><div className=\"incoming-job-heading\"><div><span className=\"eyebrow\">INCOMING FILE JOB</span><h1>{job.reference_no}</h1><p>Received {date}</p></div><span className={`status ${job.status.toLowerCase()}`}>{job.status.replaceAll(\"_\",\" \")}</span></div><div className=\"incoming-file-list\">{files.map((file,index)=>{const s=setups[file.id]??defaultSetup();const est=estimateFile(s);return <article className=\"incoming-file-item\" key={file.id}><div className=\"incoming-file-info\"><span className=\"file-number\">{index+1}</span><span className=\"file-icon\"><FileText size={20}/></span><div><b>{file.original_name}</b><small>{file.mime_type||\"Unknown file type\"} · {formatBytes(Number(file.size_bytes||0))}</small></div></div><div className=\"incoming-file-actions\"><button onClick={()=>openFile(file)}><ExternalLink size={16}/> Open</button><button onClick={()=>openFile(file,true)}><Download size={16}/> Download</button><button className=\"smart-pricing-btn\" onClick={()=>goToSmartPricing(file)}><Sparkles size={16}/> Smart Pricing</button>{s.smartApplied&&<div className=\"incoming-smart-price\"><small>Smart Price</small><b>{money(est)}</b><span>{Math.max(1,s.pages)} page × {Math.max(1,s.copies)} copy</span></div>}</div></article>})}</div></div></section>";
+received = replaceOptional(received, oldHero, newHero);
+
+// Remove the old Step 3 review/configuration interface; its actions now live above.
+const filesStart = received.indexOf("  <section className=\"job-card files-card\">");
+const mainEnd = filesStart >= 0 ? received.indexOf("  </main>", filesStart) : -1;
+if (filesStart >= 0 && mainEnd >= 0) {
+  received = received.slice(0, filesStart) + received.slice(mainEnd);
+}
+
 fs.writeFileSync(receivedPath, received, "utf8");
-console.log("PrintWise: Smart Pricing Back-to-Back pricing patched.");
+console.log("PrintWise: Smart Pricing Back-to-Back pricing and Incoming File Job actions patched.");
