@@ -10,14 +10,18 @@
   --white: #ffffff;
   --success: #1f9d63;
   --warning: #d58a18;
+  --pw-control-size: 40px;
+  --pw-page-gutter: clamp(14px, 2.2vw, 34px);
+  --pw-card-radius: clamp(12px, 1.2vw, 18px);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; background: var(--gray-100); }
 html { scroll-behavior: smooth; }
-body { color: var(--gray-900); font-family: Arial, Helvetica, sans-serif; }
-button, input, select { font: inherit; }
+body { color: var(--gray-900); font-family: Arial, Helvetica, sans-serif; overflow-x: hidden; }
+button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
+img, svg, video, canvas { max-width: 100%; }
 
 /* Professional PrintWise motion system */
 @keyframes pw-fade-up {
@@ -71,6 +75,41 @@ button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active { 
 .file-actions [data-action="smart-pricing-settings"],
 .file-actions .smart-pricing-btn ~ button {
   display: none !important;
+}
+
+/* Device-aware interaction system.
+   Desktop keeps compact controls; touch devices receive larger hit areas.
+   Layouts are allowed to shrink/grow with the viewport instead of using fixed UI sizes. */
+:where(button, input, select, textarea, [role="button"]) { min-width: 0; }
+:where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: var(--pw-control-size); }
+:where(input, select, textarea) { min-height: var(--pw-control-size); max-width: 100%; }
+:where(table) { max-width: 100%; }
+:where(.table-wrap, .table-container, .data-table-wrap, .overflow-x-auto) { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 1200px) {
+  :root { --pw-control-size: 40px; --pw-page-gutter: 22px; }
+}
+
+@media (max-width: 900px) {
+  :root { --pw-control-size: 42px; --pw-page-gutter: 16px; --pw-card-radius: 14px; }
+  :where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: 42px; }
+  :where(input, select, textarea) { min-height: 42px; }
+  :where(.dashboard-card, .stat-card, .kpi-card, .metric-card) { max-width: 100%; }
+}
+
+@media (max-width: 600px) {
+  :root { --pw-control-size: 44px; --pw-page-gutter: 12px; --pw-card-radius: 12px; }
+  body { font-size: 14px; }
+  :where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: 44px; }
+  :where(input, select, textarea) { min-height: 44px; font-size: 16px; }
+  :where(.page-content, .dashboard-content, .app-content) { width: 100%; min-width: 0; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  :root { --pw-control-size: 44px; }
+  :where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: 44px; }
+  :where(a, button, [role="button"], input, select, textarea) { touch-action: manipulation; }
+  :where(.nav-item, .quick-action, .sidebar-logout, .dashboard-card, .transaction, .transaction-row, .inventory-item) { transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease; }
 }
 
 @media (prefers-reduced-motion: reduce) {
