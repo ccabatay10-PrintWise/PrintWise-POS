@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/patch-smart-pricing-docx.js && node scripts/patch-incoming-files-actions.js && node scripts/patch-pos-incoming-workflow.js && node scripts/patch-obsolete-routes.js && node scripts/patch-dashboard-final.js && node scripts/patch-responsive-ui.js && node scripts/patch-pos-mobile.js && node scripts/patch-dashboard-financial-circles.js && node scripts/patch-dashboard-typography.js && next build",
+    "build": "node scripts/patch-smart-pricing-docx.js && node scripts/patch-incoming-files-actions.js && node scripts/patch-pos-incoming-workflow.js && node scripts/patch-obsolete-routes.js && node scripts/patch-dashboard-final.js && node scripts/patch-responsive-ui.js && node scripts/patch-pos-mobile.js && node scripts/patch-dashboard-financial-circles.js && node scripts/patch-dashboard-typography.js && node scripts/patch-fixed-navigation.js && next build",
     "start": "next start",
     "lint": "eslint ."
   },
@@ -22,6 +22,7 @@
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.6",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.0",
+    "eslint-config-next": "^15.1.6"
   }
 }
