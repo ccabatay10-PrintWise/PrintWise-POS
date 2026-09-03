@@ -1,0 +1,72 @@
+const fs = require("fs");
+const path = require("path");
+
+const filePath = path.join(process.cwd(), "app", "components", "Sidebar.tsx");
+let source = fs.readFileSync(filePath, "utf8");
+const marker = "/* PrintWise account popover menu */";
+
+if (!source.includes(marker)) {
+  source = source.replace("  Calculator,\n", "  Calculator,\n  ArrowLeftRight,\n  Building2,\n");
+  source = source.replace("  ReceiptText,\n", "  ReceiptText,\n  RefreshCw,\n");
+  source = source.replace("  UserPlus,\n", "  UserPlus,\n  UserCog,\n");
+  source = source.replace("  const [mobileOpen, setMobileOpen] = useState(false);", "  const [mobileOpen, setMobileOpen] = useState(false);\n  const [accountMenuOpen, setAccountMenuOpen] = useState(false);");
+  source = source.replace("  useEffect(() => {\n    setMobileOpen(false);\n  }, [pathname]);", "  useEffect(() => {\n    setMobileOpen(false);\n    setAccountMenuOpen(false);\n  }, [pathname]);");
+
+  const oldUserCard = `          <a className="sidebar-user-card" href="/dashboard" onClick={closeMobile}>
+            <span className="sidebar-avatar">{avatarLetter}<i /></span>
+            <span className="sidebar-user-copy"><b>{userName}</b><small>{roleLabel}</small></span>
+            <ChevronRight size={18} />
+          </a>`;
+  const newUserCard = `          <button type="button" className="sidebar-user-card" onClick={() => setAccountMenuOpen((value) => !value)} aria-expanded={accountMenuOpen} aria-haspopup="menu">
+            <span className="sidebar-avatar">{avatarLetter}<i /></span>
+            <span className="sidebar-user-copy"><b>{userName}</b><small>{roleLabel}</small></span>
+            <ChevronRight className={accountMenuOpen ? "account-chevron-open" : ""} size={18} />
+          </button>`;
+  source = source.replace(oldUserCard, newUserCard);
+
+  const oldLogout = `          <button type="button" className="sidebar-logout" onClick={signOut}>
+            <LogOut size={18} /><span>LOG OUT</span>
+          </button>`;
+  source = source.replace(oldLogout, "");
+
+  const footerMarker = `        <div className="sidebar-fixed-footer">\n`;
+  const accountPopover = `        <div className="sidebar-fixed-footer">
+          {accountMenuOpen && (
+            <div className="sidebar-account-popover" role="menu">
+              <div className="account-popover-business">
+                <strong>Espacio</strong>
+                <span>Owner</span>
+              </div>
+              <button type="button" className="account-popover-item" onClick={() => window.location.reload()}>
+                <RefreshCw size={18} /><span><b>Check for Updates</b><small>UI version 2026-09-01 09:49</small></span>
+              </button>
+              <button type="button" className="account-popover-item" onClick={() => router.push("/settings")}>
+                <ArrowLeftRight size={18} /><span><b>Switch Account</b></span>
+              </button>
+              <button type="button" className="account-popover-item" onClick={() => router.push("/settings")}>
+                <Building2 size={18} /><span><b>Add New Business</b></span>
+              </button>
+              <button type="button" className="account-popover-item" onClick={() => router.push("/settings")}>
+                <UserCog size={18} /><span><b>User Settings</b></span>
+              </button>
+              <button type="button" className="account-popover-item account-popover-logout" onClick={signOut}>
+                <LogOut size={18} /><span><b>Logout</b><small>Sign out of your account</small></span>
+              </button>
+            </div>
+          )}
+          <button type="button" className="sidebar-account-trigger" onClick={() => setAccountMenuOpen((value) => !value)} aria-expanded={accountMenuOpen} aria-haspopup="menu">
+            <span className="sidebar-avatar">{avatarLetter}<i /></span>
+            <span className="sidebar-user-copy"><b>{userName}</b><small>{roleLabel}</small></span>
+            <ChevronRight className={accountMenuOpen ? "account-chevron-open" : ""} size={18} />
+          </button>
+        </div>`;
+  source = source.replace(/        <div className="sidebar-fixed-footer">[\s\S]*?<\/div>/, accountPopover);
+
+  source = source.replace(".sidebar-compact .sidebar-fixed-footer .sidebar-logout{margin:0!important;min-height:48px!important}", ".sidebar-compact .sidebar-fixed-footer .sidebar-logout{margin:0!important;min-height:48px!important}\n        .sidebar-compact .sidebar-account-trigger{width:100%;min-height:58px;border:0;background:transparent;color:inherit;display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:10px;text-align:left;cursor:pointer}\n        .sidebar-compact .sidebar-account-trigger:hover{background:rgba(255,255,255,.05)}\n        .sidebar-compact .account-chevron-open{transform:rotate(-90deg)}\n        .sidebar-account-popover{position:absolute;left:8px;right:8px;bottom:calc(100% + 8px);background:#fff;color:#182230;border:1px solid #dfe4ea;border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.18);overflow:hidden;z-index:50}\n        .sidebar-fixed-footer{position:relative!important}\n        .account-popover-business{padding:15px 16px 13px;border-bottom:1px solid #e5e7eb}\n        .account-popover-business strong,.account-popover-business span{display:block}\n        .account-popover-business strong{font-size:16px;font-weight:600;line-height:1.2}\n        .account-popover-business span{font-size:12px;color:#70809a;margin-top:3px}\n        .account-popover-item{width:100%;min-height:51px;border:0;border-bottom:1px solid #e5e7eb;background:#fff;color:#182230;display:flex;align-items:center;gap:13px;padding:9px 16px;text-align:left;cursor:pointer}\n        .account-popover-item:hover{background:#f6f8fa}\n        .account-popover-item>svg{color:#0a9bf0;flex:0 0 auto}\n        .account-popover-item span{display:flex;flex-direction:column;min-width:0}\n        .account-popover-item b{font-size:14px;font-weight:500;line-height:1.25}\n        .account-popover-item small{font-size:12px;color:#7890ad;line-height:1.25;margin-top:2px}\n        .account-popover-logout{border-bottom:0;color:#ef171d}\n        .account-popover-logout>svg{color:#ef171d}\n        .account-popover-logout small{color:#607998}");
+
+  source = source.replace(".sidebar-compact .sidebar-fixed-footer{padding:8px 0 max(8px,env(safe-area-inset-bottom))!important}", ".sidebar-compact .sidebar-fixed-footer{padding:8px 0 max(8px,env(safe-area-inset-bottom))!important}\n          .sidebar-account-popover{left:0;right:0;bottom:calc(100% + 8px);max-height:calc(100dvh - 90px);overflow-y:auto}");
+
+  fs.writeFileSync(filePath, source, "utf8");
+}
+
+console.log("PrintWise: Added upward account options menu above the fixed sidebar account area.");
