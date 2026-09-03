@@ -12,7 +12,6 @@ if (!source.includes(marker)) {
   source = source.replace("  const [mobileOpen, setMobileOpen] = useState(false);", "  const [mobileOpen, setMobileOpen] = useState(false);\n  const [accountMenuOpen, setAccountMenuOpen] = useState(false);\n  const [accountOwnerName, setAccountOwnerName] = useState(\"PrintWise Owner\");");
   source = source.replace("      setUserName(\n        user.user_metadata?.full_name ||", "      setUserName(\n        user.user_metadata?.full_name ||");
   source = source.replace("          \"PrintWise User\",\n      );\n      setUserRole(", "          \"PrintWise User\",\n      );\n      setAccountOwnerName(\n        user.user_metadata?.account_owner_name ||\n          user.user_metadata?.owner_name ||\n          user.user_metadata?.full_name ||\n          user.user_metadata?.name ||\n          user.email?.split(\"@\")[0] ||\n          \"PrintWise Owner\",\n      );\n      setUserRole(");
-  source = source.replace("  useEffect(() => {\n    setMobileOpen(false);\n    setAccountMenuOpen(false);\n  }, [pathname]);", "  useEffect(() => {\n    setMobileOpen(false);\n    setAccountMenuOpen(false);\n  }, [pathname]);");
 
   const oldUserCard = `          <a className="sidebar-user-card" href="/dashboard" onClick={closeMobile}>
             <span className="sidebar-avatar">{avatarLetter}<i /></span>
@@ -71,7 +70,7 @@ if (!source.includes(marker)) {
         .account-popover-business span{font-size:12px;color:#70809a;margin-top:3px}
         .account-popover-item{width:100%;min-height:51px;border:0;border-bottom:1px solid #e5e7eb;background:#fff;color:#182230;display:flex;align-items:center;gap:13px;padding:9px 16px;text-align:left;cursor:pointer}
         .account-popover-item:hover{background:#f6f8fa}
-        .account-popover-item>svg{color:#0a9bf0;flex:0 0 auto}
+        .account-popover-item>svg{color:#ef171d;flex:0 0 auto}
         .account-popover-item span{display:flex;flex-direction:column;min-width:0}
         .account-popover-item b{font-size:14px;font-weight:500;line-height:1.25}
         .account-popover-item small{font-size:12px;color:#7890ad;line-height:1.25;margin-top:2px}
@@ -85,4 +84,4 @@ if (!source.includes(marker)) {
   fs.writeFileSync(filePath, source, "utf8");
 }
 
-console.log("PrintWise: Account popover now shows the account owner, not the active business name.");
+console.log("PrintWise: Account popover icons use the PrintWise red accent.");
