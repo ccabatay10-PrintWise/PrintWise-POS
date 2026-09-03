@@ -36,13 +36,14 @@ if (start >= 0 && end > start) {
 }
 
 let css = fs.readFileSync(cssPath, "utf8");
-const marker = "/* PrintWise circular sales trend */";
+const marker = "/* PrintWise circular sales trend v3 */";
 if (!css.includes(marker)) {
   css += `\n${marker}
-.sales-trend-card{min-width:0}.sales-circles{min-height:245px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:center;gap:12px;padding:20px 4px 8px}.sales-circle-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0}.sales-circle{width:78px;height:78px;border-radius:50%;display:grid;place-items:center;position:relative;box-shadow:0 4px 12px rgba(15,23,42,.06)}.sales-circle-inner{width:58px;height:58px;border-radius:50%;background:#fff;display:grid;place-items:center;text-align:center;padding:4px;box-sizing:border-box}.sales-circle-inner strong{font-size:10px;line-height:1.1;color:#273142;overflow:hidden;text-overflow:ellipsis;max-width:52px}.sales-circle-item>b{font-size:10px;color:#667085;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px}.sales-circle-item:first-child .sales-circle{box-shadow:0 6px 18px rgba(239,32,25,.13)}
-@media(max-width:900px){.sales-circles{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:16px}.sales-circle{width:72px;height:72px}.sales-circle-inner{width:54px;height:54px}}
-@media(max-width:600px){.sales-circles{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:14px 0 4px;min-height:190px}.sales-circle{width:58px;height:58px}.sales-circle-inner{width:44px;height:44px}.sales-circle-inner strong{font-size:8px}.sales-circle-item>b{font-size:8px;max-width:60px}}
+.sales-trend-card{min-width:0}.sales-circles{min-height:250px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:center;gap:8px;padding:18px 0 10px}.sales-circle-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-width:0}.sales-circle{width:88px;height:88px;border-radius:50%;display:grid;place-items:center;position:relative;box-shadow:0 5px 16px rgba(15,23,42,.07)}.sales-circle-inner{width:66px;height:66px;border-radius:50%;background:#fff;display:grid;place-items:center;text-align:center;padding:4px;box-sizing:border-box}.sales-circle-inner strong{font-size:10px;line-height:1.15;color:#273142;overflow:hidden;text-overflow:ellipsis;max-width:58px}.sales-circle-item>b{font-size:10px;color:#667085;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:84px}.sales-circle-item:first-child .sales-circle{box-shadow:0 7px 20px rgba(239,32,25,.15)}
+@media(max-width:1100px){.sales-circles{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:18px}.sales-circle{width:78px;height:78px}.sales-circle-inner{width:58px;height:58px}}
+@media(max-width:700px){.sales-circles{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;min-height:250px}.sales-circle{width:70px;height:70px}.sales-circle-inner{width:52px;height:52px}.sales-circle-inner strong{font-size:9px}.sales-circle-item>b{font-size:9px;max-width:72px}}
+@media(max-width:430px){.sales-circles{grid-template-columns:repeat(2,minmax(0,1fr));min-height:330px}.sales-circle{width:78px;height:78px}.sales-circle-inner{width:58px;height:58px}}
 `;
   fs.writeFileSync(cssPath, css, "utf8");
 }
-console.log("PrintWise: Dashboard sales trend converted from bars to circular charts.");
+console.log("PrintWise: Dashboard sales trend is now presented as circular charts.");
