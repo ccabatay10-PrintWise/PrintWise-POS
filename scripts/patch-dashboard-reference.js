@@ -28,8 +28,9 @@ const trendSection=`          <section className="dashboard-card sales-trend-car
             <div className="sales-circle-row">
               {data.trend.map((item)=>{
                 const percent=Math.max(0,Math.min(100,maxTrend>0?(item.amount/maxTrend)*100:0));
+                const circleStyle={background:'conic-gradient(#ff1111 0 '+percent+'%,#edf1f5 '+percent+'% 100%)'};
                 return <div className="sales-circle-item" key={item.key}>
-                  <div className="sales-circle" style={{background:`conic-gradient(#ff1111 0 ${percent}%,#edf1f5 ${percent}% 100%)`}}>
+                  <div className="sales-circle" style={circleStyle}>
                     <div><strong>{item.amount>0?currency(item.amount):'₱0'}</strong></div>
                   </div>
                   <b>{item.label}</b>
