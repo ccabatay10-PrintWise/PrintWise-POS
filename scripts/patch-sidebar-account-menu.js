@@ -9,8 +9,10 @@ if (!source.includes(marker)) {
   source = source.replace("  Calculator,\n", "  Calculator,\n  ArrowLeftRight,\n  Building2,\n");
   source = source.replace("  ReceiptText,\n", "  ReceiptText,\n  RefreshCw,\n");
   source = source.replace("  UserPlus,\n", "  UserPlus,\n  UserCog,\n");
-  source = source.replace("  const [mobileOpen, setMobileOpen] = useState(false);", "  const [mobileOpen, setMobileOpen] = useState(false);\n  const [accountMenuOpen, setAccountMenuOpen] = useState(false);");
-  source = source.replace("  useEffect(() => {\n    setMobileOpen(false);\n  }, [pathname]);", "  useEffect(() => {\n    setMobileOpen(false);\n    setAccountMenuOpen(false);\n  }, [pathname]);");
+  source = source.replace("  const [mobileOpen, setMobileOpen] = useState(false);", "  const [mobileOpen, setMobileOpen] = useState(false);\n  const [accountMenuOpen, setAccountMenuOpen] = useState(false);\n  const [accountOwnerName, setAccountOwnerName] = useState(\"PrintWise Owner\");");
+  source = source.replace("      setUserName(\n        user.user_metadata?.full_name ||", "      setUserName(\n        user.user_metadata?.full_name ||");
+  source = source.replace("          \"PrintWise User\",\n      );\n      setUserRole(", "          \"PrintWise User\",\n      );\n      setAccountOwnerName(\n        user.user_metadata?.account_owner_name ||\n          user.user_metadata?.owner_name ||\n          user.user_metadata?.full_name ||\n          user.user_metadata?.name ||\n          user.email?.split(\"@\")[0] ||\n          \"PrintWise Owner\",\n      );\n      setUserRole(");
+  source = source.replace("  useEffect(() => {\n    setMobileOpen(false);\n    setAccountMenuOpen(false);\n  }, [pathname]);", "  useEffect(() => {\n    setMobileOpen(false);\n    setAccountMenuOpen(false);\n  }, [pathname]);");
 
   const oldUserCard = `          <a className="sidebar-user-card" href="/dashboard" onClick={closeMobile}>
             <span className="sidebar-avatar">{avatarLetter}<i /></span>
@@ -28,7 +30,7 @@ if (!source.includes(marker)) {
           {accountMenuOpen && (
             <div className="sidebar-account-popover" role="menu">
               <div className="account-popover-business">
-                <strong>Espacio</strong>
+                <strong>{accountOwnerName}</strong>
                 <span>Owner</span>
               </div>
               <button type="button" className="account-popover-item" onClick={() => window.location.reload()}>
@@ -83,4 +85,4 @@ if (!source.includes(marker)) {
   fs.writeFileSync(filePath, source, "utf8");
 }
 
-console.log("PrintWise: Added upward account options menu above the fixed sidebar account area.");
+console.log("PrintWise: Account popover now shows the account owner, not the active business name.");
