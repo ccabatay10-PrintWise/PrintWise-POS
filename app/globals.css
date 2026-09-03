@@ -11,8 +11,9 @@
   --success: #1f9d63;
   --warning: #d58a18;
   --pw-control-size: 40px;
-  --pw-page-gutter: clamp(14px, 2.2vw, 34px);
+  --pw-page-gutter: clamp(12px, 2.2vw, 34px);
   --pw-card-radius: clamp(12px, 1.2vw, 18px);
+  --pw-sidebar-width: 300px;
 }
 
 * { box-sizing: border-box; }
@@ -52,7 +53,6 @@ button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active { 
 .transaction:nth-child(4), .transaction-row:nth-child(4), .inventory-item:nth-child(4) { animation-delay: .12s; }
 .transaction:nth-child(5), .transaction-row:nth-child(5), .inventory-item:nth-child(5) { animation-delay: .15s; }
 
-/* Sales Trend: bars visibly grow from the bottom, left to right. */
 .sales-bar-fill {
   transform-origin: bottom;
   animation: pw-bar-grow .72s cubic-bezier(.22,.8,.24,1) both;
@@ -67,8 +67,6 @@ button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active { 
 .sales-bar-item:nth-child(7) .sales-bar-fill { animation-delay: .45s; }
 .sales-bar-item:nth-child(n+8) .sales-bar-fill { animation-delay: .52s; }
 
-/* File Processing must have exactly one Smart Pricing action: the red button.
-   Hide any legacy/duplicate button rendered after .smart-pricing-btn. */
 .file-actions .smart-pricing-settings,
 .file-actions .smart-pricing-settings-btn,
 .file-actions [data-smart-pricing-settings="true"],
@@ -77,32 +75,73 @@ button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active { 
   display: none !important;
 }
 
-/* Device-aware interaction system.
-   Desktop keeps compact controls; touch devices receive larger hit areas.
-   Layouts are allowed to shrink/grow with the viewport instead of using fixed UI sizes. */
+/* Base responsive interaction rules */
 :where(button, input, select, textarea, [role="button"]) { min-width: 0; }
 :where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: var(--pw-control-size); }
 :where(input, select, textarea) { min-height: var(--pw-control-size); max-width: 100%; }
 :where(table) { max-width: 100%; }
 :where(.table-wrap, .table-container, .data-table-wrap, .overflow-x-auto) { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* Shared application shell: never allow fixed-width content to force phone overflow. */
+.app-shell { width: 100%; max-width: 100vw; min-width: 0; }
+.workspace { min-width: 0; max-width: 100%; overflow-x: hidden; }
+.workspace > * { min-width: 0; max-width: 100%; }
+
 @media (max-width: 1200px) {
-  :root { --pw-control-size: 40px; --pw-page-gutter: 22px; }
+  :root { --pw-control-size: 40px; --pw-page-gutter: 22px; --pw-sidebar-width: 72px; }
+  .workspace { width: calc(100% - 72px); }
+  .dashboard-header, .topbar { padding-inline: var(--pw-page-gutter); }
+  .pos-layout { padding: var(--pw-page-gutter); }
 }
 
 @media (max-width: 900px) {
   :root { --pw-control-size: 42px; --pw-page-gutter: 16px; --pw-card-radius: 14px; }
   :where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: 42px; }
   :where(input, select, textarea) { min-height: 42px; }
-  :where(.dashboard-card, .stat-card, .kpi-card, .metric-card) { max-width: 100%; }
+  :where(.dashboard-card, .stat-card, .kpi-card, .metric-card, .catalog-panel, .order-panel) { max-width: 100%; min-width: 0; }
+  .workspace { width: calc(100% - 72px); }
+  .topbar { min-height: 76px; }
+  .top-actions { gap: 8px; }
+  .pos-layout { gap: 12px; }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 700px) {
   :root { --pw-control-size: 44px; --pw-page-gutter: 12px; --pw-card-radius: 12px; }
   body { font-size: 14px; }
+  .app-shell { display: block; min-height: 100dvh; }
+  .workspace { width: 100%; max-width: 100%; min-height: 100dvh; }
+  .workspace > * { max-width: 100%; }
   :where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: 44px; }
   :where(input, select, textarea) { min-height: 44px; font-size: 16px; }
   :where(.page-content, .dashboard-content, .app-content) { width: 100%; min-width: 0; }
+  .topbar { min-height: 64px; padding: 12px var(--pw-page-gutter) 12px 68px; gap: 8px; }
+  .topbar h1 { font-size: 21px; }
+  .top-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .top-actions .status { display: none; }
+  .icon-btn { min-width: 44px; min-height: 44px; }
+  .pos-layout { grid-template-columns: 1fr !important; padding: var(--pw-page-gutter); gap: 10px; }
+  .catalog-panel, .order-panel { border-radius: var(--pw-card-radius); padding: 12px; }
+  .search-box { min-height: 46px; }
+  .category-row { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .payment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .order-panel { position: static !important; min-height: auto !important; }
+  .payment-modal-overlay, .receipt-choice-overlay { padding: 12px; }
+  .payment-modal-card, .receipt-choice-card { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; border-radius: 18px; padding: 22px 16px; }
+  .payment-modal-actions, .receipt-choice-actions { grid-template-columns: 1fr; }
+  .payment-modal-summary label { flex-wrap: wrap; }
+  .payment-modal-summary input { width: 100%; max-width: 100%; }
+  .staff-modal { max-height: calc(100dvh - 24px); overflow-y: auto; padding: 22px 16px; border-radius: 18px; }
+  .staff-form-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 420px) {
+  :root { --pw-page-gutter: 10px; }
+  .topbar { padding-left: 64px; padding-right: 10px; }
+  .product-grid { grid-template-columns: 1fr 1fr; gap: 7px; }
+  .product-card { min-height: 125px; padding: 10px; }
+  .payment-grid { gap: 6px; }
+  .process-btn { min-height: 48px; }
 }
 
 @media (hover: none) and (pointer: coarse) {
