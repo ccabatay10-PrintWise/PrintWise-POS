@@ -6,7 +6,7 @@ const page = fs.readFileSync(targetPath, "utf8");
 const marker = "/* PrintWise POS Shift live data */";
 
 if (page.includes(marker) && page.includes("\\n")) {
-  fs.writeFileSync(targetPath, page.replace(/\\\\n/g, "\n"), "utf8");
+  fs.writeFileSync(targetPath, page.replace(/\\n/g, "\n"), "utf8");
 }
 
 console.log("PrintWise: normalized Shift live-data generated newlines.");
