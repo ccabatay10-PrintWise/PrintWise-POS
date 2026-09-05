@@ -7,29 +7,33 @@ if (!fs.existsSync(pagePath)) {
   process.exit(0);
 }
 
-const page = fs.readFileSync(pagePath, "utf8");
+let page = fs.readFileSync(pagePath, "utf8");
 if (page.includes("PRINTWISE_CUSTOMER_DISPLAY_SAFE")) {
   console.log("Customer display safe bridge already applied.");
   process.exit(0);
 }
 
 const importAnchor = 'import Sidebar from "../components/Sidebar";';
-const topActions = '<div className="top-actions"><button className="icon-btn"><Menu size={20} /></button><div className="status"><span></span> System Online</div></div>';
-
-if (!page.includes(importAnchor) || !page.includes(topActions)) {
-  console.log("Customer display safe bridge skipped: current POS layout has changed.");
+if (!page.includes(importAnchor)) {
+  console.log("Customer display safe bridge skipped: Sidebar import anchor not found.");
   process.exit(0);
 }
 
-const next = page
-  .replace(
-    importAnchor,
-    `${importAnchor}\nimport CustomerDisplayLauncher from "../components/CustomerDisplayLauncher"; // PRINTWISE_CUSTOMER_DISPLAY_SAFE`
-  )
-  .replace(
-    topActions,
-    '<div className="top-actions"><CustomerDisplayLauncher cart={cart} customer={customer} subtotal={subtotal} discount={discountAmount} total={total} /><button className="icon-btn"><Menu size={20} /></button><div className="status"><span></span> System Online</div></div>'
-  );
+page = page.replace(
+  importAnchor,
+  `${importAnchor}\nimport CustomerDisplayLauncher from "../components/CustomerDisplayLauncher"; // PRINTWISE_CUSTOMER_DISPLAY_SAFE`
+);
 
-fs.writeFileSync(pagePath, next);
+const topActionsRegex = /<div className="top-actions">/;
+if (!topActionsRegex.test(page)) {
+  console.log("Customer display safe bridge skipped: top actions container not found.");
+  process.exit(0);
+}
+
+page = page.replace(
+  topActionsRegex,
+  '<div className="top-actions"><CustomerDisplayLauncher cart={cart} customer={customer} subtotal={subtotal} discount={discountAmount} total={total} />'
+);
+
+fs.writeFileSync(pagePath, page, "utf8");
 console.log("Applied isolated Customer Display bridge. The POS page contains no display-sync logic.");
