@@ -47,12 +47,17 @@ if (!page.includes(marker)) {
 `;
   page = page.replace(handoffMarker, `${handoffMarker}${syncEffect}`);
 
-  const topActionsStart = page.indexOf('<div className="top-actions">');
-  if (topActionsStart === -1) throw new Error("Customer Display: top actions container not found.");
-  const statusIndex = page.indexOf('<div className="status">', topActionsStart);
-  if (statusIndex === -1) throw new Error("Customer Display: status area not found.");
   const launchButton = '<button className="customer-display-launch" onClick={openCustomerDisplay} title="Open Customer Display"><MonitorUp size={18} /><span>Customer Display</span></button>';
-  page = page.slice(0, statusIndex) + launchButton + page.slice(statusIndex);
+  const statusIndex = page.indexOf('<div className="status">');
+  if (statusIndex !== -1) {
+    page = page.slice(0, statusIndex) + launchButton + page.slice(statusIndex);
+  } else {
+    const topbarIndex = page.indexOf('<header className="topbar">');
+    if (topbarIndex === -1) throw new Error("Customer Display: POS topbar marker not found.");
+    const topbarOpenEnd = page.indexOf(">", topbarIndex) + 1;
+    if (topbarOpenEnd <= 0) throw new Error("Customer Display: POS topbar opening tag not found.");
+    page = page.slice(0, topbarOpenEnd) + launchButton + page.slice(topbarOpenEnd);
+  }
   fs.writeFileSync(pagePath, page, "utf8");
 }
 
