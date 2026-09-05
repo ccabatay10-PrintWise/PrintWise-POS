@@ -16,16 +16,18 @@ if (!page.includes("className=\"pos-quick-actions\"")) {
   );
 
   const oldEnd = `          </aside>\n        </div>`;
-  const newEnd = `          </aside>\n\n          <div className="pos-quick-actions" aria-label="Order quick actions">\n            <button type="button" className="pos-quick-action" onClick={() => setDiscount(discountAmount)} title="Apply discount">\n              <Percent size={22} />\n              <span>Discount</span>\n            </button>\n            <button type="button" className="pos-quick-action" onClick={openOrdersModal} title="View orders">\n              <ClipboardList size={22} />\n              <span>Orders</span>\n            </button>\n            <button type="button" className="pos-quick-action pos-quick-action-active" title="Shift">\n              <Clock3 size={22} />\n              <span>Shift</span>\n            </button>\n            <button type="button" className="pos-quick-action" onClick={clearOrder} title="Clear current order">\n              <Eraser size={22} />\n              <span>Clear</span>\n            </button>\n            <button type="button" className="pos-quick-action" onClick={() => window.print()} title="Print">\n              <Printer size={22} />\n              <span>Printer</span>\n            </button>\n            <button type="button" className="pos-quick-action" title="POS settings">\n              <Settings2 size={22} />\n              <span>Settings</span>\n            </button>\n            <button type="button" className="pos-quick-action" onClick={() => window.location.reload()} title="Refresh POS">\n              <RefreshCw size={22} />\n              <span>Refresh</span>\n            </button>\n          </div>\n        </div>`;
+  const newEnd = `          </aside>\n\n          <div className="pos-quick-actions" aria-label="Order quick actions">\n            <button type="button" className="pos-quick-action" onClick={() => setDiscount(discountAmount)} title="Apply discount">\n              <Percent size={22} />\n              <span>Discount</span>\n            </button>\n            <button type="button" className="pos-quick-action" onClick={openOrdersModal} title="View orders">\n              <ClipboardList size={22} />\n              <span>Orders</span>\n            </button>\n            <button type="button" className="pos-quick-action pos-quick-action-active" title="Shift">\n              <Clock3 size={22} />\n              <span>Shift</span>\n            </button>\n            <button type="button" className="pos-quick-action" onClick={clearOrder} title="Erase current order">\n              <Eraser size={22} />\n              <span>Erase</span>\n            </button>\n            <button type="button" className="pos-quick-action" onClick={() => window.print()} title="Print">\n              <Printer size={22} />\n              <span>Printer</span>\n            </button>\n            <button type="button" className="pos-quick-action" title="POS settings">\n              <Settings2 size={22} />\n              <span>Settings</span>\n            </button>\n            <button type="button" className="pos-quick-action" onClick={() => window.location.reload()} title="Refresh POS">\n              <RefreshCw size={22} />\n              <span>Refresh</span>\n            </button>\n          </div>\n        </div>`;
   if (!page.includes(oldEnd)) throw new Error("POS order panel marker not found");
   page = page.replace(oldEnd, newEnd);
 }
 
-// Keep the Orders action wired even if the rail already exists from an older build.
+// Keep the Orders and Erase actions wired even if the rail already exists from an older build.
 page = page.replace(
   /(<button type="button" className="pos-quick-action")(?![^>]*onClick=\{openOrdersModal\})([^>]*title="View orders">)/,
   '$1 onClick={openOrdersModal}$2'
 );
+page = page.replace(/(<button type="button" className="pos-quick-action"[^>]*)(title="Clear current order">)/, '$1 onClick={clearOrder} title="Erase current order">');
+page = page.replace(/(<button type="button" className="pos-quick-action"[^>]*title="Clear current order">[\s\S]*?<Eraser[^>]*\/>\s*<span>)Clear(<\/span>)/, '$1Erase$2');
 
 fs.writeFileSync(pagePath, page, "utf8");
 
@@ -34,4 +36,4 @@ if (!css.includes(marker)) {
   fs.writeFileSync(cssPath, css, "utf8");
 }
 
-console.log("PrintWise: Added the POS quick-action rail beside Current Order.");
+console.log("PrintWise: Erase clears the current unsaved order from the POS cart.");
