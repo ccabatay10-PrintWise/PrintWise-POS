@@ -19,7 +19,12 @@ type DisplayOrder = {
   discount: number;
   total: number;
   updatedAt: string;
+  sourceId?: string;
 };
+
+const STORAGE_KEY = "printwise_customer_display_order";
+const CHANNEL_NAME = "printwise_customer_display";
+const STALE_AFTER_MS = 15000;
 
 const emptyOrder: DisplayOrder = {
   items: [],
@@ -30,41 +35,75 @@ const emptyOrder: DisplayOrder = {
   updatedAt: "",
 };
 
+function normalizeOrder(value: unknown): DisplayOrder {
+  if (!value || typeof value !== "object") return emptyOrder;
+  const input = value as Partial<DisplayOrder>;
+  const items = Array.isArray(input.items)
+    ? input.items.map((item: any, index) => ({
+        id: String(item?.id ?? `display-item-${index}`),
+        name: String(item?.name ?? "Item"),
+        price: Number(item?.price) || 0,
+        quantity: Math.max(0, Number(item?.quantity) || 0),
+        image_url: item?.image_url ? String(item.image_url) : null,
+      })).filter((item) => item.quantity > 0)
+    : [];
+
+  return {
+    items,
+    customer: typeof input.customer === "string" ? input.customer : "",
+    subtotal: Number(input.subtotal) || 0,
+    discount: Number(input.discount) || 0,
+    total: Number(input.total) || 0,
+    updatedAt: typeof input.updatedAt === "string" ? input.updatedAt : "",
+    sourceId: typeof input.sourceId === "string" ? input.sourceId : undefined,
+  };
+}
+
 export default function CustomerDisplayPage() {
   const [order, setOrder] = useState<DisplayOrder>(emptyOrder);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const load = () => {
-      try {
-        const raw = localStorage.getItem("printwise_customer_display_order");
-        if (raw) setOrder({ ...emptyOrder, ...JSON.parse(raw) });
-      } catch {}
+    const apply = (value: unknown) => {
+      const next = normalizeOrder(value);
+      setOrder(next);
+      setConnected(Boolean(next.updatedAt) && Date.now() - new Date(next.updatedAt).getTime() < STALE_AFTER_MS);
     };
 
-    load();
-    setConnected(true);
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) apply(JSON.parse(raw));
+    } catch {
+      // Ignore malformed or unavailable browser storage.
+    }
 
-    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("printwise_customer_display") : null;
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(CHANNEL_NAME) : null;
     const receive = (event: MessageEvent) => {
-      if (event.data?.type === "order-update" && event.data.order) {
-        setOrder({ ...emptyOrder, ...event.data.order });
-      }
+      if (event.data?.type === "order-update") apply(event.data.order);
     };
     channel?.addEventListener("message", receive);
 
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== "printwise_customer_display_order" || !event.newValue) return;
-      try { setOrder({ ...emptyOrder, ...JSON.parse(event.newValue) }); } catch {}
+      if (event.key !== STORAGE_KEY || !event.newValue) return;
+      try { apply(JSON.parse(event.newValue)); } catch {}
     };
     window.addEventListener("storage", onStorage);
+
+    const healthTimer = window.setInterval(() => {
+      setConnected((current) => {
+        if (!order.updatedAt) return false;
+        const fresh = Date.now() - new Date(order.updatedAt).getTime() < STALE_AFTER_MS;
+        return fresh === current ? current : fresh;
+      });
+    }, 3000);
 
     return () => {
       channel?.removeEventListener("message", receive);
       channel?.close();
       window.removeEventListener("storage", onStorage);
+      window.clearInterval(healthTimer);
     };
-  }, []);
+  }, [order.updatedAt]);
 
   const itemCount = useMemo(() => order.items.reduce((sum, item) => sum + item.quantity, 0), [order.items]);
 
@@ -75,7 +114,9 @@ export default function CustomerDisplayPage() {
           <div className="customer-display-logo"><Monitor size={27} /></div>
           <div><strong>PRINTWISE</strong><span>Customer Display</span></div>
         </div>
-        <div className={`customer-display-connection ${connected ? "online" : ""}`}><span /> {connected ? "Connected to POS" : "Waiting for POS"}</div>
+        <div className={`customer-display-connection ${connected ? "online" : ""}`}>
+          <span /> {connected ? "Connected to POS" : "Waiting for POS"}
+        </div>
       </header>
 
       <section className="customer-display-content">
@@ -83,7 +124,7 @@ export default function CustomerDisplayPage() {
           <div className="customer-display-empty">
             <div className="customer-display-empty-icon"><ShoppingBag size={54} /></div>
             <h1>Welcome to PrintWise</h1>
-            <p>Your order will appear here.</p>
+            <p>{connected ? "Your order will appear here." : "Open Customer Display from the POS to begin."}</p>
           </div>
         ) : (
           <>
