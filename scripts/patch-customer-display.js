@@ -1,19 +1,16 @@
 const fs = require("fs");
 const path = require("path");
-
 const pagePath = path.join(process.cwd(), "app", "pos", "page.tsx");
 const cssPath = path.join(process.cwd(), "app", "pos", "pos.css");
 let page = fs.readFileSync(pagePath, "utf8");
 let css = fs.readFileSync(cssPath, "utf8");
-
 const marker = "/* PrintWise Customer Display */";
 const cssMarker = "/* PrintWise Customer Display styles */";
 
 if (!page.includes(marker)) {
   const importMatch = page.match(/import \{([\s\S]*?)\} from "lucide-react";/);
   if (!importMatch) throw new Error("Customer Display: lucide-react import not found.");
-  const existingImports = importMatch[1];
-  const iconNames = existingImports.split(",").map((x) => x.trim()).filter(Boolean);
+  const iconNames = importMatch[1].split(",").map((x) => x.trim()).filter(Boolean);
   if (!iconNames.includes("MonitorUp")) iconNames.push("MonitorUp");
   page = page.replace(importMatch[0], `import {\n  ${iconNames.join(", ")}\n} from "lucide-react";`);
 
@@ -24,22 +21,14 @@ if (!page.includes(marker)) {
   ${marker}
   useEffect(() => {
     const displayOrder = {
-      items: cart.map((item) => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        image_url: item.image_url || null,
-      })),
+      items: cart.map((item) => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity, image_url: item.image_url || null })),
       customer,
       subtotal,
       discount: discountAmount,
       total,
       updatedAt: new Date().toISOString(),
     };
-    try {
-      localStorage.setItem("printwise_customer_display_order", JSON.stringify(displayOrder));
-    } catch {}
+    try { localStorage.setItem("printwise_customer_display_order", JSON.stringify(displayOrder)); } catch {}
     try {
       const channel = new BroadcastChannel("printwise_customer_display");
       channel.postMessage({ type: "order-update", order: displayOrder });
@@ -58,11 +47,12 @@ if (!page.includes(marker)) {
 `;
   page = page.replace(handoffMarker, `${handoffMarker}${syncEffect}`);
 
-  const topActionsNeedle = '<div className="top-actions"><button className="icon-btn"><Menu size={20} /></button><div className="status"><span></span> System Online</div></div>';
-  if (!page.includes(topActionsNeedle)) throw new Error("Customer Display: top actions marker not found.");
-  const topActions = '<div className="top-actions"><button className="customer-display-launch" onClick={openCustomerDisplay} title="Open Customer Display"><MonitorUp size={18} /><span>Customer Display</span></button><button className="icon-btn"><Menu size={20} /></button><div className="status"><span></span> System Online</div></div>';
-  page = page.replace(topActionsNeedle, topActions);
-
+  const topActionsStart = page.indexOf('<div className="top-actions">');
+  if (topActionsStart === -1) throw new Error("Customer Display: top actions container not found.");
+  const statusIndex = page.indexOf('<div className="status">', topActionsStart);
+  if (statusIndex === -1) throw new Error("Customer Display: status area not found.");
+  const launchButton = '<button className="customer-display-launch" onClick={openCustomerDisplay} title="Open Customer Display"><MonitorUp size={18} /><span>Customer Display</span></button>';
+  page = page.slice(0, statusIndex) + launchButton + page.slice(statusIndex);
   fs.writeFileSync(pagePath, page, "utf8");
 }
 
@@ -74,5 +64,4 @@ ${cssMarker}
 `;
   fs.writeFileSync(cssPath, css, "utf8");
 }
-
 console.log("PrintWise: Added live Customer Display extension view and POS launcher.");
