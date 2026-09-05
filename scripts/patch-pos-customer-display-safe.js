@@ -21,15 +21,15 @@ if (!page.includes(importAnchor) || !page.includes(topActions)) {
   process.exit(0);
 }
 
-let next = page.replace(
-  importAnchor,
-  `${importAnchor}\nimport CustomerDisplayLauncher from "../components/CustomerDisplayLauncher"; // PRINTWISE_CUSTOMER_DISPLAY_SAFE`
-);
-
-next = next.replace(
-  topActions,
-  '<div className="top-actions"><CustomerDisplayLauncher cart={cart} customer={customer} subtotal={subtotal} discount={discountAmount} total={total} /><button className="icon-btn"><Menu size={20} /></button><div className="status"><span></span> System Online</div></div>'
-);
+const next = page
+  .replace(
+    importAnchor,
+    `${importAnchor}\nimport CustomerDisplayLauncher from "../components/CustomerDisplayLauncher"; // PRINTWISE_CUSTOMER_DISPLAY_SAFE`
+  )
+  .replace(
+    topActions,
+    '<div className="top-actions"><CustomerDisplayLauncher cart={cart} customer={customer} subtotal={subtotal} discount={discountAmount} total={total} /><button className="icon-btn"><Menu size={20} /></button><div className="status"><span></span> System Online</div></div>'
+  );
 
 fs.writeFileSync(pagePath, next);
 console.log("Applied isolated Customer Display bridge. The POS page contains no display-sync logic.");
