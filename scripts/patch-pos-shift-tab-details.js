@@ -12,7 +12,7 @@ if (!page.includes(marker)) {
 
   const beforeSetNeedle = '        const firstOrder = completed[0];\n        setShiftData({';
   if (!page.includes(beforeSetNeedle)) throw new Error("Shift data setter marker not found.");
-  const rowLogic = `        const firstOrder = completed[0];\n        const paymentRows = successfulPayments.map((p: any) => ({\n          name: p.channel === "gcash" ? "GCash" : p.channel === "bank_transfer" ? "Bank Transfer" : p.channel === "bayad_center" ? "Bayad" : "Credit Card",\n          amount: money(p.amount)\n        }));\n        const withdrawalRows = withdrawalRowsRaw.map((p: any) => ({\n          date: new Date(p.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "2-digit" }),\n          name: p.name || "Withdrawal", type: p.type || "Withdrawal", paymentMethod: p.channel || p.payment_method || "Cash", amount: money(p.amount)\n        }));\n        const cashDrawerRows = [\n          { date: firstOrder?.created_at ? new Date(firstOrder.created_at).toLocaleString("en-PH", { year: "numeric", month: "short", day: "2-digit", hour: "numeric", minute: "2-digit" }) : "—", name: "Opening Fund", type: "Opening Fund", amount: openingFund },\n          { date: cashReceived > 0 ? new Date(now).toLocaleString("en-PH", { year: "numeric", month: "short", day: "2-digit", hour: "numeric", minute: "2-digit" }) : "—", name: "Cash Payments", type: "Cash Payments", amount: cashReceived }\n        ];\n        setShiftData({`;
+  const rowLogic = `        const firstOrder = completed[0];\n        const openingFund = 500;\n        const paymentRows = successfulPayments.map((p: any) => ({\n          name: p.channel === "gcash" ? "GCash" : p.channel === "bank_transfer" ? "Bank Transfer" : p.channel === "bayad_center" ? "Bayad" : "Credit Card",\n          amount: money(p.amount)\n        }));\n        const withdrawalRows = withdrawalRowsRaw.map((p: any) => ({\n          date: new Date(p.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "2-digit" }),\n          name: p.name || "Withdrawal", type: p.type || "Withdrawal", paymentMethod: p.channel || p.payment_method || "Cash", amount: money(p.amount)\n        }));\n        const cashDrawerRows = [\n          { date: firstOrder?.created_at ? new Date(firstOrder.created_at).toLocaleString("en-PH", { year: "numeric", month: "short", day: "2-digit", hour: "numeric", minute: "2-digit" }) : "—", name: "Opening Fund", type: "Opening Fund", amount: openingFund },\n          { date: cashReceived > 0 ? new Date(now).toLocaleString("en-PH", { year: "numeric", month: "short", day: "2-digit", hour: "numeric", minute: "2-digit" }) : "—", name: "Cash Payments", type: "Cash Payments", amount: cashReceived }\n        ];\n        setShiftData({`;
   page = page.replace(beforeSetNeedle, rowLogic);
 
   page = page.replace(
@@ -25,7 +25,7 @@ if (!page.includes(marker)) {
   );
   page = page.replace(
     'openingFund: 0, startTime:',
-    'openingFund: 500, startTime:'
+    'openingFund, startTime:'
   );
   page = page.replace(
     '          products\n        });',
