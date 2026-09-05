@@ -9,10 +9,17 @@ const pageMarker = "/* PrintWise POS Printer Settings */";
 const cssMarker = "/* PrintWise POS Printer Settings styles */";
 
 if (!page.includes(pageMarker)) {
-  // Add the printer icons without relying on an exact whitespace-sensitive import string.
-  const importMatch = page.match(/(\n\s*Trash2, Users, X, CupSoda, Layers3)(\s*\n)/);
-  if (!importMatch) throw new Error("POS icon import marker not found.");
-  page = page.replace(importMatch[0], `${importMatch[1]}, Bluetooth, Cable, ScanLine${importMatch[2]}`);
+  // Locate the lucide-react import block after all earlier build patches have run.
+  const iconImportRegex = /import \{[\s\S]*?\} from "lucide-react";/;
+  const iconImportMatch = page.match(iconImportRegex);
+  if (!iconImportMatch) throw new Error("lucide-react icon import block not found.");
+  const iconImport = iconImportMatch[0];
+  const iconsToAdd = ["Bluetooth", "Cable", "ScanLine"];
+  const missingIcons = iconsToAdd.filter((icon) => !new RegExp(`\\b${icon}\\b`).test(iconImport));
+  if (missingIcons.length) {
+    const updatedImport = iconImport.replace(/\} from "lucide-react";$/, `, ${missingIcons.join(", ")} } from "lucide-react";`);
+    page = page.replace(iconImport, updatedImport);
+  }
 
   const stateNeedle = '  const [handoffLoaded, setHandoffLoaded] = useState(false);';
   if (!page.includes(stateNeedle)) throw new Error("POS state marker not found.");
@@ -23,7 +30,6 @@ if (!page.includes(pageMarker)) {
   const printerFns = `  const scanPrinter = async () => {\n    setPrinterScanning(true);\n    setMessage("");\n    try {\n      if (printerMode === "Bluetooth") {\n        const bluetooth = (navigator as any).bluetooth;\n        if (!bluetooth?.requestDevice) {\n          setMessage("Bluetooth printer scanning is not supported in this browser. Use Chrome or Edge over HTTPS.");\n          return;\n        }\n        const device = await bluetooth.requestDevice({ acceptAllDevices: true });\n        setPrinterName(device?.name || "Bluetooth Printer");\n        if (device?.gatt?.connect) {\n          try { await device.gatt.connect(); } catch {}\n        }\n        setPrinterStatus("Connected");\n      } else {\n        const usb = (navigator as any).usb;\n        if (!usb?.requestDevice) {\n          setMessage("USB printer scanning is not supported in this browser. Use Chrome or Edge over HTTPS.");\n          return;\n        }\n        const device = await usb.requestDevice({ filters: [] });\n        setPrinterName(device?.productName || device?.manufacturerName || "USB Printer");\n        setPrinterStatus("Connected");\n      }\n    } catch (error: any) {\n      if (error?.name !== "NotFoundError") setMessage("Unable to connect printer: " + (error?.message || "Permission was denied or the printer is unavailable."));\n    } finally {\n      setPrinterScanning(false);\n    }\n  };\n\n  const testPrinter = () => {\n    if (printerStatus !== "Connected") return;\n    if (completedReceipt) {\n      printThermalReceipt();\n      return;\n    }\n    setMessage("Printer connection is ready. Complete an order first to print its thermal receipt.");\n  };\n\n${fnNeedle}`;
   page = page.replace(fnNeedle, printerFns);
 
-  // Open Printer Settings from the existing quick-action button.
   const printerButtonRegex = /(<button type="button" className="pos-quick-action" )onClick=\{\(\) => window\.print\(\)\}( title="Print">)/;
   if (!printerButtonRegex.test(page)) throw new Error("Printer quick action handler not found.");
   page = page.replace(printerButtonRegex, '$1onClick={() => setPrinterModalOpen(true)}$2');
