@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "electron:dev": "electron .",
-    "electron:build": "electron-builder --win --x64"
+    "electron:build": "npm run build && node electron/prepare.cjs && electron-builder --win --x64"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
@@ -30,10 +30,12 @@
     "typescript": "5.8.2"
   },
   "build": {
+    "asar": false,
     "appId": "com.printwise.pos",
     "productName": "PrintWise POS",
     "files": [
       "electron/**/*",
+      ".next/standalone/**/*",
       "package.json"
     ],
     "win": {
