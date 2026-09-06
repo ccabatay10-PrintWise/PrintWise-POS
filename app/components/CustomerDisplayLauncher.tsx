@@ -70,23 +70,22 @@ export default function CustomerDisplayLauncher({ cart, customer, subtotal, disc
       const details = screenDetailsRef.current ?? await window.getScreenDetails();
       screenDetailsRef.current = details;
       const current = details.currentScreen;
-      return details.screens.find((screen) => {
-        if (screen.width <= 0 || screen.height <= 0) return false;
-        if (current && screen === current) return false;
-        return !screen.isPrimary || screen !== current;
+      return details.screens.find((candidate) => {
+        if (candidate.width <= 0 || candidate.height <= 0) return false;
+        if (current && candidate === current) return false;
+        return true;
       }) ?? null;
     } catch {
       return null;
     }
   }, []);
 
-  const maximizeDisplayWindow = useCallback((displayWindow: Window, target?: ExtendedScreen | null) => {
+  const maximizeDisplayWindow = useCallback((displayWindow: Window, target: ExtendedScreen | null) => {
     try {
       if (displayWindow.closed) return;
-      const targetScreen = target ?? getFallbackSecondaryScreen(screenDetailsRef.current);
-      if (targetScreen) {
-        displayWindow.moveTo(targetScreen.left, targetScreen.top);
-        displayWindow.resizeTo(targetScreen.width, targetScreen.height);
+      if (target) {
+        displayWindow.moveTo(target.left, target.top);
+        displayWindow.resizeTo(target.width, target.height);
       } else {
         displayWindow.moveTo(0, 0);
         displayWindow.resizeTo(window.screen.availWidth, window.screen.availHeight);
@@ -101,50 +100,51 @@ export default function CustomerDisplayLauncher({ cart, customer, subtotal, disc
       return;
     }
 
-    try {
-      // This function is called directly by the button click, so the popup is
-      // created inside the user gesture and is not treated as a background popup.
-      const target = await getExtendedScreen();
-      const features = [
+    // IMPORTANT: create the popup synchronously inside the button click.
+    // Waiting for getScreenDetails() first can consume the browser's user gesture
+    // and cause the popup to be blocked.
+    const displayWindow = window.open(
+      "/customer-display",
+      DISPLAY_WINDOW_NAME,
+      [
         "popup=yes",
-        `width=${target?.width ?? DISPLAY_WIDTH}`,
-        `height=${target?.height ?? DISPLAY_HEIGHT}`,
-        `left=${target?.left ?? 0}`,
-        `top=${target?.top ?? 0}`,
+        `width=${DISPLAY_WIDTH}`,
+        `height=${DISPLAY_HEIGHT}`,
+        "left=0",
+        "top=0",
         "resizable=yes",
         "scrollbars=yes",
-      ].join(",");
+      ].join(",")
+    );
 
-      const displayWindow = window.open("/customer-display", DISPLAY_WINDOW_NAME, features);
-      if (!displayWindow) return;
-      displayWindowRef.current = displayWindow;
+    if (!displayWindow) return;
+    displayWindowRef.current = displayWindow;
+    displayWindow.focus();
 
-      // Re-apply the exact secondary-screen bounds after the browser creates the popup.
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
+    // After the popup exists, discover the extended monitor and move the popup.
+    const placeOnExtendedScreen = async () => {
+      const target = await getExtendedScreen();
+      if (!target || displayWindow.closed) return;
       maximizeDisplayWindow(displayWindow, target);
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
-      maximizeDisplayWindow(displayWindow, target);
-    } catch {}
+      window.setTimeout(() => maximizeDisplayWindow(displayWindow, target), 150);
+      window.setTimeout(() => maximizeDisplayWindow(displayWindow, target), 500);
+    };
+
+    void placeOnExtendedScreen();
   }, [getExtendedScreen, maximizeDisplayWindow]);
 
   useEffect(() => {
     if (window.printwiseDesktop?.isElectron) return;
     let disposed = false;
-    let retryTimer: number | undefined;
     const autoOpenAndMaximize = async () => {
       if (disposed || typeof window === "undefined") return;
       const target = await getExtendedScreen();
       if (!target) return;
       if (displayWindowRef.current && !displayWindowRef.current.closed) {
         maximizeDisplayWindow(displayWindowRef.current, target);
-        return;
       }
-      // Automatic opening remains only a convenience fallback. The button click
-      // above is the primary path because browsers allow screen/window control
-      // more reliably during a user gesture.
-      await openDisplay();
     };
-    retryTimer = window.setTimeout(() => void autoOpenAndMaximize(), 800);
+    const retryTimer = window.setTimeout(() => void autoOpenAndMaximize(), 800);
     const onScreensChange = () => void autoOpenAndMaximize();
     window.addEventListener("resize", onScreensChange);
     if (typeof window.getScreenDetails === "function") {
@@ -157,25 +157,15 @@ export default function CustomerDisplayLauncher({ cart, customer, subtotal, disc
     }
     return () => {
       disposed = true;
-      if (retryTimer) window.clearTimeout(retryTimer);
+      window.clearTimeout(retryTimer);
       window.removeEventListener("resize", onScreensChange);
       screenDetailsRef.current?.removeEventListener?.("screenschange", onScreensChange);
     };
-  }, [getExtendedScreen, maximizeDisplayWindow, openDisplay]);
+  }, [getExtendedScreen, maximizeDisplayWindow]);
 
   return (
     <button className="icon-btn customer-display-launcher" onClick={openDisplay} title="Open Customer Display" aria-label="Open Customer Display">
       <Monitor size={20} />
     </button>
   );
-}
-
-function getFallbackSecondaryScreen(details: ScreenDetailsLike | null): ExtendedScreen | null {
-  if (!details) return null;
-  const current = details.currentScreen;
-  return details.screens.find((screen) => {
-    if (screen.width <= 0 || screen.height <= 0) return false;
-    if (current && screen === current) return false;
-    return !screen.isPrimary || screen !== current;
-  }) ?? null;
 }
