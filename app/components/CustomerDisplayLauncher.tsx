@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Monitor } from "lucide-react";
 
 type DisplayItem = {
@@ -29,8 +29,32 @@ type DisplayOrder = {
   sourceId: string;
 };
 
+type ExtendedScreen = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  isPrimary?: boolean;
+};
+
+type ScreenDetailsLike = {
+  screens: ExtendedScreen[];
+  currentScreen?: ExtendedScreen;
+  addEventListener?: (type: "screenschange", listener: () => void) => void;
+  removeEventListener?: (type: "screenschange", listener: () => void) => void;
+};
+
+declare global {
+  interface Window {
+    getScreenDetails?: () => Promise<ScreenDetailsLike>;
+  }
+}
+
 const STORAGE_KEY = "printwise_customer_display_order";
 const CHANNEL_NAME = "printwise_customer_display";
+const DISPLAY_WINDOW_NAME = "PrintWiseCustomerDisplay";
+const DISPLAY_WIDTH = 1280;
+const DISPLAY_HEIGHT = 800;
 
 export default function CustomerDisplayLauncher({
   cart,
@@ -42,6 +66,8 @@ export default function CustomerDisplayLauncher({
   const channelRef = useRef<BroadcastChannel | null>(null);
   const orderRef = useRef<DisplayOrder | null>(null);
   const sourceIdRef = useRef("");
+  const displayWindowRef = useRef<Window | null>(null);
+  const screenDetailsRef = useRef<ScreenDetailsLike | null>(null);
 
   useEffect(() => {
     sourceIdRef.current = `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -95,18 +121,134 @@ export default function CustomerDisplayLauncher({
     return () => window.clearInterval(heartbeat);
   }, []);
 
-  const openDisplay = () => {
+  const getExtendedScreen = useCallback(async (): Promise<ExtendedScreen | null> => {
     try {
-      const displayWindow = window.open(
-        "/customer-display",
-        "PrintWiseCustomerDisplay",
-        "popup=yes,width=1280,height=800,resizable=yes,scrollbars=yes"
-      );
-      if (displayWindow) displayWindow.focus();
+      if (typeof window === "undefined") return null;
+
+      // Modern Chromium browsers expose the Window Management API. It lets
+      // PrintWise identify the physical screen that is not the POS screen.
+      if (typeof window.getScreenDetails === "function") {
+        const details = screenDetailsRef.current ?? await window.getScreenDetails();
+        screenDetailsRef.current = details;
+
+        const current = details.currentScreen;
+        const secondary = details.screens.find((screen) => {
+          if (screen === current) return false;
+          if (screen.isPrimary === true) return false;
+          return screen.width > 0 && screen.height > 0;
+        });
+
+        if (secondary) return secondary;
+
+        const nonPrimary = details.screens.find(
+          (screen) => screen.isPrimary !== true && screen.width > 0 && screen.height > 0
+        );
+        if (nonPrimary) return nonPrimary;
+      }
+
+      // Fallback: screen.isExtended is useful even when detailed screen
+      // enumeration is unavailable. In that case we cannot safely determine
+      // the secondary monitor's coordinates, so let the browser choose them.
+      if ("isExtended" in window.screen && window.screen.isExtended) return null;
+    } catch {
+      // Permission denied / unsupported browser: retain normal popup behavior.
+    }
+
+    return null;
+  }, []);
+
+  const positionDisplayWindow = useCallback(async (displayWindow: Window) => {
+    try {
+      const target = await getExtendedScreen();
+      if (!target || displayWindow.closed) return;
+
+      const width = Math.min(DISPLAY_WIDTH, target.width);
+      const height = Math.min(DISPLAY_HEIGHT, target.height);
+      const left = target.left + Math.max(0, Math.round((target.width - width) / 2));
+      const top = target.top + Math.max(0, Math.round((target.height - height) / 2));
+
+      displayWindow.resizeTo(width, height);
+      displayWindow.moveTo(left, top);
+      displayWindow.focus();
+    } catch {
+      // Browser window-management restrictions must never interrupt POS use.
+    }
+  }, [getExtendedScreen]);
+
+  const openDisplay = useCallback(async () => {
+    try {
+      const target = await getExtendedScreen();
+      const features = [
+        "popup=yes",
+        `width=${target ? Math.min(DISPLAY_WIDTH, target.width) : DISPLAY_WIDTH}`,
+        `height=${target ? Math.min(DISPLAY_HEIGHT, target.height) : DISPLAY_HEIGHT}`,
+        "resizable=yes",
+        "scrollbars=yes",
+      ].join(",");
+
+      const displayWindow = window.open("/customer-display", DISPLAY_WINDOW_NAME, features);
+      if (!displayWindow) return;
+
+      displayWindowRef.current = displayWindow;
+      await positionDisplayWindow(displayWindow);
+      displayWindow.focus();
     } catch {
       // Ignore popup errors so the POS remains usable.
     }
-  };
+  }, [getExtendedScreen, positionDisplayWindow]);
+
+  useEffect(() => {
+    let disposed = false;
+    let retryTimer: number | undefined;
+
+    const autoOpenOnExtendedMonitor = async () => {
+      if (disposed || typeof window === "undefined") return;
+
+      try {
+        const hasMultipleScreens = "isExtended" in window.screen && window.screen.isExtended;
+        if (!hasMultipleScreens && typeof window.getScreenDetails !== "function") return;
+
+        // Do not create a duplicate customer-display window.
+        if (displayWindowRef.current && !displayWindowRef.current.closed) {
+          await positionDisplayWindow(displayWindowRef.current);
+          return;
+        }
+
+        // This is intentionally automatic. If the browser blocks an automatic
+        // popup, the existing monitor button remains available as the fallback.
+        await openDisplay();
+      } catch {
+        // Popup blocking or unsupported window management is non-fatal.
+      }
+    };
+
+    // Give the POS a moment to finish mounting before attempting the companion
+    // window, while keeping the existing manual button untouched.
+    retryTimer = window.setTimeout(() => void autoOpenOnExtendedMonitor(), 800);
+
+    const onScreensChange = () => {
+      void autoOpenOnExtendedMonitor();
+    };
+
+    window.addEventListener("resize", onScreensChange);
+
+    if (typeof window.getScreenDetails === "function") {
+      void window.getScreenDetails().then((details) => {
+        if (disposed) return;
+        screenDetailsRef.current = details;
+        details.addEventListener?.("screenschange", onScreensChange);
+      }).catch(() => {
+        // Window Management permission is optional.
+      });
+    }
+
+    return () => {
+      disposed = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+      window.removeEventListener("resize", onScreensChange);
+      screenDetailsRef.current?.removeEventListener?.("screenschange", onScreensChange);
+    };
+  }, [openDisplay, positionDisplayWindow]);
 
   return (
     <button
