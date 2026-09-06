@@ -125,8 +125,6 @@ export default function CustomerDisplayLauncher({
     try {
       if (typeof window === "undefined") return null;
 
-      // Modern Chromium browsers expose the Window Management API. It lets
-      // PrintWise identify the physical screen that is not the POS screen.
       if (typeof window.getScreenDetails === "function") {
         const details = screenDetailsRef.current ?? await window.getScreenDetails();
         screenDetailsRef.current = details;
@@ -134,54 +132,46 @@ export default function CustomerDisplayLauncher({
         const current = details.currentScreen;
         const secondary = details.screens.find((screen) => {
           if (screen === current) return false;
-          if (screen.isPrimary === true) return false;
           return screen.width > 0 && screen.height > 0;
         });
 
         if (secondary) return secondary;
-
-        const nonPrimary = details.screens.find(
-          (screen) => screen.isPrimary !== true && screen.width > 0 && screen.height > 0
-        );
-        if (nonPrimary) return nonPrimary;
       }
-
-      // Fallback: screen.isExtended is useful even when detailed screen
-      // enumeration is unavailable. In that case we cannot safely determine
-      // the secondary monitor's coordinates, so let the browser choose them.
-      if ("isExtended" in window.screen && window.screen.isExtended) return null;
     } catch {
-      // Permission denied / unsupported browser: retain normal popup behavior.
+      // Permission denied / unsupported browser.
     }
 
     return null;
   }, []);
 
-  const positionDisplayWindow = useCallback(async (displayWindow: Window) => {
+  const maximizeDisplayWindow = useCallback((displayWindow: Window) => {
     try {
-      const target = await getExtendedScreen();
-      if (!target || displayWindow.closed) return;
+      if (displayWindow.closed) return;
 
-      const width = Math.min(DISPLAY_WIDTH, target.width);
-      const height = Math.min(DISPLAY_HEIGHT, target.height);
-      const left = target.left + Math.max(0, Math.round((target.width - width) / 2));
-      const top = target.top + Math.max(0, Math.round((target.height - height) / 2));
-
-      displayWindow.resizeTo(width, height);
-      displayWindow.moveTo(left, top);
+      // Browser popup windows do not expose a universal maximize() API.
+      // resizeTo() to the target screen's full bounds gives the same effect
+      // without changing the existing Customer Display button/workflow.
+      const target = screenDetailsRef.current?.screens.find((screen) => screen.width > 0 && screen.height > 0);
+      if (target) {
+        displayWindow.resizeTo(target.width, target.height);
+        displayWindow.moveTo(target.left, target.top);
+      } else {
+        displayWindow.moveTo(0, 0);
+        displayWindow.resizeTo(window.screen.availWidth, window.screen.availHeight);
+      }
       displayWindow.focus();
     } catch {
-      // Browser window-management restrictions must never interrupt POS use.
+      // Window-management restrictions are non-fatal to the POS.
     }
-  }, [getExtendedScreen]);
+  }, []);
 
   const openDisplay = useCallback(async () => {
     try {
       const target = await getExtendedScreen();
       const features = [
         "popup=yes",
-        `width=${target ? Math.min(DISPLAY_WIDTH, target.width) : DISPLAY_WIDTH}`,
-        `height=${target ? Math.min(DISPLAY_HEIGHT, target.height) : DISPLAY_HEIGHT}`,
+        `width=${target?.width ?? DISPLAY_WIDTH}`,
+        `height=${target?.height ?? DISPLAY_HEIGHT}`,
         "resizable=yes",
         "scrollbars=yes",
       ].join(",");
@@ -190,44 +180,41 @@ export default function CustomerDisplayLauncher({
       if (!displayWindow) return;
 
       displayWindowRef.current = displayWindow;
-      await positionDisplayWindow(displayWindow);
-      displayWindow.focus();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 150));
+      maximizeDisplayWindow(displayWindow);
     } catch {
       // Ignore popup errors so the POS remains usable.
     }
-  }, [getExtendedScreen, positionDisplayWindow]);
+  }, [getExtendedScreen, maximizeDisplayWindow]);
 
   useEffect(() => {
     let disposed = false;
     let retryTimer: number | undefined;
 
-    const autoOpenOnExtendedMonitor = async () => {
+    const autoOpenAndMaximize = async () => {
       if (disposed || typeof window === "undefined") return;
 
       try {
-        const hasMultipleScreens = "isExtended" in window.screen && window.screen.isExtended;
-        if (!hasMultipleScreens && typeof window.getScreenDetails !== "function") return;
+        const target = await getExtendedScreen();
 
-        // Do not create a duplicate customer-display window.
+        // Only auto-open when an actual secondary screen is confirmed.
+        if (!target) return;
+
         if (displayWindowRef.current && !displayWindowRef.current.closed) {
-          await positionDisplayWindow(displayWindowRef.current);
+          maximizeDisplayWindow(displayWindowRef.current);
           return;
         }
 
-        // This is intentionally automatic. If the browser blocks an automatic
-        // popup, the existing monitor button remains available as the fallback.
         await openDisplay();
       } catch {
         // Popup blocking or unsupported window management is non-fatal.
       }
     };
 
-    // Give the POS a moment to finish mounting before attempting the companion
-    // window, while keeping the existing manual button untouched.
-    retryTimer = window.setTimeout(() => void autoOpenOnExtendedMonitor(), 800);
+    retryTimer = window.setTimeout(() => void autoOpenAndMaximize(), 800);
 
     const onScreensChange = () => {
-      void autoOpenOnExtendedMonitor();
+      void autoOpenAndMaximize();
     };
 
     window.addEventListener("resize", onScreensChange);
@@ -237,6 +224,7 @@ export default function CustomerDisplayLauncher({
         if (disposed) return;
         screenDetailsRef.current = details;
         details.addEventListener?.("screenschange", onScreensChange);
+        void autoOpenAndMaximize();
       }).catch(() => {
         // Window Management permission is optional.
       });
@@ -248,7 +236,7 @@ export default function CustomerDisplayLauncher({
       window.removeEventListener("resize", onScreensChange);
       screenDetailsRef.current?.removeEventListener?.("screenschange", onScreensChange);
     };
-  }, [openDisplay, positionDisplayWindow]);
+  }, [getExtendedScreen, maximizeDisplayWindow, openDisplay]);
 
   return (
     <button
