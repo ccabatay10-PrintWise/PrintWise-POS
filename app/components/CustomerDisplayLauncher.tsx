@@ -130,27 +130,29 @@ export default function CustomerDisplayLauncher({
     try {
       if (typeof window === "undefined" || typeof window.getScreenDetails !== "function") return null;
 
+      // Calling this from the button click keeps the browser permission/user
+      // activation valid and lets Chrome/Edge return the actual monitor bounds.
       const details = screenDetailsRef.current ?? await window.getScreenDetails();
       screenDetailsRef.current = details;
 
       const current = details.currentScreen;
       return details.screens.find((screen) => {
-        if (screen === current) return false;
-        return screen.width > 0 && screen.height > 0;
-      }) ?? null;
+        if (current && screen === current) return false;
+        return !screen.isPrimary && screen.width > 0 && screen.height > 0;
+      }) ?? details.screens.find((screen) => screen !== current && screen.width > 0 && screen.height > 0) ?? null;
     } catch {
       return null;
     }
   }, []);
 
-  const maximizeDisplayWindow = useCallback((displayWindow: Window) => {
+  const maximizeDisplayWindow = useCallback((displayWindow: Window, target?: ExtendedScreen | null) => {
     try {
       if (displayWindow.closed) return;
 
-      const target = screenDetailsRef.current?.screens.find((screen) => screen.width > 0 && screen.height > 0);
-      if (target) {
-        displayWindow.resizeTo(target.width, target.height);
-        displayWindow.moveTo(target.left, target.top);
+      const targetScreen = target ?? screenDetailsRef.current?.screens.find((screen) => !screen.isPrimary && screen.width > 0 && screen.height > 0);
+      if (targetScreen) {
+        displayWindow.moveTo(targetScreen.left, targetScreen.top);
+        displayWindow.resizeTo(targetScreen.width, targetScreen.height);
       } else {
         displayWindow.moveTo(0, 0);
         displayWindow.resizeTo(window.screen.availWidth, window.screen.availHeight);
@@ -163,7 +165,6 @@ export default function CustomerDisplayLauncher({
 
   const openDisplay = useCallback(async () => {
     // In the Electron desktop app, the native main process owns the window.
-    // This bypasses browser popup restrictions completely.
     if (window.printwiseDesktop?.isElectron) {
       await window.printwiseDesktop.openCustomerDisplay();
       return;
@@ -175,16 +176,22 @@ export default function CustomerDisplayLauncher({
         "popup=yes",
         `width=${target?.width ?? DISPLAY_WIDTH}`,
         `height=${target?.height ?? DISPLAY_HEIGHT}`,
+        `left=${target?.left ?? 0}`,
+        `top=${target?.top ?? 0}`,
         "resizable=yes",
         "scrollbars=yes",
       ].join(",");
 
+      // IMPORTANT: pass the secondary monitor coordinates directly to
+      // window.open(). This makes the Customer Display open on the extended
+      // screen immediately instead of opening on the POS monitor first.
       const displayWindow = window.open("/customer-display", DISPLAY_WINDOW_NAME, features);
       if (!displayWindow) return;
 
       displayWindowRef.current = displayWindow;
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 150));
-      maximizeDisplayWindow(displayWindow);
+      maximizeDisplayWindow(displayWindow, target);
+      window.setTimeout(() => maximizeDisplayWindow(displayWindow, target), 250);
+      window.setTimeout(() => maximizeDisplayWindow(displayWindow, target), 1000);
     } catch {
       // Ignore popup errors so the POS remains usable.
     }
@@ -205,10 +212,12 @@ export default function CustomerDisplayLauncher({
       if (!target) return;
 
       if (displayWindowRef.current && !displayWindowRef.current.closed) {
-        maximizeDisplayWindow(displayWindowRef.current);
+        maximizeDisplayWindow(displayWindowRef.current, target);
         return;
       }
 
+      // Automatic browser popups can be blocked without a user gesture.
+      // The button remains the reliable/manual fallback.
       await openDisplay();
     };
 
