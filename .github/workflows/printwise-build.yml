@@ -29,3 +29,30 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  desktop-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build Windows desktop POS
+        run: npm run electron:build
+
+      - name: Upload PrintWise installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrintWise-POS-Windows-Installer
+          path: dist/PrintWise-POS-Setup-*.exe
+          if-no-files-found: error
