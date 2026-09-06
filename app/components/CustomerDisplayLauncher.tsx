@@ -47,6 +47,11 @@ type ScreenDetailsLike = {
 declare global {
   interface Window {
     getScreenDetails?: () => Promise<ScreenDetailsLike>;
+    printwiseDesktop?: {
+      isElectron: true;
+      openCustomerDisplay: () => Promise<boolean>;
+      closeCustomerDisplay: () => Promise<boolean>;
+    };
   }
 }
 
@@ -99,7 +104,7 @@ export default function CustomerDisplayLauncher({
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
       channelRef.current?.postMessage({ type: "order-update", order });
     } catch {
-      // Customer display is an optional companion. Storage failures must never affect POS.
+      // Customer display is optional and must never block the POS.
     }
   }, [cart, customer, subtotal, discount, total]);
 
@@ -123,34 +128,25 @@ export default function CustomerDisplayLauncher({
 
   const getExtendedScreen = useCallback(async (): Promise<ExtendedScreen | null> => {
     try {
-      if (typeof window === "undefined") return null;
+      if (typeof window === "undefined" || typeof window.getScreenDetails !== "function") return null;
 
-      if (typeof window.getScreenDetails === "function") {
-        const details = screenDetailsRef.current ?? await window.getScreenDetails();
-        screenDetailsRef.current = details;
+      const details = screenDetailsRef.current ?? await window.getScreenDetails();
+      screenDetailsRef.current = details;
 
-        const current = details.currentScreen;
-        const secondary = details.screens.find((screen) => {
-          if (screen === current) return false;
-          return screen.width > 0 && screen.height > 0;
-        });
-
-        if (secondary) return secondary;
-      }
+      const current = details.currentScreen;
+      return details.screens.find((screen) => {
+        if (screen === current) return false;
+        return screen.width > 0 && screen.height > 0;
+      }) ?? null;
     } catch {
-      // Permission denied / unsupported browser.
+      return null;
     }
-
-    return null;
   }, []);
 
   const maximizeDisplayWindow = useCallback((displayWindow: Window) => {
     try {
       if (displayWindow.closed) return;
 
-      // Browser popup windows do not expose a universal maximize() API.
-      // resizeTo() to the target screen's full bounds gives the same effect
-      // without changing the existing Customer Display button/workflow.
       const target = screenDetailsRef.current?.screens.find((screen) => screen.width > 0 && screen.height > 0);
       if (target) {
         displayWindow.resizeTo(target.width, target.height);
@@ -161,11 +157,18 @@ export default function CustomerDisplayLauncher({
       }
       displayWindow.focus();
     } catch {
-      // Window-management restrictions are non-fatal to the POS.
+      // Browser window-management restrictions are non-fatal.
     }
   }, []);
 
   const openDisplay = useCallback(async () => {
+    // In the Electron desktop app, the native main process owns the window.
+    // This bypasses browser popup restrictions completely.
+    if (window.printwiseDesktop?.isElectron) {
+      await window.printwiseDesktop.openCustomerDisplay();
+      return;
+    }
+
     try {
       const target = await getExtendedScreen();
       const features = [
@@ -188,35 +191,30 @@ export default function CustomerDisplayLauncher({
   }, [getExtendedScreen, maximizeDisplayWindow]);
 
   useEffect(() => {
+    // Electron's main process automatically opens and manages the second
+    // native window. The web fallback below is retained for normal browsers.
+    if (window.printwiseDesktop?.isElectron) return;
+
     let disposed = false;
     let retryTimer: number | undefined;
 
     const autoOpenAndMaximize = async () => {
       if (disposed || typeof window === "undefined") return;
 
-      try {
-        const target = await getExtendedScreen();
+      const target = await getExtendedScreen();
+      if (!target) return;
 
-        // Only auto-open when an actual secondary screen is confirmed.
-        if (!target) return;
-
-        if (displayWindowRef.current && !displayWindowRef.current.closed) {
-          maximizeDisplayWindow(displayWindowRef.current);
-          return;
-        }
-
-        await openDisplay();
-      } catch {
-        // Popup blocking or unsupported window management is non-fatal.
+      if (displayWindowRef.current && !displayWindowRef.current.closed) {
+        maximizeDisplayWindow(displayWindowRef.current);
+        return;
       }
+
+      await openDisplay();
     };
 
     retryTimer = window.setTimeout(() => void autoOpenAndMaximize(), 800);
 
-    const onScreensChange = () => {
-      void autoOpenAndMaximize();
-    };
-
+    const onScreensChange = () => void autoOpenAndMaximize();
     window.addEventListener("resize", onScreensChange);
 
     if (typeof window.getScreenDetails === "function") {
@@ -225,9 +223,7 @@ export default function CustomerDisplayLauncher({
         screenDetailsRef.current = details;
         details.addEventListener?.("screenschange", onScreensChange);
         void autoOpenAndMaximize();
-      }).catch(() => {
-        // Window Management permission is optional.
-      });
+      }).catch(() => undefined);
     }
 
     return () => {
