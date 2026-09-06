@@ -1,16 +1,60 @@
 const { app, BrowserWindow, screen, ipcMain } = require("electron");
+const { spawn } = require("child_process");
 const path = require("path");
 
-const POS_URL = process.env.PRINTWISE_URL || "http://localhost:3000";
-const CUSTOMER_DISPLAY_PATH = "/customer-display";
+const CONFIGURED_URL = process.env.PRINTWISE_URL || "";
+const LOCAL_PORT = 3210;
+let POS_URL = CONFIGURED_URL || `http://127.0.0.1:${LOCAL_PORT}`;
 
 let mainWindow = null;
 let customerDisplayWindow = null;
+let nextServerProcess = null;
 
 function getExternalDisplay() {
   const primary = screen.getPrimaryDisplay();
-  const displays = screen.getAllDisplays();
-  return displays.find((display) => display.id !== primary.id) || null;
+  return screen.getAllDisplays().find((display) => display.id !== primary.id) || null;
+}
+
+async function waitForServer(url, timeoutMs = 30000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const response = await fetch(url);
+      if (response.ok || response.status < 500) return;
+    } catch {
+      // Server is still starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`PrintWise server did not start within ${timeoutMs}ms.`);
+}
+
+async function startBundledNextServer() {
+  if (CONFIGURED_URL || !app.isPackaged) return;
+
+  const appRoot = app.getAppPath();
+  const standaloneRoot = path.join(appRoot, ".next", "standalone");
+  const serverPath = path.join(standaloneRoot, "server.js");
+
+  nextServerProcess = spawn(process.execPath, [serverPath], {
+    cwd: standaloneRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
+      ELECTRON_NO_ASAR: "1",
+      NODE_ENV: "production",
+      HOSTNAME: "127.0.0.1",
+      PORT: String(LOCAL_PORT),
+    },
+    stdio: "ignore",
+  });
+
+  nextServerProcess.on("exit", () => {
+    nextServerProcess = null;
+  });
+
+  await waitForServer(POS_URL);
 }
 
 function createMainWindow() {
@@ -39,6 +83,15 @@ function createMainWindow() {
   mainWindow.loadURL(POS_URL);
 }
 
+function positionCustomerDisplay(display) {
+  if (!customerDisplayWindow || customerDisplayWindow.isDestroyed()) return;
+  const { x, y } = display.bounds;
+  const { width, height } = display.workAreaSize;
+  customerDisplayWindow.setBounds({ x, y, width, height });
+  customerDisplayWindow.setFullScreen(true);
+  customerDisplayWindow.setKiosk(true);
+}
+
 function openCustomerDisplay() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -60,14 +113,11 @@ function openCustomerDisplay() {
     y,
     width,
     height,
-    minWidth: 800,
-    minHeight: 600,
     show: false,
     frame: false,
     fullscreen: true,
     kiosk: true,
     autoHideMenuBar: true,
-    alwaysOnTop: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -84,16 +134,7 @@ function openCustomerDisplay() {
     customerDisplayWindow = null;
   });
 
-  customerDisplayWindow.loadURL(new URL(CUSTOMER_DISPLAY_PATH, POS_URL).toString());
-}
-
-function positionCustomerDisplay(display) {
-  if (!customerDisplayWindow || customerDisplayWindow.isDestroyed()) return;
-  const { x, y } = display.bounds;
-  const { width, height } = display.workAreaSize;
-  customerDisplayWindow.setBounds({ x, y, width, height });
-  customerDisplayWindow.setFullScreen(true);
-  customerDisplayWindow.setKiosk(true);
+  customerDisplayWindow.loadURL(new URL("/customer-display", POS_URL).toString());
 }
 
 function handleDisplayTopologyChange() {
@@ -105,7 +146,7 @@ function handleDisplayTopologyChange() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   ipcMain.handle("printwise:open-customer-display", () => {
     openCustomerDisplay();
     return true;
@@ -119,19 +160,30 @@ app.whenReady().then(() => {
     return true;
   });
 
-  createMainWindow();
+  try {
+    await startBundledNextServer();
+    createMainWindow();
 
-  // Automatically create the Customer Display as soon as Windows reports
-  // that an extended/secondary monitor is available.
-  setTimeout(handleDisplayTopologyChange, 1000);
-  screen.on("display-added", handleDisplayTopologyChange);
-  screen.on("display-removed", handleDisplayTopologyChange);
-  screen.on("display-metrics-changed", handleDisplayTopologyChange);
+    setTimeout(handleDisplayTopologyChange, 1000);
+    screen.on("display-added", handleDisplayTopologyChange);
+    screen.on("display-removed", handleDisplayTopologyChange);
+    screen.on("display-metrics-changed", handleDisplayTopologyChange);
+  } catch (error) {
+    console.error("PrintWise startup failed:", error);
+    app.quit();
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
     handleDisplayTopologyChange();
   });
+});
+
+app.on("before-quit", () => {
+  if (nextServerProcess && !nextServerProcess.killed) {
+    nextServerProcess.kill();
+    nextServerProcess = null;
+  }
 });
 
 app.on("window-all-closed", () => {
