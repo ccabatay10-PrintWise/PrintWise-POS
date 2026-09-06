@@ -70,17 +70,23 @@ export default function CustomerDisplayLauncher({ cart, customer, subtotal, disc
       const details = screenDetailsRef.current ?? await window.getScreenDetails();
       screenDetailsRef.current = details;
       const current = details.currentScreen;
-      return details.screens.find((screen) => screen !== current && screen.width > 0 && screen.height > 0) ?? null;
-    } catch { return null; }
+      return details.screens.find((screen) => {
+        if (screen.width <= 0 || screen.height <= 0) return false;
+        if (current && screen === current) return false;
+        return !screen.isPrimary || screen !== current;
+      }) ?? null;
+    } catch {
+      return null;
+    }
   }, []);
 
-  const maximizeDisplayWindow = useCallback((displayWindow: Window) => {
+  const maximizeDisplayWindow = useCallback((displayWindow: Window, target?: ExtendedScreen | null) => {
     try {
       if (displayWindow.closed) return;
-      const target = screenDetailsRef.current?.screens.find((screen) => screen.width > 0 && screen.height > 0);
-      if (target) {
-        displayWindow.resizeTo(target.width, target.height);
-        displayWindow.moveTo(target.left, target.top);
+      const targetScreen = target ?? getFallbackSecondaryScreen(screenDetailsRef.current);
+      if (targetScreen) {
+        displayWindow.moveTo(targetScreen.left, targetScreen.top);
+        displayWindow.resizeTo(targetScreen.width, targetScreen.height);
       } else {
         displayWindow.moveTo(0, 0);
         displayWindow.resizeTo(window.screen.availWidth, window.screen.availHeight);
@@ -94,20 +100,30 @@ export default function CustomerDisplayLauncher({ cart, customer, subtotal, disc
       await window.printwiseDesktop.openCustomerDisplay();
       return;
     }
+
     try {
+      // This function is called directly by the button click, so the popup is
+      // created inside the user gesture and is not treated as a background popup.
       const target = await getExtendedScreen();
       const features = [
         "popup=yes",
         `width=${target?.width ?? DISPLAY_WIDTH}`,
         `height=${target?.height ?? DISPLAY_HEIGHT}`,
+        `left=${target?.left ?? 0}`,
+        `top=${target?.top ?? 0}`,
         "resizable=yes",
         "scrollbars=yes",
       ].join(",");
+
       const displayWindow = window.open("/customer-display", DISPLAY_WINDOW_NAME, features);
       if (!displayWindow) return;
       displayWindowRef.current = displayWindow;
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 150));
-      maximizeDisplayWindow(displayWindow);
+
+      // Re-apply the exact secondary-screen bounds after the browser creates the popup.
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
+      maximizeDisplayWindow(displayWindow, target);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+      maximizeDisplayWindow(displayWindow, target);
     } catch {}
   }, [getExtendedScreen, maximizeDisplayWindow]);
 
@@ -120,9 +136,12 @@ export default function CustomerDisplayLauncher({ cart, customer, subtotal, disc
       const target = await getExtendedScreen();
       if (!target) return;
       if (displayWindowRef.current && !displayWindowRef.current.closed) {
-        maximizeDisplayWindow(displayWindowRef.current);
+        maximizeDisplayWindow(displayWindowRef.current, target);
         return;
       }
+      // Automatic opening remains only a convenience fallback. The button click
+      // above is the primary path because browsers allow screen/window control
+      // more reliably during a user gesture.
       await openDisplay();
     };
     retryTimer = window.setTimeout(() => void autoOpenAndMaximize(), 800);
@@ -149,4 +168,14 @@ export default function CustomerDisplayLauncher({ cart, customer, subtotal, disc
       <Monitor size={20} />
     </button>
   );
+}
+
+function getFallbackSecondaryScreen(details: ScreenDetailsLike | null): ExtendedScreen | null {
+  if (!details) return null;
+  const current = details.currentScreen;
+  return details.screens.find((screen) => {
+    if (screen.width <= 0 || screen.height <= 0) return false;
+    if (current && screen === current) return false;
+    return !screen.isPrimary || screen !== current;
+  }) ?? null;
 }
