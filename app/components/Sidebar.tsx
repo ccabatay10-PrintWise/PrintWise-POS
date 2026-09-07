@@ -57,17 +57,13 @@ export default function Sidebar() {
     let mounted = true;
 
     const load = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!mounted) return;
       if (!user) {
         setUserName("Guest User");
         setUserRole("guest");
         return;
       }
-
       setUserName(
         user.user_metadata?.full_name ||
           user.user_metadata?.name ||
@@ -104,9 +100,7 @@ export default function Sidebar() {
     };
   }, []);
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  useEffect(() => setMobileOpen(false), [pathname]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -123,7 +117,7 @@ export default function Sidebar() {
 
   const roleLabel =
     userRole === "admin"
-      ? "Admin"
+      ? "Administrator"
       : userRole === "staff"
         ? "Staff"
         : userRole.charAt(0).toUpperCase() + userRole.slice(1);
@@ -141,8 +135,8 @@ export default function Sidebar() {
     <>
       <aside className={`sidebar sidebar-enhanced sidebar-compact ${mobileOpen ? "mobile-open" : ""}`}>
         <div className="sidebar-brand-wrap">
-          <a className="brand" href="/dashboard" onClick={closeMobile}>
-            <div className="brand-mark"><Package size={24} /></div>
+          <a className="brand" href="/dashboard" onClick={closeMobile} aria-label="PrintWise Dashboard">
+            <div className="brand-mark"><Package size={22} /></div>
             <div className="brand-copy">
               <strong>PRINTWISE</strong>
               <small>Printing & Customized Services</small>
@@ -152,7 +146,7 @@ export default function Sidebar() {
 
         <div className="sidebar-scroll">
           <div className="nav-label">MAIN MENU</div>
-          <nav className="sidebar-nav">
+          <nav className="sidebar-nav" aria-label="Main navigation">
             {nav.map(([Icon, label, href]) => {
               const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
               return (
@@ -161,10 +155,12 @@ export default function Sidebar() {
                   className={`nav-item ${active ? "active" : ""}`}
                   key={href}
                   onClick={closeMobile}
+                  aria-current={active ? "page" : undefined}
+                  title={label}
                 >
-                  <span className="nav-icon"><Icon size={19} /></span>
-                  <span>{label}</span>
-                  <ChevronRight className="nav-arrow" size={16} />
+                  <span className="nav-icon"><Icon size={18} strokeWidth={2} /></span>
+                  <span className="nav-text">{label}</span>
+                  <ChevronRight className="nav-arrow" size={15} />
                 </a>
               );
             })}
@@ -174,8 +170,8 @@ export default function Sidebar() {
           <div className="nav-label quick-label">QUICK ACTIONS</div>
           <div className="quick-actions-grid">
             {quickActions.map(([Icon, title, subtitle, href]) => (
-              <a className="quick-action" href={href} key={title} onClick={closeMobile}>
-                <span className="quick-action-icon"><Icon size={22} /></span>
+              <a className="quick-action" href={href} key={title} onClick={closeMobile} title={subtitle}>
+                <span className="quick-action-icon"><Icon size={19} strokeWidth={2.1} /></span>
                 <b>{title}</b>
                 <small>{subtitle}</small>
               </a>
@@ -184,20 +180,26 @@ export default function Sidebar() {
 
           <div className="sidebar-divider" />
           <div className="nav-label">ACCOUNT</div>
-          <a className={`nav-item ${pathname === "/settings" ? "active" : ""}`} href="/settings" onClick={closeMobile}>
-            <span className="nav-icon"><Settings size={19} /></span>
-            <span>Settings</span>
-            <ChevronRight className="nav-arrow" size={16} />
+          <a
+            className={`nav-item ${pathname === "/settings" ? "active" : ""}`}
+            href="/settings"
+            onClick={closeMobile}
+            aria-current={pathname === "/settings" ? "page" : undefined}
+            title="Settings"
+          >
+            <span className="nav-icon"><Settings size={18} /></span>
+            <span className="nav-text">Settings</span>
+            <ChevronRight className="nav-arrow" size={15} />
           </a>
 
-          <a className="sidebar-user-card" href="/dashboard" onClick={closeMobile}>
+          <a className="sidebar-user-card" href="/dashboard" onClick={closeMobile} title="Open dashboard">
             <span className="sidebar-avatar">{avatarLetter}<i /></span>
             <span className="sidebar-user-copy"><b>{userName}</b><small>{roleLabel}</small></span>
-            <ChevronRight size={18} />
+            <ChevronRight size={17} />
           </a>
 
           <button type="button" className="sidebar-logout" onClick={signOut}>
-            <LogOut size={18} /><span>LOG OUT</span>
+            <LogOut size={17} /><span>LOG OUT</span>
           </button>
         </div>
       </aside>
@@ -220,38 +222,134 @@ export default function Sidebar() {
       />
 
       <style jsx global>{`
-        .app-shell:has(.sidebar-compact){align-items:flex-start}
-        .sidebar-compact{align-self:flex-start;flex:0 0 300px;height:auto!important;min-height:0!important}
-        .sidebar-compact .sidebar-scroll{flex:none!important;overflow:visible!important;padding-bottom:12px!important}
-        .sidebar-compact .sidebar-brand-wrap{padding-bottom:14px!important}
-        .sidebar-compact .nav-label{padding-top:0!important;margin-bottom:8px!important}
-        .sidebar-compact .nav-item{min-height:46px!important;margin:1px 0!important}
-        .sidebar-compact .sidebar-divider{margin:12px 0!important}
-        .sidebar-compact .quick-actions-grid{gap:8px!important}
-        .sidebar-compact .quick-action{min-height:84px!important;padding:12px!important}
-        .sidebar-compact .quick-action-icon{width:34px!important;height:34px!important}
-        .sidebar-compact .sidebar-user-card{margin-top:6px!important;min-height:58px!important}
-        .sidebar-compact .sidebar-logout{margin-top:10px!important;margin-bottom:0!important;min-height:48px!important}
+        .app-shell:has(.sidebar-compact){align-items:stretch}
+        .sidebar-compact{
+          align-self:stretch;
+          flex:0 0 268px;
+          width:268px!important;
+          min-height:100vh!important;
+          height:100vh!important;
+          position:sticky;
+          top:0;
+          box-sizing:border-box;
+          padding:16px 12px!important;
+          background:linear-gradient(180deg,#25272c 0%,#202226 100%)!important;
+          border-right:1px solid rgba(255,255,255,.055);
+          box-shadow:8px 0 30px rgba(15,23,42,.08);
+          z-index:100;
+        }
+        .sidebar-compact .sidebar-brand-wrap{padding:0 2px 15px!important}
+        .sidebar-compact .brand{
+          min-height:54px;
+          box-sizing:border-box;
+          padding:7px 8px 13px!important;
+          gap:10px;
+          border-bottom:1px solid rgba(255,255,255,.08);
+          text-decoration:none;
+        }
+        .sidebar-compact .brand-mark{
+          width:38px!important;height:38px!important;min-width:38px;
+          border-radius:11px!important;
+          box-shadow:0 5px 14px rgba(215,25,32,.2);
+        }
+        .sidebar-compact .brand-copy{min-width:0}
+        .sidebar-compact .brand-copy strong{display:block;font-size:15px;line-height:1.1;letter-spacing:1.35px}
+        .sidebar-compact .brand-copy small{display:block;margin-top:4px;font-size:9px;line-height:1.2;color:#8f96a0;letter-spacing:.15px;white-space:nowrap}
+        .sidebar-compact .sidebar-scroll{
+          flex:1!important;min-height:0;overflow-y:auto!important;overflow-x:hidden!important;
+          scrollbar-width:thin;scrollbar-color:#454950 transparent;
+          padding:2px 2px 14px!important;
+        }
+        .sidebar-compact .nav-label{
+          padding:13px 9px 7px!important;margin:0!important;
+          color:#777e89!important;font-size:9px!important;font-weight:800;letter-spacing:1.15px!important;
+        }
+        .sidebar-compact .nav-item{
+          position:relative;width:100%;min-height:43px!important;box-sizing:border-box;
+          margin:2px 0!important;padding:9px 10px!important;border-radius:9px!important;
+          gap:10px!important;color:#b9bec7!important;text-decoration:none;
+          transition:background .15s ease,color .15s ease,transform .15s ease;
+        }
+        .sidebar-compact .nav-item:hover{background:rgba(255,255,255,.065)!important;color:#fff!important;transform:translateX(1px)}
+        .sidebar-compact .nav-item.active{
+          background:linear-gradient(90deg,rgba(215,25,32,.20),rgba(215,25,32,.08))!important;
+          color:#fff!important;box-shadow:none!important;
+        }
+        .sidebar-compact .nav-item.active::before{
+          content:"";position:absolute;left:-2px;top:8px;bottom:8px;width:3px;border-radius:0 4px 4px 0;background:#e1252b;
+          box-shadow:0 0 10px rgba(225,37,43,.28);
+        }
+        .sidebar-compact .nav-icon{
+          width:32px;height:32px;min-width:32px;border-radius:8px;display:grid;place-items:center;
+          color:#8f96a0;transition:background .15s ease,color .15s ease;
+        }
+        .sidebar-compact .nav-item:hover .nav-icon{color:#fff;background:rgba(255,255,255,.055)}
+        .sidebar-compact .nav-item.active .nav-icon{color:#fff;background:rgba(215,25,32,.18)}
+        .sidebar-compact .nav-text{font-size:12px;font-weight:650;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .sidebar-compact .nav-arrow{margin-left:auto;flex:none;color:#555b64;transition:transform .15s ease,color .15s ease}
+        .sidebar-compact .nav-item:hover .nav-arrow,.sidebar-compact .nav-item.active .nav-arrow{color:#9299a3;transform:translateX(2px)}
+        .sidebar-compact .sidebar-divider{height:1px;margin:11px 4px!important;background:rgba(255,255,255,.075);border:0}
+        .sidebar-compact .quick-actions-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;padding:1px 3px}
+        .sidebar-compact .quick-action{
+          min-height:79px!important;box-sizing:border-box;padding:10px!important;border:1px solid rgba(255,255,255,.065)!important;
+          border-radius:10px!important;background:rgba(255,255,255,.025)!important;text-decoration:none;color:#fff;
+          display:flex!important;flex-direction:column;align-items:flex-start;gap:4px!important;
+          transition:background .15s ease,border-color .15s ease,transform .15s ease;
+        }
+        .sidebar-compact .quick-action:hover{background:rgba(255,255,255,.065)!important;border-color:rgba(255,255,255,.12)!important;transform:translateY(-1px)}
+        .sidebar-compact .quick-action-icon{width:31px!important;height:31px!important;border-radius:8px!important;display:grid!important;place-items:center;background:rgba(215,25,32,.15);color:#ff5b60!important}
+        .sidebar-compact .quick-action b{font-size:10px;line-height:1.15;color:#e8eaf0}
+        .sidebar-compact .quick-action small{font-size:8px;line-height:1.15;color:#7f8791}
+        .sidebar-compact .sidebar-user-card{
+          display:flex!important;align-items:center;gap:9px;margin:7px 3px 0!important;padding:9px!important;min-height:56px!important;box-sizing:border-box;
+          border:1px solid rgba(255,255,255,.075);border-radius:10px;background:rgba(255,255,255,.035);color:#fff;text-decoration:none;
+          transition:background .15s ease,border-color .15s ease;
+        }
+        .sidebar-compact .sidebar-user-card:hover{background:rgba(255,255,255,.065);border-color:rgba(255,255,255,.12)}
+        .sidebar-compact .sidebar-avatar{position:relative;width:34px;height:34px;min-width:34px;border-radius:50%;display:grid;place-items:center;background:#d71920;color:#fff;font-size:12px;font-weight:800}
+        .sidebar-compact .sidebar-avatar i{position:absolute;right:-1px;bottom:0;width:8px;height:8px;border:2px solid #25272c;border-radius:50%;background:#22c55e}
+        .sidebar-compact .sidebar-user-copy{min-width:0;flex:1}
+        .sidebar-compact .sidebar-user-copy b{display:block;max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#f2f3f5}
+        .sidebar-compact .sidebar-user-copy small{display:block;margin-top:3px;font-size:9px;color:#858c97}
+        .sidebar-compact .sidebar-user-card>svg{color:#606771;flex:none}
+        .sidebar-compact .sidebar-logout{
+          width:calc(100% - 6px)!important;margin:7px 3px 0!important;min-height:42px!important;box-sizing:border-box;
+          display:flex!important;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.08)!important;
+          border-radius:9px!important;background:transparent!important;color:#9da3ad!important;font-size:10px!important;font-weight:800;letter-spacing:.7px;
+          cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease;
+        }
+        .sidebar-compact .sidebar-logout:hover{background:rgba(215,25,32,.10)!important;border-color:rgba(215,25,32,.25)!important;color:#ff6a6f!important}
         .mobile-sidebar-toggle,.mobile-sidebar-backdrop{display:none}
 
         @media(max-width:1100px){
           .app-shell:has(.sidebar-compact){align-items:stretch}
-          .sidebar-compact{align-self:stretch;height:auto!important;min-height:100vh!important;flex-basis:72px!important}
-          .sidebar-compact .sidebar-scroll{overflow:visible!important}
+          .sidebar-compact{flex-basis:76px!important;width:76px!important;padding:16px 9px!important}
+          .sidebar-compact .brand-copy,.sidebar-compact .nav-label,.sidebar-compact .nav-text,.sidebar-compact .nav-arrow,.sidebar-compact .quick-action b,.sidebar-compact .quick-action small,.sidebar-compact .sidebar-user-copy,.sidebar-compact .sidebar-user-card>svg,.sidebar-compact .sidebar-logout span{display:none!important}
+          .sidebar-compact .brand{justify-content:center;padding-left:0!important;padding-right:0!important}
+          .sidebar-compact .nav-item{justify-content:center;padding:7px!important}
+          .sidebar-compact .nav-item.active::before{left:-1px}
+          .sidebar-compact .nav-icon{width:38px;height:38px}
+          .sidebar-compact .quick-actions-grid{grid-template-columns:1fr!important;padding:0}
+          .sidebar-compact .quick-action{min-height:46px!important;align-items:center;justify-content:center;padding:7px!important}
+          .sidebar-compact .quick-action-icon{width:34px!important;height:34px!important}
+          .sidebar-compact .sidebar-user-card{justify-content:center;padding:7px!important;margin-left:0!important;margin-right:0!important}
+          .sidebar-compact .sidebar-avatar{width:34px;height:34px}
+          .sidebar-compact .sidebar-logout{width:100%!important;margin-left:0!important;margin-right:0!important;padding:0!important}
         }
 
         @media(max-width:700px){
           body.printwise-menu-open{overflow:hidden}
-          .sidebar-compact{display:flex!important;position:fixed!important;left:0;top:0;bottom:0;width:min(88vw,320px)!important;height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;flex:0 0 auto!important;z-index:3000!important;overflow:hidden!important;padding:18px 12px!important;transform:translateX(-105%);transition:transform .24s cubic-bezier(.2,.8,.2,1),box-shadow .24s ease!important;box-shadow:0 18px 50px rgba(0,0,0,.24)!important}
+          .sidebar-compact{display:flex!important;position:fixed!important;left:0;top:0;bottom:0;width:min(88vw,320px)!important;height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;flex:0 0 auto!important;z-index:3000!important;overflow:hidden!important;padding:16px 12px!important;transform:translateX(-105%);transition:transform .24s cubic-bezier(.2,.8,.2,1),box-shadow .24s ease!important;box-shadow:0 18px 50px rgba(0,0,0,.28)!important}
           .sidebar-compact.mobile-open{transform:translateX(0)!important}
           .sidebar-compact .sidebar-scroll{flex:1!important;overflow-y:auto!important;overflow-x:hidden!important;padding-bottom:24px!important;-webkit-overflow-scrolling:touch}
           .sidebar-compact .sidebar-brand-wrap{padding-bottom:14px!important}
-          .sidebar-compact .brand{justify-content:flex-start!important;padding:7px 10px 18px!important}
-          .sidebar-compact .brand-copy,.sidebar-compact .nav-label,.sidebar-compact .nav-item>span:not(.nav-icon),.sidebar-compact .nav-arrow,.sidebar-compact .quick-action b,.sidebar-compact .quick-action small,.sidebar-compact .sidebar-user-copy,.sidebar-compact .sidebar-logout span{display:initial!important}
+          .sidebar-compact .brand{justify-content:flex-start!important;padding:7px 10px 15px!important}
+          .sidebar-compact .brand-copy,.sidebar-compact .nav-label,.sidebar-compact .nav-text,.sidebar-compact .nav-arrow,.sidebar-compact .quick-action b,.sidebar-compact .quick-action small,.sidebar-compact .sidebar-user-copy,.sidebar-compact .sidebar-user-card>svg,.sidebar-compact .sidebar-logout span{display:initial!important}
           .sidebar-compact .nav-label{display:block!important}
-          .sidebar-compact .nav-item{justify-content:flex-start!important;min-height:46px!important;padding:10px 13px!important}
+          .sidebar-compact .nav-item{justify-content:flex-start!important;min-height:46px!important;padding:8px 10px!important}
+          .sidebar-compact .nav-icon{width:32px;height:32px}
           .sidebar-compact .quick-actions-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
-          .sidebar-compact .quick-action{min-height:82px!important;padding:11px!important;display:flex!important}
+          .sidebar-compact .quick-action{min-height:82px!important;padding:11px!important;display:flex!important;align-items:flex-start!important}
           .sidebar-compact .sidebar-user-card{display:flex!important}
           .sidebar-compact .sidebar-logout{display:flex!important}
           .mobile-sidebar-toggle{display:grid;place-items:center;position:fixed;left:12px;top:12px;width:44px;height:44px;border:1px solid #dfe4ea;border-radius:12px;background:#fff;color:#344054;box-shadow:0 8px 22px rgba(15,23,42,.12);z-index:2999;cursor:pointer}
