@@ -33,11 +33,13 @@ function numberValue(value: unknown) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
-function userRole(user: any) {
-  return user?.app_metadata?.role || user?.user_metadata?.role || "";
+function createServiceClient() {
+  return createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
-async function getAuthenticatedAdmin(request: NextRequest) {
+async function authenticate(request: NextRequest) {
   if (!url || !anonKey || !serviceKey) {
     return { error: jsonError("Order service is not configured on the server.", 500) };
   }
@@ -54,51 +56,63 @@ async function getAuthenticatedAdmin(request: NextRequest) {
     return { error: jsonError("Your session has expired. Please sign in again.", 401) };
   }
 
-  const role = userRole(data.user);
-  if (role && role !== "admin") {
-    return { error: jsonError("Admin access is required to void transactions.", 403) };
-  }
-
   return { user: data.user };
 }
 
+async function getAuthenticatedAdmin(request: NextRequest) {
+  const auth = await authenticate(request);
+  if (auth.error) return auth;
+
+  const adminClient = createServiceClient();
+  const { data: profile, error: profileError } = await adminClient
+    .from("profiles")
+    .select("id,role,is_active")
+    .eq("id", auth.user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    return { error: jsonError("Unable to verify administrator permissions.", 500) };
+  }
+
+  const role = String(profile?.role || "").trim().toLowerCase();
+  const isActive = profile?.is_active !== false;
+  if (!profile || !isActive || role !== "admin") {
+    return { error: jsonError("Admin access is required to void transactions.", 403) };
+  }
+
+  return { user: auth.user, adminClient };
+}
+
 export async function GET(request: NextRequest) {
-  if (!url || !anonKey || !serviceKey) {
-    return jsonError("Order service is not configured on the server.", 500);
-  }
+  const auth = await authenticate(request);
+  if (auth.error) return auth.error;
 
-  const authorization = request.headers.get("authorization") || "";
-  const token = authorization.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return jsonError("Please sign in again.", 401);
-
-  const authClient = createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data: authData, error: authError } = await authClient.auth.getUser(token);
-  if (authError || !authData.user) {
-    return jsonError("Your session has expired. Please sign in again.", 401);
-  }
-
-  const adminClient = createClient(url, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
+  const adminClient = createServiceClient();
   const orderId = request.nextUrl.searchParams.get("orderId")?.trim();
 
   if (orderId) {
-    const { data, error } = await adminClient
-      .from("pos_order_items")
-      .select("id,product_id,item_name,unit_price,quantity,line_total")
-      .eq("pos_order_id", orderId)
-      .order("created_at", { ascending: true });
+    const [{ data: items, error: itemError }, { data: payments, error: paymentError }] = await Promise.all([
+      adminClient
+        .from("pos_order_items")
+        .select("id,product_id,item_name,unit_price,quantity,line_total")
+        .eq("pos_order_id", orderId)
+        .order("created_at", { ascending: true }),
+      adminClient
+        .from("payment_transactions")
+        .select("id,transaction_no,channel,transaction_type,amount,service_fee,status,created_at")
+        .eq("pos_order_id", orderId)
+        .order("created_at", { ascending: true }),
+    ]);
 
-    if (error) return jsonError(`Unable to load order items: ${error.message}`, 400);
-    return NextResponse.json({ items: data ?? [] });
+    if (itemError) return jsonError(`Unable to load order items: ${itemError.message}`, 400);
+    if (paymentError) return jsonError(`Unable to load payment information: ${paymentError.message}`, 400);
+
+    return NextResponse.json({ items: items ?? [], payments: payments ?? [] });
   }
 
   const { data, error } = await adminClient
     .from("pos_orders")
-    .select("id,order_no,customer_name,subtotal,discount_amount,total,amount_paid,status,created_at,created_by")
+    .select("id,order_no,customer_name,subtotal,discount_amount,total,amount_paid,balance,status,created_at,created_by")
     .order("created_at", { ascending: false });
 
   if (error) return jsonError(`Unable to load orders: ${error.message}`, 400);
@@ -121,7 +135,7 @@ export async function GET(request: NextRequest) {
 
     for (const payment of payments ?? []) {
       const status = String((payment as any).status || "").toLowerCase();
-      if (status === "voided" || status === "failed") continue;
+      if (status === "voided" || status === "failed" || status === "cancelled" || status === "canceled") continue;
       const id = String((payment as any).pos_order_id || "");
       paymentTotals.set(id, (paymentTotals.get(id) || 0) + numberValue((payment as any).amount));
     }
@@ -147,6 +161,7 @@ export async function GET(request: NextRequest) {
       ? savedTotal
       : Math.max(0, resolvedSubtotal - savedDiscount) || paymentTotal;
     const resolvedPaid = savedPaid > 0 ? savedPaid : paymentTotal;
+    const resolvedBalance = Math.max(0, resolvedTotal - resolvedPaid);
 
     const userId = String(order.created_by || "").trim();
     let transactedBy = "Not recorded";
@@ -172,6 +187,7 @@ export async function GET(request: NextRequest) {
       subtotal: resolvedSubtotal,
       total: resolvedTotal,
       amount_paid: resolvedPaid,
+      balance: resolvedBalance,
       transacted_by: transactedBy,
     };
   }));
@@ -212,20 +228,27 @@ export async function POST(request: NextRequest) {
       password,
     });
 
-  if (passwordError || !passwordCheck.user) {
+  if (passwordError || !passwordCheck.user || passwordCheck.user.id !== auth.user.id) {
     return jsonError("Incorrect admin password. Transaction was not voided.", 401);
   }
 
-  const checkedRole = userRole(passwordCheck.user);
-  if (checkedRole && checkedRole !== "admin") {
+  const { data: verifiedProfile, error: verifiedProfileError } = await auth.adminClient
+    .from("profiles")
+    .select("id,role,is_active")
+    .eq("id", passwordCheck.user.id)
+    .maybeSingle();
+
+  const verifiedRole = String(verifiedProfile?.role || "").trim().toLowerCase();
+  if (
+    verifiedProfileError ||
+    !verifiedProfile ||
+    verifiedProfile.is_active === false ||
+    verifiedRole !== "admin"
+  ) {
     return jsonError("Admin access is required to void transactions.", 403);
   }
 
-  const adminClient = createClient(url, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const { data: rpcData, error: rpcError } = await adminClient.rpc("void_printwise_pos_sale", {
+  const { data: rpcData, error: rpcError } = await auth.adminClient.rpc("void_printwise_pos_sale", {
     p_order_id: orderId,
     p_user_id: auth.user.id,
   });
