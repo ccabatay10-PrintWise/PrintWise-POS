@@ -40,8 +40,14 @@ function configError() {
   );
 }
 
-function userRole(user: any) {
-  return user?.app_metadata?.role || user?.user_metadata?.role || "";
+function metadataRole(user: any) {
+  return String(user?.app_metadata?.role || "").trim().toLowerCase();
+}
+
+function adminClient() {
+  return createClient(url!, serviceKey!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 async function getAdmin(request: NextRequest) {
@@ -49,7 +55,9 @@ async function getAdmin(request: NextRequest) {
 
   const authorization = request.headers.get("authorization") || "";
   const token = authorization.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return { error: jsonError("Your admin session is missing. Please sign in again, refresh the page, and retry.", 401) };
+  if (!token) {
+    return { error: jsonError("Your admin session is missing. Please sign in again, refresh the page, and retry.", 401) };
+  }
 
   const client = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -59,9 +67,24 @@ async function getAdmin(request: NextRequest) {
     return { error: jsonError("Your session has expired. Please sign in again.", 401) };
   }
 
-  const role = userRole(data.user);
-  // Existing owner accounts created before role support are treated as admins.
-  if (role && role !== "admin") {
+  // user_metadata is intentionally NOT trusted for authorization because a signed-in
+  // user can change user metadata. Prefer the server-controlled app_metadata role,
+  // then verify the authoritative profiles table with the service client.
+  let role = metadataRole(data.user);
+  const admin = adminClient();
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("role,is_active")
+    .eq("id", data.user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    return { error: jsonError(`Unable to verify your admin role: ${profileError.message}`, 500) };
+  }
+
+  if (profile) role = String(profile.role || role).trim().toLowerCase();
+
+  if (role !== "admin" || (profile && profile.is_active === false)) {
     return { error: jsonError("Admin access is required to manage staff accounts.", 403) };
   }
 
@@ -79,12 +102,6 @@ function staffRecord(user: any) {
   };
 }
 
-function adminClient() {
-  return createClient(url!, serviceKey!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
 export async function GET(request: NextRequest) {
   const auth = await getAdmin(request);
   if (auth.error) return auth.error;
@@ -94,7 +111,7 @@ export async function GET(request: NextRequest) {
   if (error) return jsonError(`Unable to load staff accounts: ${error.message}`, 400);
 
   const staff = data.users
-    .filter((user) => userRole(user) === "staff")
+    .filter((user) => metadataRole(user) === "staff")
     .map(staffRecord);
 
   return NextResponse.json({ staff });
@@ -123,7 +140,6 @@ export async function POST(request: NextRequest) {
       return jsonError("Enter a full name, valid email, and password with at least 6 characters.", 400);
     }
 
-    // Check first so a previously created account can be repaired instead of failing.
     const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({
       page: 1,
       perPage: 1000,
