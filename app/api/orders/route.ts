@@ -142,8 +142,6 @@ export async function GET(request: NextRequest) {
     const itemTotal = itemTotals.get(id) || 0;
     const paymentTotal = paymentTotals.get(id) || 0;
 
-    // Older/broken rows may contain zero totals even though their items or payment were saved.
-    // Always return the best valid amount so the Transactions screen stays accurate.
     const resolvedSubtotal = savedSubtotal > 0 ? savedSubtotal : itemTotal;
     const resolvedTotal = savedTotal > 0
       ? savedTotal
@@ -227,37 +225,24 @@ export async function POST(request: NextRequest) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data: existingOrder, error: existingError } = await adminClient
-    .from("pos_orders")
-    .select("id,status")
-    .eq("id", orderId)
-    .single();
+  const { data: rpcData, error: rpcError } = await adminClient.rpc("void_printwise_pos_sale", {
+    p_order_id: orderId,
+    p_user_id: auth.user.id,
+  });
 
-  if (existingError || !existingOrder) {
-    return jsonError("Transaction not found.", 404);
+  if (rpcError) {
+    const message = String(rpcError.message || "Unable to void transaction.");
+    if (message.toLowerCase().includes("does not exist")) {
+      return jsonError("Transaction voiding is temporarily unavailable because the database migration is still pending.", 503);
+    }
+    if (message.toLowerCase().includes("permission denied") || message.toLowerCase().includes("access is required")) {
+      return jsonError("Admin access is required to void transactions.", 403);
+    }
+    if (message.toLowerCase().includes("not found")) {
+      return jsonError("Transaction not found.", 404);
+    }
+    return jsonError(`Unable to void transaction: ${message}`, 400);
   }
 
-  if (String(existingOrder.status || "").toLowerCase() === "voided") {
-    return NextResponse.json({ ok: true, alreadyVoided: true });
-  }
-
-  const { error: orderError } = await adminClient
-    .from("pos_orders")
-    .update({ status: "voided" })
-    .eq("id", orderId);
-
-  if (orderError) {
-    return jsonError(`Unable to void transaction: ${orderError.message}`, 400);
-  }
-
-  const { error: paymentError } = await adminClient
-    .from("payment_transactions")
-    .update({ status: "voided" })
-    .eq("pos_order_id", orderId);
-
-  if (paymentError) {
-    return jsonError(`Transaction was voided, but the payment status could not be updated: ${paymentError.message}`, 400);
-  }
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, ...(rpcData || {}) });
 }
