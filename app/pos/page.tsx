@@ -211,87 +211,73 @@ export default function POSPage() {
 
     setSaving(true);
     setMessage("");
-    const orderNo = `PW-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-6)}`;
-    const paymentMap: Record<string, "cash" | "gcash" | "bayad_center" | "bank_transfer"> = {
-      Cash: "cash", GCash: "gcash", Bayad: "bayad_center", Bank: "bank_transfer",
-    };
-    const amountPaid = payment === "Cash" ? tendered : total;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        setMessage("Your session has expired. Please sign in again.");
+        return;
+      }
 
-    const { data: order, error: orderError } = await supabase
-      .from("pos_orders")
-      .insert({
-        order_no: orderNo,
-        customer_name: customer.trim() || null,
-        status: "completed",
+      const orderNo = `PW-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-6)}`;
+      const transactionNo = `TXN-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const paymentMap: Record<string, "cash" | "gcash" | "bayad_center" | "bank_transfer"> = {
+        Cash: "cash", GCash: "gcash", Bayad: "bayad_center", Bank: "bank_transfer",
+      };
+      const amountPaid = payment === "Cash" ? tendered : total;
+
+      const response = await fetch("/api/pos/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderNo,
+          transactionNo,
+          customerName: customer.trim() || null,
+          subtotal,
+          discountAmount,
+          total,
+          amountPaid,
+          channel: paymentMap[payment],
+          items: cart.map((item) => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            lineTotal: item.price * item.quantity,
+          })),
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok || !payload.order_id) {
+        throw new Error(payload.error || "Unable to save the sale.");
+      }
+
+      const receipt: CompletedReceipt = {
+        orderNo,
+        customer: customer.trim() || "Walk-in Customer",
+        payment,
+        amountPaid,
+        change: payment === "Cash" ? Math.max(0, tendered - total) : 0,
         subtotal,
-        discount_type: discountAmount > 0 ? "amount" : null,
-        discount_value: discountAmount,
-        discount_amount: discountAmount,
+        discount: discountAmount,
         total,
-        amount_paid: amountPaid,
-        balance: 0,
-        created_by: user.id,
-      })
-      .select("id")
-      .single();
+        createdAt: new Date().toISOString(),
+        transactedBy: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "PrintWise Staff",
+        items: cart.map((item) => ({ ...item })),
+      };
 
-    if (orderError || !order) {
-      setMessage(`Unable to save order: ${orderError?.message || "Unknown error"}`);
+      setPaymentModalOpen(false);
+      setCompletedReceipt(receipt);
+      setMessage(`Payment successful. Order ${orderNo} was saved to PrintWise.`);
+    } catch (error: any) {
+      setMessage(error?.message || "Unable to save the sale.");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    const itemsResult = await supabase.from("pos_order_items").insert(cart.map((item) => ({
-      pos_order_id: order.id,
-      product_id: item.id.startsWith("received-file-") ? null : item.id,
-      item_name: item.name,
-      unit_price: item.price,
-      quantity: item.quantity,
-      line_total: item.price * item.quantity,
-    })));
-
-    if (itemsResult.error) {
-      setMessage(`Order saved, but items failed: ${itemsResult.error.message}`);
-      setSaving(false);
-      return;
-    }
-
-    const paymentResult = await supabase.from("payment_transactions").insert({
-      transaction_no: `TXN-${Date.now()}`,
-      pos_order_id: order.id,
-      channel: paymentMap[payment],
-      transaction_type: "payment",
-      amount: total,
-      service_fee: 0,
-      customer_name: customer.trim() || null,
-      status: "successful",
-      created_by: user.id,
-    });
-
-    if (paymentResult.error) {
-      setMessage(`Order saved, but payment record failed: ${paymentResult.error.message}`);
-      setSaving(false);
-      return;
-    }
-
-    const receipt: CompletedReceipt = {
-      orderNo,
-      customer: customer.trim() || "Walk-in Customer",
-      payment,
-      amountPaid,
-      change: payment === "Cash" ? Math.max(0, tendered - total) : 0,
-      subtotal,
-      discount: discountAmount,
-      total,
-      createdAt: new Date().toISOString(),
-      transactedBy: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "PrintWise Staff",
-      items: cart.map((item) => ({ ...item })),
-    };
-
-    setPaymentModalOpen(false);
-    setCompletedReceipt(receipt);
-    setMessage(`Payment successful. Order ${orderNo} was saved to PrintWise.`);
-    setSaving(false);
   };
 
   const finishCompletedOrder = () => {
