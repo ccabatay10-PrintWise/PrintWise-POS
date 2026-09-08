@@ -343,6 +343,65 @@ export default function POSPage() {
           </aside>
         </div>
       </section>
+
+      {paymentModalOpen && (
+        <div className="pos-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title">
+          <div className="pos-modal payment-modal">
+            <div className="pos-modal-header">
+              <div><span className="pos-modal-kicker">CHECKOUT</span><h2 id="payment-modal-title">Confirm Payment</h2></div>
+              <button className="pos-modal-close" onClick={() => !saving && setPaymentModalOpen(false)} disabled={saving} aria-label="Close payment dialog"><X size={20} /></button>
+            </div>
+            <div className="payment-confirm-card">
+              <div><span>Payment Method</span><strong>{payment}</strong></div>
+              <div><span>Total Amount</span><strong>₱{total.toFixed(2)}</strong></div>
+              {payment === "Cash" && <>
+                <div><span>Amount Tendered</span><strong>₱{tendered.toFixed(2)}</strong></div>
+                <div className="payment-change"><span>Change</span><strong>₱{change.toFixed(2)}</strong></div>
+              </>}
+              {customer.trim() && <div><span>Customer</span><strong>{customer.trim()}</strong></div>}
+            </div>
+            <div className="payment-items-preview">
+              <span>{cart.length} item{cart.length === 1 ? "" : "s"} in this order</span>
+              {cart.map((item) => <div key={item.id}><span>{item.quantity} × {item.name}</span><b>₱{(item.price * item.quantity).toFixed(2)}</b></div>)}
+            </div>
+            <div className="pos-modal-actions">
+              <button className="secondary-modal-btn" onClick={() => setPaymentModalOpen(false)} disabled={saving}>Back</button>
+              <button className="primary-modal-btn" onClick={processPayment} disabled={saving || (payment === "Cash" && tendered < total)}>
+                {saving ? "PROCESSING..." : <><CheckCircle2 size={18} /> Confirm & Pay</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {completedReceipt && (
+        <div className="pos-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+          <div className="pos-modal receipt-modal">
+            <div className="pos-modal-header receipt-modal-header">
+              <div><span className="success-icon"><CheckCircle2 size={25} /></span><div><span className="pos-modal-kicker">PAYMENT COMPLETE</span><h2 id="receipt-modal-title">Sale Completed</h2></div></div>
+              <button className="pos-modal-close" onClick={finishCompletedOrder} aria-label="Close receipt dialog"><X size={20} /></button>
+            </div>
+            <div className="thermal-inner">
+              <div className="receipt-brand">PRINTWISE</div>
+              <div className="receipt-title">OFFICIAL SALES RECEIPT</div>
+              <div className="receipt-meta"><span>Order No.</span><b>{completedReceipt.orderNo}</b></div>
+              <div className="receipt-meta"><span>Customer</span><b>{completedReceipt.customer}</b></div>
+              <div className="receipt-meta"><span>Payment</span><b>{completedReceipt.payment}</b></div>
+              <div className="receipt-items">
+                {completedReceipt.items.map((item) => <div key={item.id}><span>{item.quantity} × {item.name}</span><b>₱{(item.price * item.quantity).toFixed(2)}</b></div>)}
+              </div>
+              <div className="receipt-total"><span>Total</span><b>₱{completedReceipt.total.toFixed(2)}</b></div>
+              <div className="receipt-meta"><span>Amount Paid</span><b>₱{completedReceipt.amountPaid.toFixed(2)}</b></div>
+              {completedReceipt.payment === "Cash" && <div className="receipt-meta"><span>Change</span><b>₱{completedReceipt.change.toFixed(2)}</b></div>}
+              <div className="receipt-footer">Thank you for choosing PrintWise.</div>
+            </div>
+            <div className="pos-modal-actions">
+              <button className="secondary-modal-btn" onClick={printThermalReceipt}><Printer size={18} /> Print Receipt</button>
+              <button className="primary-modal-btn" onClick={finishCompletedOrder}>New Order</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
