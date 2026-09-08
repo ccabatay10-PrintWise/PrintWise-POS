@@ -14,19 +14,20 @@ function envValue(...names: string[]) {
 
 const url = envValue("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL");
 const anonKey = envValue("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_ANON_KEY");
-const serviceKey = envValue("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE", "SERVICE_ROLE_KEY");
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
 export async function POST(request: NextRequest) {
-  if (!url || !anonKey || !serviceKey) return errorResponse("POS checkout service is not configured.", 500);
+  if (!url || !anonKey) return errorResponse("POS checkout service is not configured.", 500);
 
   const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (!token) return errorResponse("Please sign in again.", 401);
 
-  const authClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const authClient = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const { data: authData, error: authError } = await authClient.auth.getUser(token);
   if (authError || !authData.user) return errorResponse("Your session has expired. Please sign in again.", 401);
 
@@ -62,8 +63,15 @@ export async function POST(request: NextRequest) {
     return errorResponse("Invalid checkout totals or transaction details.", 400);
   }
 
-  const adminClient = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await adminClient.rpc("create_printwise_pos_sale", {
+  // Keep the caller's JWT on the RPC request. The SECURITY DEFINER function
+  // validates auth.uid() against p_created_by, so a service-role RPC call
+  // would lose the signed-in user's auth context and be rejected.
+  const userClient = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+
+  const { data, error } = await userClient.rpc("create_printwise_pos_sale", {
     p_order_no: orderNo,
     p_customer_name: customerName ? String(customerName) : null,
     p_subtotal: subtotal,
