@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Banknote, CreditCard, LogIn, Minus, Plus, ReceiptText, Search, ShoppingCart, Smartphone, Trash2, WalletCards, X, Percent, ClipboardList, Clock3, Eraser, Printer, Settings2, RefreshCw, CircleDollarSign, UserRound, Accessibility, Medal, UsersRound, Info } from "lucide-react";
+import { ArrowLeft, Banknote, ChevronDown, CreditCard, LogIn, Minus, Plus, ReceiptText, Search, ShoppingCart, Smartphone, Trash2, WalletCards, X, Percent, ClipboardList, Clock3, Eraser, Printer, Settings2, RefreshCw, CircleDollarSign, UserRound, Accessibility, Medal, UsersRound, Info } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import Sidebar from "../components/Sidebar";
 import "./pos.css";
 
 type Product = { id: string; name: string; category: string; price: number; unit?: string; image_url: string | null; item_type: "product" | "service" };
 type CartItem = Product & { quantity: number };
-type Receipt = { orderNo: string; payment: string; amountPaid: number; change: number; total: number; items: CartItem[] };
+type Receipt = { orderNo: string; payment: string; amountPaid: number; change: number; total: number; subtotal: number; customer: string; createdAt: string; items: CartItem[] };
 type ShiftData = { sales: number; discounts: number; orders: number; cash: number; nonCash: number; voided: number; loading: boolean };
 type DiscountType = "senior" | "pwd" | "athlete" | "solo_parent" | "percentage" | "amount" | null;
 
@@ -25,7 +25,7 @@ export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]), [productsLoading, setProductsLoading] = useState(false);
   const [search, setSearch] = useState(""), [category, setCategory] = useState("All"), [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState(""), [discount, setDiscount] = useState(0), [payment, setPayment] = useState("Cash"), [tendered, setTendered] = useState(0);
-  const [checkoutOpen, setCheckoutOpen] = useState(false), [saving, setSaving] = useState(false), [message, setMessage] = useState(""), [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false), [saving, setSaving] = useState(false), [message, setMessage] = useState(""), [receipt, setReceipt] = useState<Receipt | null>(null), [moreOpen, setMoreOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false), [shiftData, setShiftData] = useState<ShiftData>({ sales: 0, discounts: 0, orders: 0, cash: 0, nonCash: 0, voided: 0, loading: false });
   const [discountOpen, setDiscountOpen] = useState(false), [discountType, setDiscountType] = useState<DiscountType>(null), [discountRate, setDiscountRate] = useState(20);
   const [discountCustomerName, setDiscountCustomerName] = useState(""), [discountId, setDiscountId] = useState(""), [discountTin, setDiscountTin] = useState("");
@@ -136,6 +136,20 @@ export default function POSPage() {
     setDiscountOpen(false); setMessage("");
   };
 
+  const printReceipt = (slip = false) => {
+    if (!receipt) return;
+    const popup = window.open("", "wise-print", "width=420,height=720");
+    if (!popup) { setMessage("Please allow pop-ups to print the receipt."); return; }
+    const created = new Date(receipt.createdAt);
+    const dateText = created.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+    const title = slip ? "ORDER SLIP" : "RECEIPT";
+    const lines = receipt.items.map((item) => `<div class="row"><span>${item.quantity} ${item.name}</span><b>${money(item.price * item.quantity)}</b></div>`).join("");
+    popup.document.write(`<html><head><title>${title} ${receipt.orderNo}</title><style>body{font-family:Arial,sans-serif;width:72mm;margin:0 auto;padding:12px;color:#111;font-size:12px}h2{text-align:center;margin:0 0 4px}p{text-align:center;margin:4px 0 14px}.row{display:flex;justify-content:space-between;gap:8px;margin:8px 0}.row span{max-width:65%}hr{border:0;border-top:1px dashed #999;margin:12px 0}.total{display:flex;justify-content:space-between;font-size:15px;font-weight:700}</style></head><body><h2>Espacio</h2><p>${title}<br>${receipt.orderNo}<br>${dateText}</p>${receipt.customer ? `<div>Customer: ${receipt.customer}</div>` : ""}${lines}<hr><div class="row"><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div><div class="total"><span>Total</span><span>${money(receipt.total)}</span></div>${slip ? "" : `<div class="row"><span>Paid</span><b>${money(receipt.amountPaid)}</b></div><div class="row"><span>Change</span><b>${money(receipt.change)}</b></div>`}<p>THANK YOU! COME AGAIN!</p><script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}</script></body></html>`);
+    popup.document.close();
+  };
+
+  const finishNewSale = () => { setMoreOpen(false); setReceipt(null); clear(); };
+
   const checkout = async () => {
     if (!user) { setMessage("Please sign in before completing a sale."); return; }
     if (payment === "Cash" && tendered < total) { setMessage("Amount received is not enough for this sale."); return; }
@@ -147,6 +161,7 @@ export default function POSPage() {
       const orderNo = `WISE-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${String(now).slice(-6)}`;
       const transactionNo = `W-${now}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
       const amountPaid = payment === "Cash" ? tendered : total;
+      const createdAt = new Date().toISOString();
       const response = await fetch("/api/pos/checkout", {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -158,7 +173,7 @@ export default function POSPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok || !payload.order_id) throw new Error(payload.error || "Unable to save the sale.");
-      setReceipt({ orderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, items: [...cart] }); setCheckoutOpen(false);
+      setReceipt({ orderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), createdAt, items: [...cart] }); setCheckoutOpen(false); setMoreOpen(false);
     } catch (error: any) { setMessage(error?.message || "Unable to complete checkout."); }
     finally { setSaving(false); }
   };
@@ -218,6 +233,31 @@ export default function POSPage() {
     {shiftOpen && <div className="wise-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShiftOpen(false); }}><div className="wise-modal wise-shift-modal"><div className="wise-modal-head"><div><strong>Current Shift</strong><span>Today's live POS activity for your account</span></div><button onClick={() => setShiftOpen(false)}><X size={20} /></button></div><div className="wise-shift-content">{shiftData.loading ? <div className="wise-empty"><Clock3 size={30} /><strong>Loading shift data...</strong></div> : <><div className="wise-shift-total"><CircleDollarSign size={23} /><div><span>Today's completed sales</span><strong>{money(shiftData.sales)}</strong></div></div><div className="wise-shift-grid"><div><span>Orders</span><b>{shiftData.orders}</b></div><div><span>Cash</span><b>{money(shiftData.cash)}</b></div><div><span>Non-cash</span><b>{money(shiftData.nonCash)}</b></div><div><span>Discounts</span><b>{money(shiftData.discounts)}</b></div><div><span>Voided orders</span><b>{shiftData.voided}</b></div></div></>}</div><div className="wise-modal-actions"><button className="wise-secondary" onClick={() => setShiftOpen(false)}>Close</button><button className="wise-primary" onClick={() => window.location.reload()}>Refresh Shift</button></div></div></div>}
 
     {checkoutOpen && <div className="wise-modal-backdrop"><div className="wise-modal"><div className="wise-modal-head"><div><strong>Complete Sale</strong><span>WISE POS</span></div><button onClick={() => !saving && setCheckoutOpen(false)}><X size={20} /></button></div><div className="wise-modal-content"><div className="wise-total-card"><span>Total to collect</span><strong>{money(total)}</strong></div><label>Payment method</label><div className="wise-payment-grid">{payments.map(({ key, icon: Icon }) => <button key={key} className={payment === key ? "active" : ""} onClick={() => { setPayment(key); if (key !== "Cash") setTendered(total); }}><Icon size={18} />{key}</button>)}</div>{payment === "Cash" && <><label>Amount received</label><input className="wise-tendered" type="number" min={total} value={tendered || ""} onChange={(e) => setTendered(Number(e.target.value) || 0)} placeholder={money(total)} /><div className="wise-change"><span>Change</span><strong>{money(change)}</strong></div></>}</div><div className="wise-modal-actions"><button className="wise-secondary" onClick={() => setCheckoutOpen(false)} disabled={saving}>Cancel</button><button className="wise-primary" onClick={checkout} disabled={saving || (payment === "Cash" && tendered < total)}>{saving ? "PROCESSING..." : `COMPLETE SALE · ${money(total)}`}</button></div></div></div>}
-    {receipt && <div className="wise-modal-backdrop"><div className="wise-receipt-modal"><div className="wise-success">✓</div><h2>Sale Complete</h2><p>{receipt.orderNo}</p><div className="wise-receipt-lines">{receipt.items.map((item) => <div key={item.id}><span>{item.quantity} × {item.name}</span><b>{money(item.price * item.quantity)}</b></div>)}<hr /><div><span>Total</span><b>{money(receipt.total)}</b></div><div><span>Paid via</span><b>{receipt.payment}</b></div>{receipt.payment === "Cash" && <div><span>Change</span><b>{money(receipt.change)}</b></div>}</div><button className="wise-primary" onClick={() => { setReceipt(null); clear(); }}>NEW SALE</button></div></div>}
+
+    {receipt && <div className="wise-sale-complete-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setMoreOpen(false); }}>
+      <div className="wise-sale-complete-page">
+        <button className="wise-sale-back" type="button" onClick={() => setMoreOpen(false)} aria-label="Back"><ArrowLeft size={25} /></button>
+        <div className="wise-sale-success-icon"><span>▣</span></div>
+        <h2>Order Created!</h2>
+        <p className="wise-sale-success-text">Order #{receipt.orderNo.replace(/^WISE-/, "S") } has been successfully created.</p>
+        <div className="wise-sale-actions">
+          <button type="button" onClick={() => printReceipt(false)}><Printer size={18} />Print Receipt</button>
+          <button type="button" onClick={() => printReceipt(true)}><ReceiptText size={18} />Print Slip</button>
+          <div className="wise-sale-more-wrap"><button type="button" onClick={() => setMoreOpen((open) => !open)}>More <ChevronDown size={17} className={moreOpen ? "wise-more-open" : ""} /></button>{moreOpen && <div className="wise-sale-more-menu"><button type="button" onClick={finishNewSale}>New Sale</button><button type="button" onClick={() => printReceipt(false)}>Print Receipt Again</button></div>}</div>
+        </div>
+        <article className="wise-sale-receipt">
+          <h3>Espacio</h3>
+          <div className="wise-sale-meta">
+            <span>{new Date(receipt.createdAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}</span>
+            <span>Order #: {receipt.orderNo}</span>
+            <span>Payment: {receipt.payment}</span>
+            <span>Customer: {receipt.customer || "Walk-in Customer"}</span>
+          </div>
+          <div className="wise-sale-items">{receipt.items.map((item) => <div key={item.id}><span>{item.quantity} {item.name}</span><b>{money(item.price * item.quantity)}</b></div>)}</div>
+          <div className="wise-sale-totals"><div><span>Items:</span><b>{receipt.items.reduce((sum, item) => sum + item.quantity, 0)}</b></div><div><span>Subtotal:</span><b>{money(receipt.subtotal)}</b></div><div className="wise-sale-grand"><strong>Total Amount:</strong><strong>{money(receipt.total)}</strong></div><div><span>Total Paid:</span><b>{money(receipt.amountPaid)}</b></div><div className="wise-sale-balance"><strong>{receipt.amountPaid >= receipt.total ? "Change:" : "Balance:"}</strong><strong>{money(receipt.amountPaid >= receipt.total ? receipt.change : receipt.total - receipt.amountPaid)}</strong></div></div>
+          <footer>THANK YOU! COME AGAIN!</footer>
+        </article>
+      </div>
+    </div>}
   </section></main>;
 }
