@@ -11,7 +11,7 @@ function jsonError(error: string, status: number) { return NextResponse.json({ e
 
 export async function GET(request: NextRequest) {
   if (!url || !anonKey || !serviceKey) return jsonError("Product service is not configured on the server.", 500);
-  const authorization = request.headers.get("authorization") || "", token = authorization.replace(/^Bearer\\s+/i, "").trim();
+  const authorization = request.headers.get("authorization") || "", token = authorization.replace(/^Bearer\s+/i, "").trim();
   if (!token) return jsonError("Please sign in again.", 401);
   const authClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: authData, error: authError } = await authClient.auth.getUser(token);
