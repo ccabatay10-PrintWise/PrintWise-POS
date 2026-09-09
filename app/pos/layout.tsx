@@ -1,5 +1,7 @@
 "use client";
 
+import DiscountQuickModal from "./DiscountQuickModal";
+
 export default function POSLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <><DiscountQuickModal />{children}</>;
 }
