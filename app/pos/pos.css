@@ -1,6 +1,13 @@
 @import "./wise-pos.css";
 @import "./wise-sidebar.css";
 
+/* POS quick-action rail: keep every label on one clean line */
+.wise-layout{grid-template-columns:minmax(0,1fr) 390px 88px}
+.wise-quick-actions{width:88px;box-sizing:border-box;gap:7px;padding:10px 7px;align-items:center;overflow:hidden}
+.wise-quick-action{width:72px;min-width:72px;height:62px;min-height:62px;padding:6px 2px;gap:4px;flex:0 0 62px;white-space:nowrap;overflow:hidden;line-height:1}
+.wise-quick-action span{display:block;width:100%;white-space:nowrap;overflow:visible;text-align:center;font-size:10px;line-height:1.05;letter-spacing:-.15px}
+.wise-quick-action svg{width:20px;height:20px;flex:0 0 20px}
+
 /* Discount selection workflow */
 .wise-discount-modal{width:min(1120px,calc(100vw - 48px));max-width:1120px;padding:0;overflow:hidden}
 .wise-discount-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.95fr);min-height:520px}
@@ -43,6 +50,7 @@
   .wise-discount-modal{width:calc(100vw - 28px);max-height:calc(100vh - 28px);overflow:auto}
   .wise-discount-layout{grid-template-columns:1fr}
   .wise-discount-right{border-left:0;border-top:1px solid #e6edf4;padding-top:24px}
+  .wise-layout{grid-template-columns:minmax(0,1fr) 390px 88px}
 }
 @media (max-width:600px){
   .wise-discount-modal{width:calc(100vw - 18px)}
@@ -53,4 +61,6 @@
   .wise-discount-footer>div{min-width:0}
   .wise-discount-footer .wise-primary{width:100%}
   .wise-child-row{grid-template-columns:1fr}
+  .wise-layout{grid-template-columns:minmax(0,1fr)}
+  .wise-quick-actions{display:none}
 }
