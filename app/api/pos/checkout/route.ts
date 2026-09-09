@@ -23,6 +23,25 @@ function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function normalizePaymentChannel(value: unknown) {
+  const raw = String(value ?? "cash").trim().toLowerCase().replace(/\s+/g, "_");
+  const aliases: Record<string, string> = {
+    cash: "cash",
+    gcash: "gcash",
+    bayad_center: "bayad_center",
+    bayadcenter: "bayad_center",
+    bank_transfer: "bank_transfer",
+    banktransfer: "bank_transfer",
+    maya: "other",
+    credit_card: "other",
+    creditcard: "other",
+    ewallet: "other",
+    e_wallet: "other",
+    other: "other",
+  };
+  return aliases[raw] || "other";
+}
+
 export async function POST(request: NextRequest) {
   if (!url || !anonKey) return errorResponse("WISE POS checkout service is not configured.", 500);
 
@@ -79,7 +98,7 @@ export async function POST(request: NextRequest) {
   const discountAmount = Number(body.discount_amount ?? body.discountAmount ?? 0);
   const total = Number(body.total);
   const amountPaid = Number(body.amount_paid ?? body.amountPaid);
-  const paymentChannel = String(
+  const paymentChannel = normalizePaymentChannel(
     body.payment_channel ?? body.paymentChannel ?? body.channel ?? "cash"
   );
 
