@@ -14,7 +14,7 @@ export default function PrintReceiptAnimation() {
       style.id = styleId;
       style.textContent = `
         .wise-sale-receipt.wise-receipt-printing {
-          animation: wiseReceiptPrintOut 1.15s cubic-bezier(.22,.72,.18,1) forwards;
+          animation: wiseReceiptPrintOut 2.2s cubic-bezier(.22,.72,.18,1) forwards;
           transform-origin: 50% 100%;
           pointer-events: none;
           will-change: transform, opacity, filter;
@@ -27,7 +27,7 @@ export default function PrintReceiptAnimation() {
             filter: blur(0);
           }
           12% {
-            transform: translate3d(0, -8px, 0) scale(.995);
+            transform: translate3d(0, -5px, 0) scale(.998);
             opacity: 1;
           }
           100% {
@@ -47,13 +47,13 @@ export default function PrintReceiptAnimation() {
           border-radius: 0 0 4px 4px;
           background: rgba(255,255,255,.95);
           box-shadow: 0 0 12px rgba(255,255,255,.8);
-          animation: wiseReceiptPaperFeed 1.15s ease-out forwards;
+          animation: wiseReceiptPaperFeed 2.2s ease-out forwards;
           pointer-events: none;
         }
 
         @keyframes wiseReceiptPaperFeed {
           0% { opacity: 0; transform: translateY(0); }
-          12% { opacity: 1; transform: translateY(-3px); }
+          12% { opacity: 1; transform: translateY(-2px); }
           100% { opacity: 0; transform: translateY(-30px); }
         }
 
@@ -90,7 +90,7 @@ export default function PrintReceiptAnimation() {
         try {
           const nativePrint = printWindow.print.bind(printWindow);
           printWindow.print = () => {
-            window.setTimeout(() => nativePrint(), 950);
+            window.setTimeout(() => nativePrint(), 1850);
           };
         } catch {
           // If the browser prevents overriding print(), the normal print flow
@@ -100,7 +100,7 @@ export default function PrintReceiptAnimation() {
 
       window.setTimeout(() => {
         receipt.classList.remove("wise-receipt-printing");
-      }, 1250);
+      }, 2300);
     };
 
     document.addEventListener("click", onPrintClick, true);
