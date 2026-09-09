@@ -1,459 +1,177 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle, ArrowRight, Banknote, Boxes, Calculator, CheckCircle2,
-  ChevronRight, CreditCard, FileText, KeyRound, Layers3, Package,
-  ReceiptText, RefreshCw, ShoppingCart, TrendingUp, UserCheck, UserPlus,
-  Users, UserX, Wallet, X, ShieldCheck, CalendarDays, CircleDollarSign,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, Banknote, CalendarDays, CheckCircle2, Clock3, Package, RefreshCw, ShoppingCart, TrendingUp, Users, Wallet, Truck, ReceiptText } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
 import "./dashboard.css";
 import Sidebar from "../components/Sidebar";
 
-type Order = {
-  id: string;
-  order_no: string;
-  customer_name: string | null;
-  total: number;
-  amount_paid: number;
-  status: string;
-  created_at: string;
-};
-
-type InventoryItem = {
-  id: string;
-  name: string;
-  category: string;
-  quantity: number;
-  reorder_level: number;
-  unit: string;
-  is_active: boolean;
-};
-
-type Staff = {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  active: boolean;
-  created_at: string;
-};
+type Order = { id: string; order_no: string; customer_name: string | null; subtotal: number; total: number; amount_paid: number; balance: number; status: string; created_at: string };
+type InventoryItem = { id: string; name: string; category: string; quantity: number; reorder_level: number; unit: string };
+type ProductSale = { name: string; amount: number; qty: number };
 
 type DashboardData = {
   totalSales: number;
   periodSales: number;
+  paymentsReceived: number;
+  discounts: number;
+  expenses: number;
   completedOrders: number;
   totalOrders: number;
-  averageOrder: number;
   customerCount: number;
   productCount: number;
+  outOfStock: number;
+  expiring: number;
+  unpaidPurchase: number;
+  unpaidSales: number;
+  topProducts: ProductSale[];
   lowStock: InventoryItem[];
-  recentOrders: Order[];
-  trend: { label: string; amount: number }[];
-  statusCounts: { completed: number; pending: number; processing: number; other: number };
+  lastOrder: Order | null;
 };
 
-const currency = (value: number) =>
-  `₱${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const dateKey = (date: Date) => date.toISOString().slice(0, 10);
-const startOfDay = (date = new Date()) => {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
-};
+const empty: DashboardData = { totalSales: 0, periodSales: 0, paymentsReceived: 0, discounts: 0, expenses: 0, completedOrders: 0, totalOrders: 0, customerCount: 0, productCount: 0, outOfStock: 0, expiring: 0, unpaidPurchase: 0, unpaidSales: 0, topProducts: [], lowStock: [], lastOrder: null };
+const currency = (n: number) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const startOfDay = (d = new Date()) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
 export default function DashboardPage() {
-  const [period, setPeriod] = useState<"today" | "7d" | "30d">("7d");
-  const [data, setData] = useState<DashboardData>({
-    totalSales: 0,
-    periodSales: 0,
-    completedOrders: 0,
-    totalOrders: 0,
-    averageOrder: 0,
-    customerCount: 0,
-    productCount: 0,
-    lowStock: [],
-    recentOrders: [],
-    trend: [],
-    statusCounts: { completed: 0, pending: 0, processing: 0, other: 0 },
-  });
+  const [period, setPeriod] = useState<"today" | "7d" | "30d">("30d");
+  const [data, setData] = useState<DashboardData>(empty);
+  const [businessName, setBusinessName] = useState("Espacio");
+  const [userName, setUserName] = useState("User");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [userName, setUserName] = useState("PrintWise User");
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [staffLoading, setStaffLoading] = useState(false);
-  const [staffError, setStaffError] = useState("");
-  const [staffMessage, setStaffMessage] = useState("");
-  const [showStaffModal, setShowStaffModal] = useState(false);
-  const [savingStaff, setSavingStaff] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
-
-  const authHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session?.access_token || ""}`,
-    };
-  };
-
-  const loadStaff = async () => {
-    if (isAdmin !== true) return;
-    setStaffLoading(true);
-    setStaffError("");
-    try {
-      const res = await fetch("/api/staff", { headers: await authHeaders() });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Unable to load staff accounts.");
-      setStaff(json.staff || []);
-    } catch (e: any) {
-      setStaffError(e.message || "Unable to load staff accounts.");
-    } finally {
-      setStaffLoading(false);
-    }
-  };
+  const range = useMemo(() => {
+    const end = new Date();
+    const start = startOfDay(end);
+    if (period === "7d") start.setDate(start.getDate() - 6);
+    if (period === "30d") start.setDate(start.getDate() - 29);
+    return { start, end };
+  }, [period]);
 
   const loadDashboard = async () => {
-    setLoading(true);
-    setError("");
-
-    const [allOrdersRes, recentOrdersRes, customersRes, productsRes, inventoryRes] = await Promise.all([
-      supabase
-        .from("pos_orders")
-        .select("id,order_no,customer_name,total,amount_paid,status,created_at")
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("pos_orders")
-        .select("id,order_no,customer_name,total,amount_paid,status,created_at")
-        .order("created_at", { ascending: false })
-        .limit(8),
+    setLoading(true); setError("");
+    const [ordersRes, itemsRes, customersRes, productsRes, inventoryRes, expensesRes, settingsRes] = await Promise.all([
+      supabase.from("pos_orders").select("id,order_no,customer_name,subtotal,total,amount_paid,balance,status,created_at").order("created_at", { ascending: false }),
+      supabase.from("pos_order_items").select("pos_order_id,item_name,product_id,quantity,line_total"),
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
-      supabase
-        .from("inventory_items")
-        .select("id,name,category,quantity,reorder_level,unit,is_active")
-        .eq("is_active", true)
-        .order("quantity", { ascending: true }),
+      supabase.from("inventory_items").select("id,name,category,quantity,reorder_level,unit").eq("is_active", true).order("quantity", { ascending: true }),
+      supabase.from("payment_transactions").select("amount,created_at,status,transaction_type").eq("transaction_type", "expense").eq("status", "successful"),
+      supabase.from("company_settings").select("business_name").limit(1).maybeSingle(),
     ]);
 
-    const firstError = [allOrdersRes.error, recentOrdersRes.error, customersRes.error, productsRes.error, inventoryRes.error]
-      .find(Boolean);
+    const firstError = [ordersRes.error, itemsRes.error, customersRes.error, productsRes.error, inventoryRes.error, expensesRes.error].find(Boolean);
+    if (firstError) setError(firstError.message);
 
-    if (firstError) {
-      setError(`Unable to load some dashboard data: ${firstError.message}`);
+    const orders = (ordersRes.data || []).map((o: any) => ({ ...o, subtotal: Number(o.subtotal || 0), total: Number(o.total || 0), amount_paid: Number(o.amount_paid || 0), balance: Number(o.balance || 0), status: String(o.status || "pending").toLowerCase() })) as Order[];
+    const completed = orders.filter(o => o.status === "completed");
+    const inPeriod = completed.filter(o => new Date(o.created_at) >= range.start && new Date(o.created_at) <= range.end);
+    const periodSales = inPeriod.reduce((s, o) => s + o.total, 0);
+    const paymentsReceived = inPeriod.reduce((s, o) => s + o.amount_paid, 0);
+    const discounts = inPeriod.reduce((s, o) => s + Math.max(0, o.subtotal - o.total), 0);
+    const expenses = (expensesRes.data || []).filter((e: any) => new Date(e.created_at) >= range.start && new Date(e.created_at) <= range.end).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+
+    const productMap = new Map<string, { name: string; amount: number; qty: number }>();
+    const completedIds = new Set(completed.map(o => o.id));
+    for (const item of itemsRes.data || []) {
+      if (!completedIds.has(item.pos_order_id)) continue;
+      const key = item.product_id || item.item_name;
+      const current = productMap.get(key) || { name: item.item_name || "Unnamed item", amount: 0, qty: 0 };
+      current.amount += Number(item.line_total || 0);
+      current.qty += Number(item.quantity || 0);
+      productMap.set(key, current);
     }
-
-    const orders = (allOrdersRes.data || []).map((order: any) => ({
-      ...order,
-      total: Number(order.total || 0),
-      amount_paid: Number(order.amount_paid || 0),
-      status: String(order.status || "pending").toLowerCase(),
-    })) as Order[];
-
-    const recentOrders = (recentOrdersRes.data || []).map((order: any) => ({
-      ...order,
-      total: Number(order.total || 0),
-      amount_paid: Number(order.amount_paid || 0),
-      status: String(order.status || "pending").toLowerCase(),
-    })) as Order[];
-
-    const completed = orders.filter((order) => order.status === "completed");
-    const totalSales = completed.reduce((sum, order) => sum + order.total, 0);
-
-    const now = new Date();
-    const periodStart = startOfDay(now);
-    if (period === "7d") periodStart.setDate(periodStart.getDate() - 6);
-    if (period === "30d") periodStart.setDate(periodStart.getDate() - 29);
-
-    const periodCompleted = completed.filter((order) => new Date(order.created_at) >= periodStart);
-    const periodSales = periodCompleted.reduce((sum, order) => sum + order.total, 0);
-
-    const days = period === "today" ? 1 : period === "7d" ? 7 : 30;
-    const trendDays = Math.min(days, 7);
-    const trend: { label: string; amount: number }[] = [];
-    for (let offset = trendDays - 1; offset >= 0; offset--) {
-      const day = startOfDay(now);
-      day.setDate(day.getDate() - offset);
-      const key = dateKey(day);
-      const amount = completed
-        .filter((order) => dateKey(new Date(order.created_at)) === key)
-        .reduce((sum, order) => sum + order.total, 0);
-      trend.push({
-        label:
-          trendDays <= 7
-            ? day.toLocaleDateString(undefined, { weekday: "short" })
-            : day.toLocaleDateString(undefined, { day: "numeric" }),
-        amount,
-      });
-    }
-
-    const statusCounts = orders.reduce(
-      (counts, order) => {
-        if (order.status === "completed") counts.completed++;
-        else if (order.status === "processing" || order.status === "in progress") counts.processing++;
-        else if (order.status === "pending" || order.status === "for approval") counts.pending++;
-        else counts.other++;
-        return counts;
-      },
-      { completed: 0, pending: 0, processing: 0, other: 0 },
-    );
-
-    const inventory = (inventoryRes.data || []).map((item: any) => ({
-      ...item,
-      quantity: Number(item.quantity || 0),
-      reorder_level: Number(item.reorder_level || 0),
-    })) as InventoryItem[];
+    const topProducts = [...productMap.values()].sort((a, b) => b.amount - a.amount).slice(0, 5);
+    const inventory = (inventoryRes.data || []).map((i: any) => ({ ...i, quantity: Number(i.quantity || 0), reorder_level: Number(i.reorder_level || 0) })) as InventoryItem[];
 
     setData({
-      totalSales,
-      periodSales,
-      completedOrders: completed.length,
-      totalOrders: orders.length,
-      averageOrder: completed.length ? totalSales / completed.length : 0,
-      customerCount: customersRes.count || 0,
-      productCount: productsRes.count || 0,
-      lowStock: inventory.filter((item) => item.quantity <= item.reorder_level).slice(0, 6),
-      recentOrders,
-      trend,
-      statusCounts,
+      totalSales: completed.reduce((s, o) => s + o.total, 0), periodSales, paymentsReceived, discounts, expenses,
+      completedOrders: completed.length, totalOrders: orders.length, customerCount: customersRes.count || 0, productCount: productsRes.count || 0,
+      outOfStock: inventory.filter(i => i.quantity <= 0).length, expiring: 0, unpaidPurchase: 0,
+      unpaidSales: orders.filter(o => o.status !== "voided" && o.balance > 0).reduce((s, o) => s + o.balance, 0),
+      topProducts, lowStock: inventory.filter(i => i.quantity <= i.reorder_level).slice(0, 5), lastOrder: orders[0] || null,
     });
-
+    if (settingsRes.data?.business_name) setBusinessName(settingsRes.data.business_name);
     setLoading(false);
   };
 
   useEffect(() => {
     const boot = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        window.location.href = "/pos";
-        return;
-      }
-
-      const name =
-        user.user_metadata?.full_name ||
-        user.user_metadata?.name ||
-        user.email?.split("@")[0] ||
-        "PrintWise User";
-      const role = String(user.app_metadata?.role || user.user_metadata?.role || "admin").toLowerCase();
-      setUserName(name);
-      setIsAdmin(role === "admin");
+      if (!user) { window.location.href = "/pos"; return; }
+      setUserName(user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "User");
+      await loadDashboard();
     };
     boot();
-  }, []);
-
-  useEffect(() => {
-    loadDashboard();
   }, [period]);
 
-  useEffect(() => {
-    if (isAdmin === true) loadStaff();
-  }, [isAdmin]);
-
-  const refreshAll = async () => {
-    await loadDashboard();
-    if (isAdmin === true) await loadStaff();
-  };
-
-  const createStaff = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setStaffError("");
-    setStaffMessage("");
-    if (form.password !== form.confirmPassword) {
-      setStaffError("Passwords do not match.");
-      return;
-    }
-
-    setSavingStaff(true);
-    try {
-      const res = await fetch("/api/staff", {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({ action: "create", name: form.name, email: form.email, password: form.password }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Unable to create staff account.");
-      setStaffMessage(`${form.name} was added successfully.`);
-      setForm({ name: "", email: "", password: "", confirmPassword: "" });
-      setShowStaffModal(false);
-      loadStaff();
-    } catch (e: any) {
-      setStaffError(e.message || "Unable to create staff account.");
-    } finally {
-      setSavingStaff(false);
-    }
-  };
-
-  const staffAction = async (staffId: string, action: "toggle_active" | "reset_password", active?: boolean) => {
-    setStaffError("");
-    setStaffMessage("");
-    let password = "";
-    if (action === "reset_password") {
-      password = window.prompt("Enter the new password (minimum 6 characters):") || "";
-      if (!password) return;
-    }
-
-    try {
-      const res = await fetch("/api/staff", {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({ action, staffId, active, password }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Staff update failed.");
-      setStaffMessage(action === "reset_password" ? "Password updated successfully." : active ? "Staff account activated." : "Staff account deactivated.");
-      loadStaff();
-    } catch (e: any) {
-      setStaffError(e.message || "Staff update failed.");
-    }
-  };
-
-  const maxTrend = Math.max(...data.trend.map((item) => item.amount), 1);
-  const periodLabel = period === "today" ? "Today" : period === "7d" ? "Last 7 Days" : "Last 30 Days";
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
-  }, []);
+  const sales = data.periodSales;
+  const expenses = data.expenses;
+  const net = sales - expenses;
+  const totalDonut = Math.max(sales + expenses, 1);
+  const salesPct = (sales / totalDonut) * 100;
+  const expensePct = (expenses / totalDonut) * 100;
+  const dateLabel = `${range.start.toLocaleDateString(undefined, { month: "short", day: "2-digit" })} - ${range.end.toLocaleDateString(undefined, { month: "short", day: "2-digit" })}`;
+  const periodLabel = period === "today" ? "Today" : period === "7d" ? "Last 7 Days" : "This Month";
+  const greeting = useMemo(() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; }, []);
 
   return (
     <main className="app-shell">
       <Sidebar />
-      <section className="workspace dashboard-workspace dashboard-v2">
+      <section className="workspace dashboard-workspace dashboard-v3">
         <header className="dashboard-header dashboard-hero">
-          <div>
-            <div className="eyebrow"><CalendarDays size={14} /> PRINTWISE COMMAND CENTER</div>
-            <h1>{greeting}, {userName.split(" ")[0]}! 👋</h1>
-            <p>Here’s a live overview of your sales, orders, customers, products, and inventory.</p>
-          </div>
-          <div className="dashboard-actions">
-            <button className="refresh-dashboard" onClick={refreshAll} disabled={loading}>
-              <RefreshCw size={16} className={loading ? "spin" : ""} /> {loading ? "REFRESHING..." : "REFRESH DATA"}
-            </button>
-            <a className="quick-pos" href="/pos"><ShoppingCart size={18} /> OPEN POS</a>
-          </div>
+          <div><div className="eyebrow"><CalendarDays size={14} /> BUSINESS OVERVIEW</div><h1>{greeting}, {userName.split(" ")[0]}!</h1><p>Here’s what’s happening with your business today.</p></div>
+          <div className="dashboard-actions"><button className="refresh-dashboard" onClick={loadDashboard} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /> {loading ? "Refreshing..." : "Refresh"}</button><a className="quick-pos" href="/pos"><ShoppingCart size={17} /> Open POS</a></div>
         </header>
 
-        <div className="dashboard-period-bar">
-          <div>
-            <span className="period-label">SALES OVERVIEW</span>
-            <strong>{periodLabel}</strong>
-          </div>
-          <div className="period-tabs">
-            {(["today", "7d", "30d"] as const).map((value) => (
-              <button key={value} className={period === value ? "active" : ""} onClick={() => setPeriod(value)}>
-                {value === "today" ? "Today" : value === "7d" ? "7 Days" : "30 Days"}
-              </button>
-            ))}
-          </div>
+        <div className="dashboard-alert-grid">
+          <a className="alert-card danger" href="/inventory"><div className="alert-icon"><AlertTriangle size={21} /></div><div><span>Out of Stock</span><strong>{data.outOfStock}</strong><small>View items <ArrowRight size={13} /></small></div></a>
+          <a className="alert-card warning" href="/inventory"><div className="alert-icon"><Clock3 size={21} /></div><div><span>Expiring & Expired</span><strong>{data.expiring}</strong><small>Expiry tracking <ArrowRight size={13} /></small></div></a>
+          <a className="alert-card info" href="/orders"><div className="alert-icon"><Truck size={21} /></div><div><span>Unpaid Purchase Orders</span><strong>{currency(data.unpaidPurchase)}</strong><small>View orders <ArrowRight size={13} /></small></div></a>
+          <a className="alert-card danger" href="/orders"><div className="alert-icon"><ReceiptText size={21} /></div><div><span>Unpaid Sales Orders</span><strong>{currency(data.unpaidSales)}</strong><small>View orders <ArrowRight size={13} /></small></div></a>
         </div>
 
-        {error && <div className="dashboard-error">{error}</div>}
+        {error && <div className="dashboard-error">Some dashboard data could not be loaded: {error}</div>}
 
-        <div className="dashboard-stats dashboard-kpis">
-          <article className="dash-stat primary-stat">
-            <div className="stat-icon sales"><Banknote size={22} /></div>
-            <div><span>Total Sales</span><strong>{currency(data.totalSales)}</strong><small><CheckCircle2 size={14} /> All completed transactions</small></div>
-          </article>
-          <article className="dash-stat">
-            <div className="stat-icon today"><TrendingUp size={22} /></div>
-            <div><span>{periodLabel} Sales</span><strong>{currency(data.periodSales)}</strong><small>Based on completed orders</small></div>
-          </article>
-          <article className="dash-stat">
-            <div className="stat-icon orders"><ReceiptText size={22} /></div>
-            <div><span>Completed Orders</span><strong>{data.completedOrders}</strong><small>{data.totalOrders} total orders recorded</small></div>
-          </article>
-          <article className="dash-stat">
-            <div className="stat-icon customers"><Users size={22} /></div>
-            <div><span>Customers</span><strong>{data.customerCount}</strong><small>Registered customers</small></div>
-          </article>
-        </div>
-
-        <div className="dashboard-analytics-grid">
-          <section className="dashboard-card sales-trend-card">
-            <div className="card-title">
-              <div><h2>Sales Trend</h2><p>Completed sales for the most recent days.</p></div>
-              <span className="card-chip"><TrendingUp size={14} /> {currency(data.periodSales)}</span>
+        <div className="dashboard-main-grid-v3">
+          <section className="dashboard-card summary-card-v3">
+            <div className="card-title"><div><h2>Today’s Summary</h2><p>{new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</p></div><div className="business-pill">{businessName}⌄</div></div>
+            <div className="summary-metrics">
+              <div><div className="metric-icon green"><Wallet size={21} /></div><span>Payments Received</span><strong>{currency(data.paymentsReceived)}</strong></div>
+              <div><div className="metric-icon blue"><span>%</span></div><span>Discounts</span><strong>{currency(data.discounts)}</strong></div>
+              <div><div className="metric-icon red"><Banknote size={21} /></div><span>Expenses</span><strong>{currency(expenses)}</strong></div>
+              <div><div className="metric-icon purple"><Package size={21} /></div><span>Orders</span><strong>{data.completedOrders}</strong></div>
             </div>
-            <div className="sales-bars">
-              {data.trend.map((item) => (
-                <div className="sales-bar-item" key={item.label}>
-                  <div className="sales-bar-track"><div className="sales-bar-fill" style={{ height: `${Math.max((item.amount / maxTrend) * 100, item.amount > 0 ? 8 : 2)}%` }} title={currency(item.amount)} /></div>
-                  <b>{item.label}</b><small>{item.amount > 0 ? `₱${Math.round(item.amount)}` : "₱0"}</small>
-                </div>
-              ))}
-            </div>
+            <div className="last-order"><span>Last order: <b>{data.lastOrder?.order_no || "—"}</b></span><span>Created by: <b>{data.lastOrder?.customer_name || "—"}</b></span><span>Amount: <b>{data.lastOrder ? currency(data.lastOrder.total) : "—"}</b></span></div>
+            <a className="report-button" href="/reports">Sales Report <ArrowRight size={16} /></a>
           </section>
 
-          <section className="dashboard-card order-health-card">
-            <div className="card-title"><div><h2>Order Health</h2><p>Current order activity.</p></div><CircleDollarSign size={22} /></div>
-            <div className="health-list">
-              <div><span className="health-dot completed" /> <b>Completed</b><strong>{data.statusCounts.completed}</strong></div>
-              <div><span className="health-dot pending" /> <b>Pending</b><strong>{data.statusCounts.pending}</strong></div>
-              <div><span className="health-dot processing" /> <b>Processing</b><strong>{data.statusCounts.processing}</strong></div>
-              <div><span className="health-dot other" /> <b>Other</b><strong>{data.statusCounts.other}</strong></div>
+          <section className="dashboard-card donut-card-v3">
+            <div className="card-title"><div><h2>Sales and Expenses</h2><p>{dateLabel}</p></div><div className="period-tabs">{(["today", "7d", "30d"] as const).map(v => <button key={v} className={period === v ? "active" : ""} onClick={() => setPeriod(v)}>{v === "today" ? "Today" : v === "7d" ? "7 Days" : "Month"}</button>)}</div></div>
+            <div className="donut-row">
+              <div className="donut-block"><div className="donut sales-donut" style={{ background: `conic-gradient(#10e6a1 0 ${salesPct}%, #dffaf1 ${salesPct}% 100%)` }}><div><strong>{currency(sales)}</strong><span>Total Sales</span></div></div><div className="legend"><i className="sales-dot" /> {businessName} <b>{currency(sales)}</b></div></div>
+              <div className="donut-block"><div className="donut expense-donut" style={{ background: `conic-gradient(#ff5268 0 ${expensePct}%, #ffe2e6 ${expensePct}% 100%)` }}><div><strong>{currency(expenses)}</strong><span>Total Expenses</span></div></div><div className="legend"><i className="expense-dot" /> {businessName} <b>{currency(expenses)}</b></div></div>
             </div>
-            <div className="average-order"><span>Average Completed Order</span><strong>{currency(data.averageOrder)}</strong></div>
+            <div className="net-income"><div><TrendingUp size={18} /><strong>{currency(net)}</strong><span>Net Income (Sales - Expenses)</span></div><small>{sales ? `${((net / sales) * 100).toFixed(1)}% margin` : "0.0% margin"}</small></div>
+            <a className="report-button" href="/reports">Financial Summary <ArrowRight size={16} /></a>
           </section>
         </div>
 
-        <div className="dashboard-main-grid">
-          <section className="dashboard-card recent-card">
-            <div className="card-title"><div><h2>Recent Transactions</h2><p>Latest activity from your PrintWise POS.</p></div><a href="/orders">VIEW ALL <ArrowRight size={16} /></a></div>
-            <div className="transaction-list">
-              {loading ? <div className="dashboard-empty">Loading dashboard data...</div> : data.recentOrders.length === 0 ? <div className="dashboard-empty">No transactions yet. Start selling from the Point of Sale.</div> : data.recentOrders.map((order) => (
-                <div className="transaction" key={order.id}>
-                  <div className="transaction-icon"><ReceiptText size={18} /></div>
-                  <div className="transaction-info"><b>{order.order_no}</b><span>{order.customer_name || "Walk-in Customer"}</span></div>
-                  <div className="transaction-meta"><strong>{currency(order.total)}</strong><small>{new Date(order.created_at).toLocaleString()}</small></div>
-                  <span className={`transaction-status status-${order.status.replace(/\s+/g, "-")}`}>{order.status}</span>
-                </div>
-              ))}
-            </div>
+        <div className="dashboard-main-grid-v3 lower">
+          <section className="dashboard-card table-card-v3">
+            <div className="card-title"><div><h2>Top Selling Products By Amount</h2><p>{dateLabel}</p></div><span className="select-like">{periodLabel}⌄</span></div>
+            <div className="table-v3"><div className="thead"><span>#</span><span>Image</span><span>Name</span><span>Amount</span><span>Qty Sold</span></div>{data.topProducts.length ? data.topProducts.map((p, i) => <div className="trow" key={`${p.name}-${i}`}><span>{i + 1}</span><span className="product-thumb"><Package size={17} /></span><b>{p.name}</b><span>{currency(p.amount)}</span><span>{p.qty}</span></div>) : <div className="dashboard-empty">No completed sales in this period.</div>}</div>
+            <a className="report-button" href="/reports">Catalog Report <ArrowRight size={16} /></a>
           </section>
 
-          <section className="dashboard-card inventory-card">
-            <div className="card-title"><div><h2>Inventory Alerts</h2><p>Items that need your attention.</p></div><a href="/inventory">MANAGE <ArrowRight size={16} /></a></div>
-            <div className="inventory-summary">
-              <div><Boxes size={20} /><span>Active Products</span><b>{data.productCount}</b></div>
-              <div><AlertTriangle size={20} /><span>Low Stock</span><b>{data.lowStock.length}</b></div>
-            </div>
-            <div className="low-stock-list">
-              {loading ? <div className="dashboard-empty">Checking inventory...</div> : data.lowStock.length === 0 ? <div className="stock-good">✓ All tracked inventory is above the reorder level.</div> : data.lowStock.map((item) => (
-                <div className="low-stock-item" key={item.id}><div><b>{item.name}</b><span>{item.category}</span></div><strong>{item.quantity} {item.unit}</strong></div>
-              ))}
-            </div>
+          <section className="dashboard-card table-card-v3">
+            <div className="card-title"><div><h2>Low Stock Items</h2><p>Top 5 inventory items that are low or out of stock</p></div><a className="view-all" href="/inventory">View All</a></div>
+            <div className="table-v3"><div className="thead low"><span>#</span><span>Image</span><span>Name</span><span>Stock</span><span>Status</span></div>{data.lowStock.length ? data.lowStock.map((item, i) => <div className="trow" key={item.id}><span>{i + 1}</span><span className="product-thumb"><Package size={17} /></span><b>{item.name}</b><span className={item.quantity <= 0 ? "stock-danger" : "stock-warning"}>{item.quantity}{item.unit || " pcs"}</span><span className={`stock-badge ${item.quantity <= 0 ? "out" : "low"}`}>{item.quantity <= 0 ? "Out of Stock" : "Low Stock"}</span></div>) : <div className="dashboard-empty">All inventory levels look good.</div>}</div>
+            <a className="report-button" href="/inventory">Inventory Report <ArrowRight size={16} /></a>
           </section>
         </div>
-
-        <div className="dashboard-bottom-grid quick-dashboard-actions">
-          <a className="action-card" href="/pos"><div className="action-icon"><ShoppingCart size={21} /></div><div><b>Start a New Sale</b><span>Open Point of Sale</span></div><ArrowRight size={18} /></a>
-          <a className="action-card" href="/project-costing"><div className="action-icon"><Calculator size={21} /></div><div><b>Create Project Costing</b><span>Calculate expenses and profit</span></div><ArrowRight size={18} /></a>
-          <a className="action-card" href="/gcash-bayad"><div className="action-icon"><CreditCard size={21} /></div><div><b>GCash / Bayad</b><span>Review payment transactions</span></div><ArrowRight size={18} /></a>
-        </div>
-
-        {isAdmin && <section className="staff-section">
-          <div className="staff-section-head"><div><div className="staff-kicker"><ShieldCheck size={16} /> ADMIN ONLY</div><h2>Staff Management</h2><p>Create and manage staff accounts directly from your PrintWise Dashboard.</p></div><button className="add-staff-btn" onClick={() => { setStaffError(""); setStaffMessage(""); setShowStaffModal(true); }}><UserPlus size={18} /> ADD STAFF ACCOUNT</button></div>
-          {staffMessage && <div className="staff-message">✓ {staffMessage}</div>}
-          {staffError && <div className="staff-error">{staffError}</div>}
-          <div className="staff-grid">
-            <div className="staff-summary"><Users size={22} /><div><span>Total Staff</span><strong>{staff.length}</strong></div></div>
-            <div className="staff-summary"><UserCheck size={22} /><div><span>Active</span><strong>{staff.filter((member) => member.active).length}</strong></div></div>
-            <div className="staff-summary"><UserX size={22} /><div><span>Inactive</span><strong>{staff.filter((member) => !member.active).length}</strong></div></div>
-          </div>
-          <div className="staff-table-wrap">
-            <div className="staff-table-head"><span>STAFF MEMBER</span><span>ROLE</span><span>STATUS</span><span>ACTIONS</span></div>
-            {staffLoading ? <div className="dashboard-empty">Loading staff accounts...</div> : staff.length === 0 ? <div className="staff-empty"><Users size={28} /><b>No staff accounts yet</b><span>Click “Add Staff Account” to register your first staff member.</span></div> : staff.map((member) => (
-              <div className="staff-row" key={member.id}><div className="staff-person"><div className="staff-avatar">{member.name.slice(0, 1).toUpperCase()}</div><div><b>{member.name}</b><span>{member.email}</span></div></div><span className="role-badge">{member.role}</span><span className={`status-badge ${member.active ? "active" : "inactive"}`}>{member.active ? "Active" : "Inactive"}</span><div className="staff-actions"><button title="Reset password" onClick={() => staffAction(member.id, "reset_password")}><KeyRound size={16} /></button><button className={member.active ? "danger" : "success"} onClick={() => staffAction(member.id, "toggle_active", !member.active)}>{member.active ? <UserX size={16} /> : <UserCheck size={16} />}<span>{member.active ? "Deactivate" : "Activate"}</span></button></div></div>
-            ))}
-          </div>
-        </section>}
-
-        {showStaffModal && <div className="staff-modal-backdrop"><form className="staff-modal" onSubmit={createStaff}><button type="button" className="staff-close" onClick={() => setShowStaffModal(false)}><X size={21} /></button><div className="staff-modal-icon"><UserPlus size={24} /></div><h2>Add Staff Account</h2><p>Create a separate account for your PrintWise staff member.</p><label>Full Name<input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label><label>Email Address<input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label><div className="staff-form-row"><label>Password<input required minLength={6} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label><label>Confirm Password<input required minLength={6} type="password" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} /></label></div><div className="role-info"><ShieldCheck size={18} /><div><b>Role: Staff</b><span>Staff accounts will use the staff interface and should not have access to Admin Management.</span></div></div><div className="staff-modal-actions"><button type="button" onClick={() => setShowStaffModal(false)}>Cancel</button><button type="submit" disabled={savingStaff}>{savingStaff ? "CREATING..." : "CREATE STAFF ACCOUNT"}</button></div></form></div>}
       </section>
     </main>
   );
