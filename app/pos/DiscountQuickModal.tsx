@@ -33,12 +33,12 @@ export default function DiscountQuickModal() {
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       const action = target?.closest(".wise-quick-action") as HTMLElement | null;
-      if (action?.textContent?.toLowerCase().includes("discount")) {
-        event.preventDefault();
-        setSelected(null);
-        setCustomValue(0);
-        setOpen(true);
-      }
+      if (!action?.textContent?.toLowerCase().includes("discount")) return;
+      if (currentSubtotal() <= 0) return;
+      event.preventDefault();
+      setSelected(null);
+      setCustomValue(0);
+      setOpen(true);
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
@@ -62,7 +62,7 @@ export default function DiscountQuickModal() {
   };
 
   const apply = () => {
-    if (!selected) return;
+    if (!selected || subtotal <= 0) return;
     setDiscountInput(previewAmount);
     setOpen(false);
   };
