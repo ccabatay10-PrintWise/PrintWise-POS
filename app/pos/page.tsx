@@ -51,8 +51,8 @@ export default function POSPage() {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ?? null);
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
       setAuthLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -73,7 +73,7 @@ export default function POSPage() {
         if (!token) throw new Error("Your session has expired. Please sign in again.");
         const response = await fetch("/api/products", {
           headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
+          cache: "default",
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || "Unable to load products and services.");
@@ -237,7 +237,7 @@ export default function POSPage() {
 
           {productsLoading ? <div className="wise-empty"><ShoppingCart size={34} /><strong>Loading products & services...</strong><span>WISE POS is loading the items enabled for checkout.</span></div> : filtered.length ? <div className="wise-product-grid">
             {filtered.map((product) => <button className="wise-product" key={product.id} onClick={() => add(product)}>
-              {product.image_url ? <img src={product.image_url} alt="" /> : <div className="wise-product-letter">{product.name.charAt(0).toUpperCase()}</div>}
+              {product.image_url ? <img src={product.image_url} alt="" loading="lazy" decoding="async" /> : <div className="wise-product-letter">{product.name.charAt(0).toUpperCase()}</div>}
               <div className="wise-product-info"><strong>{product.name}</strong><span>{product.item_type === "service" ? "Service" : product.category}</span><b>{money(product.price)}{product.unit ? ` / ${product.unit}` : ""}</b></div>
               <span className="wise-add"><Plus size={16} /></span>
             </button>)}
