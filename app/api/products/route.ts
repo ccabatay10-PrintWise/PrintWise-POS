@@ -11,7 +11,7 @@ function jsonError(error: string, status: number) { return NextResponse.json({ e
 
 export async function GET(request: NextRequest) {
   if (!url || !anonKey || !serviceKey) return jsonError("Product service is not configured on the server.", 500);
-  const authorization = request.headers.get("authorization") || "", token = authorization.replace(/^Bearer\s+/i, "").trim();
+  const authorization = request.headers.get("authorization") || "", token = authorization.replace(/^Bearer\\s+/i, "").trim();
   if (!token) return jsonError("Please sign in again.", 401);
   const authClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: authData, error: authError } = await authClient.auth.getUser(token);
@@ -19,5 +19,7 @@ export async function GET(request: NextRequest) {
   const adminClient = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await adminClient.from("products").select("id,name,category,price,unit,icon_key,image_url,item_type").eq("is_active", true).eq("show_in_pos", true).order("category").order("name");
   if (error) return jsonError(`Unable to load products: ${error.message}`, 400);
-  return NextResponse.json({ products: (data ?? []).map((p: any) => ({ ...p, item_type: p.item_type === "service" ? "service" : "product" })) });
+  return new NextResponse(JSON.stringify({ products: (data ?? []).map((p: any) => ({ ...p, item_type: p.item_type === "service" ? "service" : "product" })) }), {
+    headers: { "Content-Type": "application/json", "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
+  });
 }
