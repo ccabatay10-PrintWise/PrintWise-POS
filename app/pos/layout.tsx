@@ -3,7 +3,8 @@
 import DiscountQuickModal from "./DiscountQuickModal";
 import OrdersQuickModal from "./OrdersQuickModal";
 import PrinterQuickModal from "./PrinterQuickModal";
+import SettingsQuickModal from "./SettingsQuickModal";
 
 export default function POSLayout({ children }: { children: React.ReactNode }) {
-  return <><DiscountQuickModal /><OrdersQuickModal /><PrinterQuickModal />{children}</>;
+  return <><DiscountQuickModal /><OrdersQuickModal /><PrinterQuickModal /><SettingsQuickModal />{children}</>;
 }
