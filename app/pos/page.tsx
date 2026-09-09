@@ -23,7 +23,7 @@ const money = (value: number) => new Intl.NumberFormat("en-PH", { style: "curren
 export default function POSPage() {
   const [user, setUser] = useState<User | null>(null), [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [authMessage, setAuthMessage] = useState("");
-  const [products, setProducts] = useState<Product[]>([]), [loadingProducts, setLoadingProducts] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState(""), [category, setCategory] = useState("All"), [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState(""), [discount, setDiscount] = useState(0), [payment, setPayment] = useState("Cash"), [tendered, setTendered] = useState(0);
   const [checkoutOpen, setCheckoutOpen] = useState(false), [saving, setSaving] = useState(false), [message, setMessage] = useState(""), [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -34,25 +34,7 @@ export default function POSPage() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
-    const load = async () => {
-      setLoadingProducts(true); setMessage("");
-      try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (!token) throw new Error("Your session has expired. Please sign in again.");
-        const response = await fetch("/api/products", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || "Unable to load products.");
-        setProducts((payload.products ?? []).map((item: any) => ({ id: item.id, name: item.name, category: item.category || "General", price: Number(item.price) || 0, image_url: item.image_url || null })));
-      } catch (error: any) { setProducts([]); setMessage(error?.message || "Unable to load products."); }
-      finally { setLoadingProducts(false); }
-    };
-    load();
-  }, [user]);
-
-  const categories = useMemo(() => ["All", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))], [products]);
+  const categories = useMemo(() => [], []);
   const filtered = useMemo(() => { const term = search.trim().toLowerCase(); return products.filter((p) => (category === "All" || p.category === category) && (!term || p.name.toLowerCase().includes(term))); }, [products, search, category]);
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0), discountAmount = Math.min(subtotal, Math.max(0, discount)), total = Math.max(0, subtotal - discountAmount), change = Math.max(0, tendered - total);
 
@@ -83,9 +65,9 @@ export default function POSPage() {
   return <main className="app-shell"><Sidebar/><section className="wise-pos-page">
     <header className="wise-header"><div><div className="wise-eyebrow">POINT OF SALE</div><h1>WISE POS</h1><p>Smart point of sale for every business.</p></div><div className="wise-header-pill">GENERAL BUSINESS MODE</div></header>
     <div className="wise-layout">
-      <section className="wise-catalog"><div className="wise-toolbar"><div className="wise-search"><Search size={18}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or services..."/></div><div className="wise-categories">{categories.map((c) => <button key={c} className={category === c ? "active" : ""} onClick={() => setCategory(c)}>{c}</button>)}</div></div>
+      <section className="wise-catalog"><div className="wise-toolbar"><div className="wise-search"><Search size={18}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or services..."/></div>{categories.length > 0 && <div className="wise-categories">{categories.map((c) => <button key={c} className={category === c ? "active" : ""} onClick={() => setCategory(c)}>{c}</button>)}</div>}</div>
       {message && <div className="wise-notice">{message}</div>}
-      {loadingProducts ? <div className="wise-empty">Loading products...</div> : filtered.length ? <div className="wise-product-grid">{filtered.map((p) => <button className="wise-product" key={p.id} onClick={() => add(p)}>{p.image_url ? <img src={p.image_url} alt=""/> : <div className="wise-product-letter">{p.name.charAt(0).toUpperCase()}</div>}<div className="wise-product-info"><strong>{p.name}</strong><span>{p.category}</span><b>{money(p.price)}</b></div><span className="wise-add"><Plus size={16}/></span></button>)}</div> : <div className="wise-empty"><ShoppingCart size={34}/><strong>No products or services found</strong><span>Add items in Products and they will appear here.</span></div>}</section>
+      {filtered.length ? <div className="wise-product-grid">{filtered.map((p) => <button className="wise-product" key={p.id} onClick={() => add(p)}>{p.image_url ? <img src={p.image_url} alt=""/> : <div className="wise-product-letter">{p.name.charAt(0).toUpperCase()}</div>}<div className="wise-product-info"><strong>{p.name}</strong><span>{p.category}</span><b>{money(p.price)}</b></div><span className="wise-add"><Plus size={16}/></span></button>)}</div> : <div className="wise-empty"><ShoppingCart size={34}/><strong>POS is ready for your products or services</strong><span>No items are currently shown in POS. Add your products or services when you are ready.</span></div>}</section>
       <aside className="wise-cart"><div className="wise-cart-head"><div><strong>Current Sale</strong><span>{cart.length} item{cart.length === 1 ? "" : "s"}</span></div><button onClick={clear} disabled={!cart.length}><Trash2 size={17}/> Clear</button></div><div className="wise-cart-body">{cart.length ? cart.map((i) => <div className="wise-cart-item" key={i.id}><div className="wise-cart-item-main"><strong>{i.name}</strong><span>{money(i.price)} each</span></div><div className="wise-cart-controls"><button onClick={() => qty(i.id,-1)}><Minus size={14}/></button><b>{i.quantity}</b><button onClick={() => qty(i.id,1)}><Plus size={14}/></button><strong>{money(i.price*i.quantity)}</strong></div></div>) : <div className="wise-cart-empty"><ShoppingCart size={38}/><strong>Your cart is empty</strong><span>Select products or services to start a sale.</span></div>}</div><div className="wise-cart-footer"><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Customer name (optional)"/><div className="wise-summary"><span>Subtotal</span><b>{money(subtotal)}</b><span>Discount</span><b>- {money(discountAmount)}</b><strong>Total</strong><strong>{money(total)}</strong></div><div className="wise-discount"><label>Discount</label><input type="number" min="0" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value)||0)} placeholder="0.00"/></div><button className="wise-checkout" disabled={!cart.length} onClick={openCheckout}><ReceiptText size={19}/> CHECKOUT <span>{money(total)}</span></button></div></aside>
     </div>
     {checkoutOpen && <div className="wise-modal-backdrop"><div className="wise-modal"><div className="wise-modal-head"><div><strong>Complete Sale</strong><span>WISE POS</span></div><button onClick={() => !saving && setCheckoutOpen(false)}><X size={20}/></button></div><div className="wise-modal-content"><div className="wise-total-card"><span>Total to collect</span><strong>{money(total)}</strong></div><label>Payment method</label><div className="wise-payment-grid">{payments.map(({key,icon:Icon}) => <button key={key} className={payment===key?"active":""} onClick={() => {setPayment(key);if(key!=="Cash")setTendered(total);}}><Icon size={18}/>{key}</button>)}</div>{payment === "Cash" && <><label>Amount received</label><input className="wise-tendered" type="number" min={total} value={tendered || ""} onChange={(e)=>setTendered(Number(e.target.value)||0)} placeholder={money(total)}/><div className="wise-change"><span>Change</span><strong>{money(change)}</strong></div></>}</div><div className="wise-modal-actions"><button className="wise-secondary" onClick={()=>setCheckoutOpen(false)} disabled={saving}>Cancel</button><button className="wise-primary" onClick={checkout} disabled={saving || (payment === "Cash" && tendered < total)}>{saving?"PROCESSING...":`COMPLETE SALE · ${money(total)}`}</button></div></div></div>}
