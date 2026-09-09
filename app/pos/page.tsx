@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Banknote, CreditCard, LogIn, Minus, Plus, ReceiptText, Search, ShoppingCart, Smartphone, Trash2, WalletCards, X, Percent, ClipboardList, Clock3, Eraser, Printer, Settings2, RefreshCw, CircleDollarSign } from "lucide-react";
+import { Banknote, CreditCard, LogIn, Minus, Plus, ReceiptText, Search, ShoppingCart, Smartphone, Trash2, WalletCards, X, Percent, ClipboardList, Clock3, Eraser, Printer, Settings2, RefreshCw, CircleDollarSign, UserRound, Accessibility, Medal, UsersRound, Info } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import Sidebar from "../components/Sidebar";
 import "./pos.css";
@@ -11,6 +11,7 @@ type Product = { id: string; name: string; category: string; price: number; unit
 type CartItem = Product & { quantity: number };
 type Receipt = { orderNo: string; payment: string; amountPaid: number; change: number; total: number; items: CartItem[] };
 type ShiftData = { sales: number; discounts: number; orders: number; cash: number; nonCash: number; voided: number; loading: boolean };
+type DiscountType = "senior" | "pwd" | "athlete" | "solo_parent" | "percentage" | "amount" | null;
 
 const payments = [
   { key: "Cash", icon: Banknote }, { key: "GCash", icon: Smartphone }, { key: "Maya", icon: Smartphone },
@@ -26,6 +27,10 @@ export default function POSPage() {
   const [customer, setCustomer] = useState(""), [discount, setDiscount] = useState(0), [payment, setPayment] = useState("Cash"), [tendered, setTendered] = useState(0);
   const [checkoutOpen, setCheckoutOpen] = useState(false), [saving, setSaving] = useState(false), [message, setMessage] = useState(""), [receipt, setReceipt] = useState<Receipt | null>(null);
   const [shiftOpen, setShiftOpen] = useState(false), [shiftData, setShiftData] = useState<ShiftData>({ sales: 0, discounts: 0, orders: 0, cash: 0, nonCash: 0, voided: 0, loading: false });
+  const [discountOpen, setDiscountOpen] = useState(false), [discountType, setDiscountType] = useState<DiscountType>(null), [discountRate, setDiscountRate] = useState(20);
+  const [discountCustomerName, setDiscountCustomerName] = useState(""), [discountId, setDiscountId] = useState(""), [discountTin, setDiscountTin] = useState("");
+  const [childName, setChildName] = useState(""), [childDob, setChildDob] = useState(""), [childAge, setChildAge] = useState("");
+  const [customDiscountValue, setCustomDiscountValue] = useState("");
   const discountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -91,9 +96,45 @@ export default function POSPage() {
 
   const signIn = async () => { setAuthMessage(""); setAuthLoading(true); const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) setAuthMessage(error.message); setAuthLoading(false); };
   const openCheckout = () => { if (!cart.length) { setMessage("Add an item to the cart before checkout."); return; } if (payment !== "Cash") setTendered(total); setMessage(""); setCheckoutOpen(true); };
-  const focusDiscount = () => { if (!cart.length) { setMessage("Add an item before applying a discount."); return; } discountRef.current?.focus(); discountRef.current?.select(); };
+  const focusDiscount = () => {
+    if (!cart.length) { setMessage("Add an item before applying a discount."); return; }
+    setDiscountType("senior"); setDiscountRate(20); setDiscountCustomerName(""); setDiscountId(""); setDiscountTin(""); setChildName(""); setChildDob(""); setChildAge(""); setCustomDiscountValue(""); setDiscountOpen(true);
+  };
+  const selectDiscountType = (type: Exclude<DiscountType, null>) => {
+    setDiscountType(type);
+    if (type === "senior" || type === "pwd") setDiscountRate(20);
+  };
   const openOrders = () => window.location.assign("/orders");
   const openSettings = () => window.location.assign("/settings");
+
+  const applyDiscount = () => {
+    if (!cart.length) { setDiscountOpen(false); setMessage("Add an item before applying a discount."); return; }
+    let amount = 0;
+    if (discountType === "senior" || discountType === "pwd") {
+      if (!discountCustomerName.trim() || !discountId.trim()) { setMessage(`Enter the customer's name and ${discountType === "senior" ? "Senior Citizen" : "PWD"} ID number.`); return; }
+      amount = subtotal * (discountRate / 100);
+    } else if (discountType === "athlete") {
+      if (!discountCustomerName.trim() || !discountId.trim()) { setMessage("Enter the customer's name and National Athlete ID number."); return; }
+      amount = subtotal * 0.20;
+    } else if (discountType === "solo_parent") {
+      if (!discountCustomerName.trim() || !discountId.trim() || !childName.trim() || !childDob || !childAge) { setMessage("Complete the Solo Parent and child information."); return; }
+      amount = subtotal * 0.10;
+    } else if (discountType === "percentage") {
+      const value = Number(customDiscountValue);
+      if (!Number.isFinite(value) || value < 1 || value > 100) { setMessage("Enter a percentage between 1 and 100."); return; }
+      amount = subtotal * (value / 100);
+    } else if (discountType === "amount") {
+      const value = Number(customDiscountValue);
+      if (!Number.isFinite(value) || value <= 0) { setMessage("Enter a valid discount amount."); return; }
+      amount = value;
+    } else {
+      setMessage("Select a discount type first."); return;
+    }
+    const applied = Math.min(subtotal, Math.max(0, Number(amount.toFixed(2))));
+    setDiscount(applied);
+    if (discountCustomerName.trim()) setCustomer(discountCustomerName.trim());
+    setDiscountOpen(false); setMessage("");
+  };
 
   const checkout = async () => {
     if (!user) { setMessage("Please sign in before completing a sale."); return; }
@@ -125,6 +166,9 @@ export default function POSPage() {
   if (authLoading && !user) return <main className="wise-auth"><div className="wise-auth-card"><div className="wise-logo">W</div><h1>WISE POS</h1><p>Loading your workspace...</p></div></main>;
   if (!user) return <main className="wise-auth"><div className="wise-auth-card"><div className="wise-logo">W</div><h1>WISE POS</h1><p>Smart point of sale for every business.</p><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" type="email" /><input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" onKeyDown={(e) => e.key === "Enter" && signIn()} />{authMessage && <div className="wise-error">{authMessage}</div>}<button className="wise-primary" onClick={signIn} disabled={authLoading || !email || !password}><LogIn size={17} /> {authLoading ? "SIGNING IN..." : "SIGN IN"}</button></div></main>;
 
+  const discountLabel = discountType === "senior" ? "Senior" : discountType === "pwd" ? "PWD" : discountType === "athlete" ? "National Athlete" : discountType === "solo_parent" ? "Solo Parent" : discountType === "percentage" ? "Percentage" : discountType === "amount" ? "Amount" : "";
+  const discountHint = discountType === "senior" || discountType === "pwd" ? "5% or 20% off" : discountType === "athlete" ? "20% off" : discountType === "solo_parent" ? "10% off" : discountType === "percentage" ? "% off item total" : discountType === "amount" ? "Fixed peso amount" : "";
+
   return <main className="app-shell"><Sidebar /><section className="wise-pos-page">
     <header className="wise-header"><div><div className="wise-eyebrow">POINT OF SALE</div><h1>WISE POS</h1><p>Smart point of sale for every business.</p></div><div className="wise-header-pill">GENERAL BUSINESS MODE</div></header>
     <div className="wise-layout"><section className="wise-catalog"><div className="wise-toolbar"><div className="wise-search"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or services..." /></div>{categories.length > 1 && <div className="wise-categories">{categories.map((item) => <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item}</button>)}</div>}</div>
@@ -141,6 +185,35 @@ export default function POSPage() {
       <button type="button" className="wise-quick-action" onClick={openSettings} title="Open POS settings"><Settings2 size={21} /><span>Settings</span></button>
       <button type="button" className="wise-quick-action" onClick={() => window.location.reload()} title="Refresh POS"><RefreshCw size={21} /><span>Refresh</span></button>
     </nav></div>
+
+    {discountOpen && <div className="wise-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDiscountOpen(false); }}><div className="wise-modal wise-discount-modal">
+      <div className="wise-modal-head"><div><strong>Select Discount</strong><span>This will be applied to all line items</span></div><button onClick={() => setDiscountOpen(false)}><X size={20} /></button></div>
+      <div className="wise-discount-layout">
+        <div className="wise-discount-left">
+          <div className="wise-discount-section-title">GOVERNMENT DISCOUNTS</div><p className="wise-discount-description">For eligible customers with valid government-issued proof.</p>
+          <div className="wise-discount-tiles">
+            <button type="button" className={`wise-discount-tile ${discountType === "senior" ? "selected" : ""}`} onClick={() => selectDiscountType("senior")}><span className="wise-discount-icon"><UserRound size={20} /></span><strong>Senior</strong><small>5% or 20% off</small></button>
+            <button type="button" className={`wise-discount-tile ${discountType === "pwd" ? "selected" : ""}`} onClick={() => selectDiscountType("pwd")}><span className="wise-discount-icon"><Accessibility size={20} /></span><strong>PWD</strong><small>5% or 20% off</small></button>
+            <button type="button" className={`wise-discount-tile ${discountType === "athlete" ? "selected" : ""}`} onClick={() => selectDiscountType("athlete")}><span className="wise-discount-icon"><Medal size={20} /></span><strong>National Athlete</strong><small>20% off</small></button>
+            <button type="button" className={`wise-discount-tile ${discountType === "solo_parent" ? "selected" : ""}`} onClick={() => selectDiscountType("solo_parent")}><span className="wise-discount-icon"><UsersRound size={20} /></span><strong>Solo Parent</strong><small>10% off</small></button>
+          </div>
+          <div className="wise-discount-section-title custom">CUSTOM DISCOUNTS</div><p className="wise-discount-description">Manual discount value for promos and discretionary cases.</p>
+          <div className="wise-discount-tiles custom-grid">
+            <button type="button" className={`wise-discount-tile ${discountType === "percentage" ? "selected" : ""}`} onClick={() => selectDiscountType("percentage")}><span className="wise-discount-icon"><Percent size={20} /></span><strong>Percentage</strong><small>% off item total</small></button>
+            <button type="button" className={`wise-discount-tile ${discountType === "amount" ? "selected" : ""}`} onClick={() => selectDiscountType("amount")}><span className="wise-discount-icon">₱</span><strong>Amount</strong><small>Fixed peso amount</small></button>
+          </div>
+        </div>
+        <div className="wise-discount-right">
+          {discountType === "senior" && <><div className="wise-discount-section-title">CUSTOMER INFORMATION</div><label>Customer Name<input value={discountCustomerName} onChange={(e) => setDiscountCustomerName(e.target.value)} placeholder="Full name as on ID" /></label><label>Senior Citizen ID Number<input value={discountId} onChange={(e) => setDiscountId(e.target.value)} placeholder="Enter ID number" /></label><label>TIN Number <em>(optional)</em><input value={discountTin} onChange={(e) => setDiscountTin(e.target.value)} placeholder="Enter TIN number" /></label><div className="wise-discount-rate"><span>Senior discount rate</span><div><button type="button" className={discountRate === 5 ? "active" : ""} onClick={() => setDiscountRate(5)}>5%</button><button type="button" className={discountRate === 20 ? "active" : ""} onClick={() => setDiscountRate(20)}>20%</button></div></div><div className="wise-discount-info"><Info size={17} />A valid Senior Citizen ID must be presented at the time of purchase.</div></>}
+          {discountType === "pwd" && <><div className="wise-discount-section-title">CUSTOMER INFORMATION</div><label>Customer Name<input value={discountCustomerName} onChange={(e) => setDiscountCustomerName(e.target.value)} placeholder="Full name as on ID" /></label><label>PWD ID Number<input value={discountId} onChange={(e) => setDiscountId(e.target.value)} placeholder="Enter ID number" /></label><label>TIN Number <em>(optional)</em><input value={discountTin} onChange={(e) => setDiscountTin(e.target.value)} placeholder="Enter TIN number" /></label><div className="wise-discount-rate"><span>PWD discount rate</span><div><button type="button" className={discountRate === 5 ? "active" : ""} onClick={() => setDiscountRate(5)}>5%</button><button type="button" className={discountRate === 20 ? "active" : ""} onClick={() => setDiscountRate(20)}>20%</button></div></div><div className="wise-discount-info"><Info size={17} />A valid PWD ID must be presented at the time of purchase.</div></>}
+          {discountType === "athlete" && <><div className="wise-discount-section-title">CUSTOMER INFORMATION</div><label>Customer Name<input value={discountCustomerName} onChange={(e) => setDiscountCustomerName(e.target.value)} placeholder="Full name as on ID" /></label><label>National Athlete ID Number<input value={discountId} onChange={(e) => setDiscountId(e.target.value)} placeholder="Enter ID number" /></label><div className="wise-discount-info"><Info size={17} />A valid National Athlete ID must be presented at the time of purchase.</div></>}
+          {discountType === "solo_parent" && <><div className="wise-discount-section-title">CUSTOMER INFORMATION</div><label>Customer Name<input value={discountCustomerName} onChange={(e) => setDiscountCustomerName(e.target.value)} placeholder="Full name as on ID" /></label><label>Solo Parent ID Number<input value={discountId} onChange={(e) => setDiscountId(e.target.value)} placeholder="Enter ID number" /></label><div className="wise-discount-section-title child">CHILD INFORMATION</div><label>Child Name<input value={childName} onChange={(e) => setChildName(e.target.value)} placeholder="Child's full name" /></label><div className="wise-child-row"><label>Date of Birth<input value={childDob} onChange={(e) => setChildDob(e.target.value)} type="date" /></label><label>Age<input value={childAge} onChange={(e) => setChildAge(e.target.value)} placeholder="Age" inputMode="numeric" /></label></div></>}
+          {discountType === "percentage" && <><div className="wise-discount-section-title">PERCENTAGE DISCOUNT</div><p className="wise-discount-description">Enter a value between 1 and 100.</p><label>Enter percentage<input value={customDiscountValue} onChange={(e) => setCustomDiscountValue(e.target.value)} placeholder="Enter percentage" type="number" min="1" max="100" /></label></>}
+          {discountType === "amount" && <><div className="wise-discount-section-title">AMOUNT DISCOUNT</div><p className="wise-discount-description">Enter a fixed peso amount to deduct.</p><label>Enter amount<input value={customDiscountValue} onChange={(e) => setCustomDiscountValue(e.target.value)} placeholder="Enter amount" type="number" min="0.01" step="0.01" /></label></>}
+        </div>
+      </div>
+      <div className="wise-discount-footer"><div>{discountLabel && <><strong>{discountLabel}</strong><span>{discountHint}</span></>}</div><button className="wise-primary" type="button" onClick={applyDiscount} disabled={!discountType}>Apply Discount</button></div>
+    </div></div>}
 
     {shiftOpen && <div className="wise-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShiftOpen(false); }}><div className="wise-modal wise-shift-modal"><div className="wise-modal-head"><div><strong>Current Shift</strong><span>Today's live POS activity for your account</span></div><button onClick={() => setShiftOpen(false)}><X size={20} /></button></div><div className="wise-shift-content">{shiftData.loading ? <div className="wise-empty"><Clock3 size={30} /><strong>Loading shift data...</strong></div> : <><div className="wise-shift-total"><CircleDollarSign size={23} /><div><span>Today's completed sales</span><strong>{money(shiftData.sales)}</strong></div></div><div className="wise-shift-grid"><div><span>Orders</span><b>{shiftData.orders}</b></div><div><span>Cash</span><b>{money(shiftData.cash)}</b></div><div><span>Non-cash</span><b>{money(shiftData.nonCash)}</b></div><div><span>Discounts</span><b>{money(shiftData.discounts)}</b></div><div><span>Voided orders</span><b>{shiftData.voided}</b></div></div></>}</div><div className="wise-modal-actions"><button className="wise-secondary" onClick={() => setShiftOpen(false)}>Close</button><button className="wise-primary" onClick={() => window.location.reload()}>Refresh Shift</button></div></div></div>}
 
