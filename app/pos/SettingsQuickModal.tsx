@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Loader2, Save, Settings2, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import "./settings-quick.css";
 
 type ReceiptSettings = {
   store: string;
@@ -99,7 +100,7 @@ export default function SettingsQuickModal() {
             paperSize: local.paperSize || (data.receipt_paper_size === "80mm" ? "80mm" : "58mm"),
           });
         }
-      } catch (e: any) {
+      } catch {
         if (!cancelled) setError("Unable to load synced settings. Browser-saved receipt settings are still available.");
       } finally {
         if (!cancelled) setLoading(false);
