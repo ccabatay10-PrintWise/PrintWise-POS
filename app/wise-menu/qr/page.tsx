@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Printer, QrCode, Copy } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Copy, ExternalLink, Printer, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./qr.css";
 
 export default function WiseMenuQrPage(){
-  const [count,setCount]=useState(12); const [origin,setOrigin]=useState("");
+  const [origin,setOrigin]=useState("");
+  const [copied,setCopied]=useState(false);
   useEffect(()=>setOrigin(window.location.origin),[]);
   const base=origin||"https://print-wise-pos.vercel.app";
-  const tables=useMemo(()=>Array.from({length:Math.max(1,Math.min(50,count))},(_,i)=>`Table ${String(i+1).padStart(2,"0")}`),[count]);
-  const url=(table:string)=>`${base}/menu/order?table=${encodeURIComponent(table)}`;
-  const copy=(table:string)=>navigator.clipboard?.writeText(url(table));
-  return <main className="wmqr"><header><div><div className="wmqr-kicker"><QrCode size={15}/> WISE MENU</div><h1>Table QR Codes</h1><p>Customers scan the QR code beside their table to open the menu and send their order directly to the kitchen.</p></div><div className="wmqr-controls"><label>Tables <input type="number" min={1} max={50} value={count} onChange={e=>setCount(Number(e.target.value)||1)}/></label><button onClick={()=>window.print()}><Printer size={16}/> Print QR Codes</button></div></header><div className="wmqr-flow"><b>SCAN</b><span>→</span><b>SELECT</b><span>→</span><b>REVIEW</b><span>→</span><b>SEND TO KITCHEN</b></div><section className="wmqr-grid">{tables.map(table=><article className="wmqr-card" key={table}><div className="wmqr-code"><QRCodeSVG value={url(table)} size={180} level="M" includeMargin/><span>SCAN TO ORDER</span></div><h2>{table}</h2><p>WISE MENU</p><div className="wmqr-actions"><a href={url(table)} target="_blank" rel="noreferrer"><ExternalLink size={14}/> Open</a><button onClick={()=>copy(table)}><Copy size={14}/> Copy Link</button></div></article>)}</section></main>;
+  const url=`${base}/menu/order`;
+  const copy=async()=>{try{await navigator.clipboard.writeText(url);setCopied(true);setTimeout(()=>setCopied(false),1600)}catch{}};
+  return <main className="wmqr"><header><div><div className="wmqr-kicker"><QrCode size={15}/> WISE MENU</div><h1>Universal QR Code</h1><p>One QR code for the entire WISE MENU customer ordering system.</p></div><button onClick={()=>window.print()}><Printer size={16}/> Print QR</button></header><div className="wmqr-flow"><b>SCAN</b><span>→</span><b>SELECT</b><span>→</span><b>REVIEW</b><span>→</span><b>SEND TO KITCHEN</b></div><section className="wmqr-single"><div className="wmqr-card"><div className="wmqr-code"><QRCodeSVG value={url} size={310} level="M" includeMargin/><span>SCAN TO ORDER</span></div><h2>WISE MENU</h2><p>UNIVERSAL CUSTOMER QR</p><div className="wmqr-actions"><a href={url} target="_blank" rel="noreferrer"><ExternalLink size={14}/> Open Menu</a><button onClick={copy}><Copy size={14}/> {copied?"Copied":"Copy Link"}</button><button onClick={()=>window.print()}><Printer size={14}/> Print QR</button></div><div className="wmqr-url">{url}</div></div><aside><h3>ONE QR • ALL CUSTOMERS</h3><p>Place this QR code anywhere customers can see it. Every scan opens the same WISE MENU.</p><div className="wmqr-note"><b>Customer</b><span>Scan → Select → Customize → Send Order</span></div><div className="wmqr-note"><b>WISE KITCHEN</b><span>Receive KOT → Prepare → Ready</span></div><div className="wmqr-note"><b>WISE POS</b><span>Continue staff-side order and sales workflow</span></div></aside></section></main>;
 }
