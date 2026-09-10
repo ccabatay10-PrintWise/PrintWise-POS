@@ -1,0 +1,11 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { CheckCircle2, ChefHat, Clock3, Loader2, XCircle } from "lucide-react";
+import "./status.css";
+
+type Order={order_no:string;customer_name:string;status:string;created_at:string;updated_at:string};
+const labels:Record<string,string>={new:"Order received",accepted:"Order accepted",preparing:"Being prepared",ready:"Ready for pickup",served:"Completed",cancelled:"Cancelled"};
+const steps=["new","accepted","preparing","ready","served"];
+export default function MenuStatus(){const [order,setOrder]=useState<Order|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true);const load=async()=>{const id=new URLSearchParams(window.location.search).get("order")||"";if(!id){setError("No order number was provided.");setLoading(false);return}try{const r=await fetch(`/api/menu/status?order=${encodeURIComponent(id)}`,{cache:"no-store"});const x=await r.json();if(!r.ok)throw new Error(x.error||"Order not found");setOrder(x.order)}catch(e:any){setError(e.message)}finally{setLoading(false)}};useEffect(()=>{load();const t=setInterval(load,10000);return()=>clearInterval(t)},[]);if(loading)return <main className="ms-page"><Loader2 className="spin"/><b>Checking your order…</b></main>;if(error)return <main className="ms-page"><XCircle size={48}/><h1>Order Not Found</h1><p>{error}</p><a href="/menu/order">Back to WISE MENU</a></main>;const current=order!.status;const currentIndex=steps.indexOf(current);return <main className="ms-page"><section className="ms-card"><div className="ms-logo"><ChefHat size={20}/></div><span className="ms-kicker">WISE MENU</span><h1>{labels[current]||current}</h1><p className="ms-customer">Hi, <b>{order!.customer_name}</b></p><div className="ms-order"><span>ORDER</span><b>{order!.order_no}</b></div><div className="ms-track">{steps.map((s,i)=><div className={`ms-step ${i<=currentIndex&&current!=="cancelled"?"done":""}`} key={s}><span>{i<currentIndex?<CheckCircle2 size={17}/>:i===currentIndex?<Clock3 size={17}/>:<i/>}</span><small>{labels[s]}</small></div>)}</div>{current==="cancelled"&&<div className="ms-cancel"><XCircle size={20}/> This order was cancelled.</div>}<p className="ms-updated">Automatically updated • {new Date(order!.updated_at).toLocaleTimeString()}</p><a className="ms-menu" href="/menu/order">Order More</a></section></main>;
+}
