@@ -1,94 +1,30 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { Copy, ExternalLink, Printer, QrCode, RefreshCw, ScanLine, Send, Smartphone, ChefHat } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Check, ChevronRight, Copy, ExternalLink, Mail, Printer, QrCode, RefreshCw, ScanLine, Send, Smartphone, UserRound, X, ChefHat } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Sidebar from "../components/Sidebar";
 import "./wise-menu.css";
 
-export default function WiseMenuPage() {
-  const [origin, setOrigin] = useState("");
-  const [copied, setCopied] = useState(false);
+type Item={product_id:string;product_name:string;quantity:number;unit_price:number;line_total:number;options?:any};
+type Order={id:string;order_no:string;customer_name:string;customer_email?:string|null;notes?:string|null;status:string;subtotal:number;total:number;created_at:string;wise_menu_order_items:Item[]};
 
-  useEffect(() => setOrigin(window.location.origin), []);
-
-  const base = origin || "https://print-wise-pos.vercel.app";
-  const menuUrl = `${base}/menu/order`;
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(menuUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <div className="wise-menu-shell">
-      <Sidebar />
-      <main className="wise-menu-main">
-        <header className="wise-receiving-header">
-          <div>
-            <div className="wise-menu-kicker"><QrCode size={15} /> WISE MENU RECEIVING PORTAL</div>
-            <h1>WISE MENU</h1>
-            <p>One universal QR code for all customers. Scan, order, and send the order directly to WISE KITCHEN.</p>
-          </div>
-          <div className="wise-receiving-actions">
-            <button type="button" onClick={() => window.location.reload()}><RefreshCw size={16} /> Refresh</button>
-            <button type="button" onClick={() => window.print()}><Printer size={16} /> Print QR</button>
-          </div>
-        </header>
-
-        <section className="receiving-hero">
-          <div className="receiving-hero-icon"><ScanLine size={28} /></div>
-          <div className="receiving-hero-copy">
-            <span>UNIVERSAL CUSTOMER QR</span>
-            <h2>One QR Code. One WISE MENU.</h2>
-            <p>Use this single QR code anywhere customers need to order. No table-specific QR codes are required.</p>
-          </div>
-          <div className="receiving-flow">
-            <div><QrCode size={18} /><b>SCAN</b><small>Universal QR</small></div>
-            <Send size={16} />
-            <div><Smartphone size={18} /><b>ORDER</b><small>Customer phone</small></div>
-            <Send size={16} />
-            <div><ChefHat size={18} /><b>RECEIVE</b><small>WISE KITCHEN</small></div>
-          </div>
-        </section>
-
-        <section className="wise-universal-qr-wrap">
-          <article className="wise-universal-qr-card">
-            <div className="universal-label">WISE MENU</div>
-            <h2>SCAN TO ORDER</h2>
-            <p className="universal-subtitle">Use your phone camera to open the customer menu</p>
-
-            <div className="universal-qr-box">
-              <QRCodeSVG value={menuUrl} size={300} level="M" includeMargin />
-            </div>
-
-            <div className="universal-qr-badge"><QrCode size={14} /> UNIVERSAL QR CODE</div>
-
-            <div className="universal-actions">
-              <a href={menuUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Open Menu</a>
-              <button type="button" onClick={copyLink}><Copy size={15} /> {copied ? "Copied" : "Copy Link"}</button>
-              <button type="button" onClick={() => window.print()}><Printer size={15} /> Print QR</button>
-            </div>
-
-            <div className="universal-url">{menuUrl}</div>
-          </article>
-
-          <aside className="wise-universal-info">
-            <div className="info-kicker">HOW IT WORKS</div>
-            <h3>Customer Ordering Flow</h3>
-            <div className="info-step"><span>01</span><div><b>SCAN</b><small>Customer scans the same QR code.</small></div></div>
-            <div className="info-step"><span>02</span><div><b>SELECT</b><small>Customer chooses products and quantities.</small></div></div>
-            <div className="info-step"><span>03</span><div><b>SEND ORDER</b><small>Customer enters their details and submits.</small></div></div>
-            <div className="info-step"><span>04</span><div><b>WISE KITCHEN</b><small>KOT receives the order and recipe details.</small></div></div>
-            <div className="info-step"><span>05</span><div><b>WISE POS</b><small>Order and inventory workflow continue in the staff system.</small></div></div>
-          </aside>
-        </section>
-      </main>
-    </div>
-  );
+export default function WiseMenuPage(){
+ const [origin,setOrigin]=useState(""); const [copied,setCopied]=useState(false); const [orders,setOrders]=useState<Order[]>([]); const [loading,setLoading]=useState(false); const [selected,setSelected]=useState<Order|null>(null); const [sending,setSending]=useState(false); const [message,setMessage]=useState("");
+ useEffect(()=>setOrigin(window.location.origin),[]);
+ const base=origin||"https://print-wise-pos.vercel.app", menuUrl=`${base}/menu/order`;
+ const getToken=async()=>{const {createClient}=await import("@supabase/supabase-js");const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);const {data}=await sb.auth.getSession();return data.session?.access_token||""};
+ const loadOrders=useCallback(async()=>{setLoading(true);try{const token=await getToken();if(!token)throw new Error("Please sign in first.");const r=await fetch("/api/wise-menu/receiving",{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});const x=await r.json();if(!r.ok)throw new Error(x.error||"Unable to load orders");setOrders(x.orders||[]);}catch(e:any){setMessage(e.message||"Unable to load orders")}finally{setLoading(false)}},[]);
+ useEffect(()=>{loadOrders();const t=window.setInterval(loadOrders,10000);return()=>window.clearInterval(t)},[loadOrders]);
+ const copyLink=async()=>{try{await navigator.clipboard.writeText(menuUrl);setCopied(true);window.setTimeout(()=>setCopied(false),1600)}catch{}};
+ const sendToPos=async()=>{if(!selected||sending)return;setSending(true);try{const token=await getToken();const r=await fetch("/api/wise-menu/receiving",{method:"PATCH",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({order_id:selected.id})});const x=await r.json();if(!r.ok)throw new Error(x.error||"Unable to send order to POS");setOrders(v=>v.filter(o=>o.id!==selected.id));setMessage(`${selected.order_no} confirmed and sent to POS.`);setSelected(null)}catch(e:any){setMessage(e.message||"Unable to send order to POS")}finally{setSending(false)}};
+ return <div className="wise-menu-shell"><Sidebar/><main className="wise-menu-main">
+ <header className="wise-receiving-header"><div><div className="wise-menu-kicker"><QrCode size={15}/> WISE MENU RECEIVING PORTAL</div><h1>WISE MENU</h1><p>Cashier receiving portal — review customer order files before sending them to POS.</p></div><div className="wise-receiving-actions"><button onClick={loadOrders}><RefreshCw size={16}/> Refresh</button><button onClick={()=>window.print()}><Printer size={16}/> Print QR</button></div></header>
+ <section className="wise-orders-panel"><div className="wise-orders-head"><div><span className="wise-menu-kicker">CUSTOMER ORDERS</span><h2>Incoming Orders</h2><p>Open <b>View</b> to check the customer's complete order, then confirm and send it to POS.</p></div><div className="wise-live"><i/> LIVE · {orders.length} pending</div></div>
+ {message&&<div className="wise-order-message">{message}<button onClick={()=>setMessage("")}><X size={15}/></button></div>}
+ {loading&&orders.length===0?<div className="wise-orders-empty">Loading customer orders…</div>:orders.length===0?<div className="wise-orders-empty"><Smartphone size={30}/><b>No incoming customer orders</b><span>New WISE MENU orders will appear here automatically.</span></div>:<div className="wise-orders-table-wrap"><table className="wise-orders-table"><thead><tr><th>Order</th><th>Customer</th><th>Date / Time</th><th>Items</th><th>Total</th><th>Status</th><th>Action</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td><b>{o.order_no}</b></td><td><div className="wise-customer-cell"><UserRound size={15}/><div><b>{o.customer_name}</b><small>{o.customer_email||"No email"}</small></div></div></td><td>{new Date(o.created_at).toLocaleString()}</td><td>{o.wise_menu_order_items.reduce((n,i)=>n+i.quantity,0)}</td><td><b>₱{Number(o.total).toFixed(2)}</b></td><td><span className={`wise-status ${o.status}`}>{o.status}</span></td><td><button className="wise-view-btn" onClick={()=>setSelected(o)}>View <ChevronRight size={15}/></button></td></tr>)}</tbody></table></div>}
+ </section>
+ <section className="receiving-hero"><div className="receiving-hero-icon"><ScanLine size={28}/></div><div className="receiving-hero-copy"><span>UNIVERSAL CUSTOMER QR</span><h2>One QR Code. One WISE MENU.</h2><p>One QR for all customers. Orders first arrive here for cashier verification.</p></div><div className="receiving-flow"><div><QrCode size={18}/><b>SCAN</b><small>Universal QR</small></div><Send size={16}/><div><Smartphone size={18}/><b>ORDER</b><small>Customer phone</small></div><Send size={16}/><div><UserRound size={18}/><b>CONFIRM</b><small>Cashier review</small></div></div></section>
+ <section className="wise-universal-qr-wrap"><article className="wise-universal-qr-card"><div className="universal-label">WISE MENU</div><h2>SCAN TO ORDER</h2><p className="universal-subtitle">Use your phone camera to open the customer menu</p><div className="universal-qr-box"><QRCodeSVG value={menuUrl} size={300} level="M" includeMargin/></div><div className="universal-qr-badge"><QrCode size={14}/> UNIVERSAL QR CODE</div><div className="universal-actions"><a href={menuUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Open Menu</a><button onClick={copyLink}><Copy size={15}/> {copied?"Copied":"Copy Link"}</button><button onClick={()=>window.print()}><Printer size={15}/> Print QR</button></div><div className="universal-url">{menuUrl}</div></article><aside className="wise-universal-info"><div className="info-kicker">WORKFLOW</div><h3>Customer → Cashier → POS</h3><div className="info-step"><span>01</span><div><b>SCAN & ORDER</b><small>Customer uses the one universal QR.</small></div></div><div className="info-step"><span>02</span><div><b>RECEIVE</b><small>Order file appears in the Incoming Orders table.</small></div></div><div className="info-step"><span>03</span><div><b>VIEW</b><small>Cashier checks customer, items, quantities, notes and total.</small></div></div><div className="info-step"><span>04</span><div><b>CONFIRM</b><small>Cashier confirms the displayed order is correct.</small></div></div><div className="info-step"><span>05</span><div><b>SEND TO POS</b><small>Confirmed order becomes an unpaid POS order.</small></div></div></aside></section>
+ {selected&&<div className="wise-order-overlay" onClick={()=>setSelected(null)}><section className="wise-order-modal" onClick={e=>e.stopPropagation()}><header><div><span>WISE MENU ORDER FILE</span><h2>{selected.order_no}</h2></div><button onClick={()=>setSelected(null)}><X/></button></header><div className="wise-order-customer"><div><UserRound size={17}/><div><small>Customer</small><b>{selected.customer_name}</b></div></div><div><Mail size={17}/><div><small>Email</small><b>{selected.customer_email||"—"}</b></div></div><span className={`wise-status ${selected.status}`}>{selected.status}</span></div><div className="wise-order-items"><h3>Customer Order</h3>{selected.wise_menu_order_items.map((i,n)=><div className="wise-order-item" key={`${i.product_id}-${n}`}><div><b>{i.product_name}</b><small>{i.quantity} × ₱{Number(i.unit_price).toFixed(2)}</small></div><strong>₱{Number(i.line_total).toFixed(2)}</strong></div>)}</div>{selected.notes&&<div className="wise-order-notes"><b>Special Instructions</b><p>{selected.notes}</p></div>}<div className="wise-order-total"><span>Total</span><b>₱{Number(selected.total).toFixed(2)}</b></div><footer><button className="wise-cancel-btn" onClick={()=>setSelected(null)}>Close</button><button className="wise-confirm-btn" onClick={sendToPos} disabled={sending}>{sending?<><RefreshCw className="spin" size={17}/> Sending to POS…</>:<><Check size={17}/> Confirm Order & Send to POS</>}</button></footer></section></div>}
+ </main></div>;
 }
