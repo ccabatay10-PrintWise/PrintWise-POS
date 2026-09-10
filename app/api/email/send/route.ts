@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 const b64url = (s: string) => Buffer.from(s).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 
@@ -18,18 +19,48 @@ const automaticEmail = (trigger: string, job: any) => {
   }
 };
 
-export async function POST(req: Request) {
+function envValue(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim().replace(/^['\"]|['\"]$/g, "");
+    if (value) return value;
+  }
+  return "";
+}
+
+async function authorizeStaff(request: NextRequest) {
+  const url = envValue("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL");
+  const anonKey = envValue("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_ANON_KEY");
+  const service = envValue("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE", "SERVICE_ROLE_KEY");
+  if (!url || !anonKey || !service) return { error: NextResponse.json({ error: "Email service authentication is not configured." }, { status: 500 }) };
+
+  const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return { error: NextResponse.json({ error: "Authentication is required to send email." }, { status: 401 }) };
+
+  const authClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: authData, error: authError } = await authClient.auth.getUser(token);
+  if (authError || !authData.user) return { error: NextResponse.json({ error: "Your session has expired. Please sign in again." }, { status: 401 }) };
+
+  const db = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: profile, error: profileError } = await db.from("profiles").select("role,is_active").eq("id", authData.user.id).maybeSingle();
+  if (profileError) return { error: NextResponse.json({ error: "Unable to verify your account permissions." }, { status: 500 }) };
+  const role = String(profile?.role || authData.user.app_metadata?.role || "").trim().toLowerCase();
+  if (!["admin", "staff"].includes(role) || profile?.is_active === false) return { error: NextResponse.json({ error: "Staff or admin access is required to send email." }, { status: 403 }) };
+  return { url, service };
+}
+
+export async function POST(req: NextRequest) {
   try {
+    const auth = await authorizeStaff(req);
+    if (auth.error) return auth.error;
+    const { url, service } = auth;
+
     const body = await req.json();
     let { jobId, notificationType, to, subject, message, resendOf } = body;
     const automatic = body.automatic === true;
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (automatic) {
       const trigger = String(body.trigger || body.status || "").toUpperCase();
-      if (!jobId || !trigger || !url || !service) return NextResponse.json({ error: "Automatic email is missing job details or server configuration." }, { status: 400 });
-      const { createClient } = await import("@supabase/supabase-js");
+      if (!jobId || !trigger) return NextResponse.json({ error: "Automatic email is missing job details." }, { status: 400 });
       const db = createClient(url, service);
       const { data: job, error: jobError } = await db.from("received_file_jobs").select("id, reference_no, customer_name, email, customer_email, amount_paid, receipt_reference").eq("id", jobId).single();
       if (jobError || !job) return NextResponse.json({ error: jobError?.message || "File job not found." }, { status: 404 });
@@ -69,11 +100,8 @@ export async function POST(req: Request) {
     const sent = await sendRes.json();
     if (!sendRes.ok) throw new Error(sent?.error?.message || "Gmail rejected the email.");
 
-    if (url && service) {
-      const { createClient } = await import("@supabase/supabase-js");
-      const db = createClient(url, service);
-      await db.from("customer_notifications").insert({ job_id: jobId, notification_type: notificationType, recipient: to, message, status: "SENT", sent_at: new Date().toISOString(), provider_message_id: sent.id, resend_of: resendOf || null, error_message: null });
-    }
+    const db = createClient(url, service);
+    await db.from("customer_notifications").insert({ job_id: jobId, notification_type: notificationType, recipient: to, message, status: "SENT", sent_at: new Date().toISOString(), provider_message_id: sent.id, resend_of: resendOf || null, error_message: null });
     return NextResponse.json({ ok: true, id: sent.id, status: "SENT", notificationType });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Unable to send email." }, { status: 500 });
