@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronRight, FileText, LayoutDashboard, Layers3, LogOut, Menu, Package, Plus, ReceiptText, Settings, ShoppingCart, UserPlus, Users, Wallet, X } from "lucide-react";
+import { ChevronRight, FileText, LayoutDashboard, Layers3, LogOut, Menu, Package, Plus, ReceiptText, Settings, ShoppingCart, UserPlus, Users, Wallet, X, Utensils } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 const nav = [
   [LayoutDashboard, "Dashboard", "/dashboard"],
   [ShoppingCart, "Point of Sale", "/pos"],
+  [Utensils, "WISE MENU", "/wise-menu"],
   [ReceiptText, "Transactions", "/orders"],
   [Wallet, "Payments", "/gcash-bayad"],
   [Package, "Products & Services", "/products"],
