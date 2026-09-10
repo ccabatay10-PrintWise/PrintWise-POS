@@ -13,7 +13,7 @@ const staffAllowedRoutes = [
 ];
 
 function roleOf(user: any) {
-  return user?.app_metadata?.role || user?.user_metadata?.role || "admin";
+  return user?.app_metadata?.role || user?.user_metadata?.role || "unknown";
 }
 
 function isStaffAllowedRoute(pathname: string) {
@@ -43,7 +43,8 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
         return;
       }
 
-      // Non-staff users should not stay inside the staff portal.
+      // Unknown/missing role must never be treated as an administrator.
+      // Keep unknown users out of the staff portal until their role is resolved.
       if (pathname === "/staff" || pathname.startsWith("/staff/")) {
         router.replace("/dashboard");
       }
