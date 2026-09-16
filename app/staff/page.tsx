@@ -2,36 +2,70 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChefHat, LogOut, ReceiptText, ShoppingCart, Users, Wallet, UtensilsCrossed } from "lucide-react";
+import {
+  ArrowRight,
+  ChefHat,
+  Clock3,
+  LogOut,
+  ReceiptText,
+  ShoppingCart,
+  Users,
+  Wallet,
+  UtensilsCrossed,
+} from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import "./staff.css";
+
+const cards = [
+  { href: "/pos", icon: ShoppingCart, title: "Point of Sale", text: "Create and process customer orders.", tag: "SALES" },
+  { href: "/wise-menu", icon: UtensilsCrossed, title: "WISE MENU", text: "Receive customer QR menu orders and send confirmed orders to POS.", tag: "RECEIVING" },
+  { href: "/wise-kitchen", icon: ChefHat, title: "WISE KITCHEN", text: "Receive kitchen orders and view recipes, measurements, and preparation details.", tag: "KITCHEN" },
+  { href: "/orders", icon: ReceiptText, title: "Orders", text: "View, reopen, print, and manage order records.", tag: "RECORDS" },
+  { href: "/gcash-bayad", icon: Wallet, title: "GCash / Bayad", text: "Process and record payment transactions.", tag: "PAYMENTS" },
+  { href: "/customers", icon: Users, title: "Customers", text: "Access customer information and order history.", tag: "CUSTOMERS" },
+];
 
 export default function StaffPage() {
   const router = useRouter();
   const [name, setName] = useState("Staff");
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState("");
 
   useEffect(() => {
     let active = true;
-
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!active) return;
       if (!user) {
         router.replace("/pos");
         return;
       }
-
       const role = user.app_metadata?.role || user.user_metadata?.role;
       if (role !== "staff") {
         router.replace("/dashboard");
         return;
       }
-
       setName(user.user_metadata?.full_name || user.email?.split("@")[0] || "Staff");
       setLoading(false);
-    });
+    };
+    load();
+
+    const updateClock = () => {
+      setNow(new Intl.DateTimeFormat("en-PH", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date()));
+    };
+    updateClock();
+    const clock = window.setInterval(updateClock, 30000);
 
     return () => {
       active = false;
+      window.clearInterval(clock);
     };
   }, [router]);
 
@@ -40,49 +74,79 @@ export default function StaffPage() {
     router.replace("/pos");
   };
 
-  const cards = [
-    { href: "/pos", icon: ShoppingCart, title: "Point of Sale", text: "Create and process customer orders." },
-    { href: "/wise-menu", icon: UtensilsCrossed, title: "WISE MENU", text: "Receive customer QR menu orders and send confirmed orders to POS." },
-    { href: "/wise-kitchen", icon: ChefHat, title: "WISE KITCHEN", text: "Receive kitchen orders and view recipes, measurements, and preparation details." },
-    { href: "/orders", icon: ReceiptText, title: "Orders", text: "View and manage order records." },
-    { href: "/gcash-bayad", icon: Wallet, title: "GCash / Bayad", text: "Process and record payment transactions." },
-    { href: "/customers", icon: Users, title: "Customers", text: "Access customer information." },
-  ];
-
   if (loading) {
-    return <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f4f6fb", color: "#26364b", fontWeight: 700 }}>Loading Staff Portal...</main>;
+    return (
+      <main className="staff-loading">
+        <div className="staff-loading-card">
+          <div className="staff-logo-mark">W</div>
+          <strong>Loading Staff Portal</strong>
+          <span>Preparing your assigned tools...</span>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f4f6fb", color: "#26364b", padding: "28px" }}>
-      <section style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <header style={{ background: "linear-gradient(135deg,#1f365d,#38578a)", color: "white", borderRadius: 24, padding: "34px", display: "flex", justifyContent: "space-between", gap: 20, alignItems: "center", boxShadow: "0 18px 45px rgba(25,52,90,.18)" }}>
-          <div>
-            <div style={{ fontSize: 12, letterSpacing: 2, fontWeight: 800, opacity: .8 }}>PRINTWISE STAFF PORTAL</div>
-            <h1 style={{ margin: "10px 0 6px", fontSize: 32 }}>Welcome, {name}</h1>
-            <p style={{ margin: 0, opacity: .82 }}>Use your assigned tools to process daily PrintWise transactions.</p>
+    <main className="staff-page">
+      <section className="staff-shell">
+        <header className="staff-hero">
+          <div className="staff-hero-content">
+            <div className="staff-eyebrow">PRINTWISE • STAFF PORTAL</div>
+            <div className="staff-welcome-row">
+              <div>
+                <h1>Welcome, {name}</h1>
+                <p>Everything you need for today&apos;s operations, in one place.</p>
+              </div>
+            </div>
+            <div className="staff-hero-meta">
+              <span><span className="staff-live-dot" /> Staff account active</span>
+              {now && <span><Clock3 size={15} /> {now}</span>}
+            </div>
           </div>
-          <button onClick={signOut} style={{ border: 0, borderRadius: 12, padding: "12px 18px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}><LogOut size={18}/> SIGN OUT</button>
+          <button className="staff-signout" onClick={signOut} type="button">
+            <LogOut size={17} />
+            Sign Out
+          </button>
         </header>
 
-        <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 18 }}>
-          {cards.map(({ href, icon: Icon, title, text }) => (
+        <div className="staff-section-heading">
+          <div>
+            <span className="staff-section-kicker">YOUR WORKSPACE</span>
+            <h2>Daily Operations</h2>
+          </div>
+          <span className="staff-tool-count">{cards.length} available tools</span>
+        </div>
+
+        <div className="staff-grid">
+          {cards.map(({ href, icon: Icon, title, text, tag }) => (
             <button
               key={href}
               type="button"
+              className={`staff-tool-card ${title === "WISE MENU" ? "staff-tool-featured" : ""}`}
               onClick={() => router.push(href)}
-              style={{ textAlign: "left", color: "inherit", background: "white", border: "1px solid #e2e7ef", borderRadius: 20, padding: 24, boxShadow: "0 8px 25px rgba(31,54,93,.07)", cursor: "pointer", font: "inherit" }}
             >
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: "#eef3fb", display: "grid", placeItems: "center", marginBottom: 18 }}><Icon size={23}/></div>
-              <h2 style={{ margin: "0 0 8px", fontSize: 19 }}>{title}</h2>
-              <p style={{ margin: 0, color: "#6d7a8d", lineHeight: 1.5 }}>{text}</p>
+              <div className="staff-tool-top">
+                <div className="staff-tool-icon"><Icon size={23} strokeWidth={2} /></div>
+                <span className="staff-tool-tag">{tag}</span>
+              </div>
+              <div className="staff-tool-body">
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </div>
+              <span className="staff-tool-action">Open <ArrowRight size={16} /></span>
             </button>
           ))}
         </div>
 
-        <div style={{ marginTop: 24, background: "#fff4f2", border: "1px solid #ffd8d1", borderRadius: 16, padding: "16px 18px", color: "#9d3023" }}>
-          <b>Staff Access:</b> Your account is restricted from Admin Dashboard, Staff Management, Products, Inventory, and Reports.
-        </div>
+        <section className="staff-access-card">
+          <div className="staff-access-icon"><Users size={19} /></div>
+          <div>
+            <strong>Staff Access</strong>
+            <p>Your account has access to POS, WISE MENU, WISE KITCHEN, Orders, Payments, and Customers. Administrative areas remain restricted.</p>
+          </div>
+        </section>
+
+        <footer className="staff-footer">PRINTWISE POS • STAFF WORKSPACE</footer>
       </section>
     </main>
   );
