@@ -25,6 +25,17 @@ async function authorize(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { admin } = await authorize(request);
+    const orderId = request.nextUrl.searchParams.get("orderId")?.trim();
+
+    if (orderId) {
+      const { data: order, error: orderError } = await admin.from("pos_orders").select("id,order_no,customer_name,total,amount_paid,balance,notes,created_at,source_type,source_id,status").eq("id", orderId).eq("source_type", "wise_menu_order").eq("status", "pending").maybeSingle();
+      if (orderError) throw orderError;
+      if (!order) throw new Error("WISE MENU order is no longer available for payment.");
+      const { data: items, error: itemsError } = await admin.from("pos_order_items").select("product_id,product_name,quantity,unit_price,line_total").eq("order_id", orderId).order("created_at", { ascending: true });
+      if (itemsError) throw itemsError;
+      return NextResponse.json({ ok: true, order: { ...order, items: items ?? [] } });
+    }
+
     const { data, error } = await admin.from("pos_orders").select("id,order_no,customer_name,total,amount_paid,balance,notes,created_at,source_type,source_id").eq("source_type", "wise_menu_order").eq("status", "pending").order("created_at", { ascending: true });
     if (error) throw error;
     return NextResponse.json({ ok: true, orders: data ?? [] });
