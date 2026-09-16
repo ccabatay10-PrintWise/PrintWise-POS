@@ -2,124 +2,45 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, CheckCircle2, ChevronRight, ClipboardList, Clock3, FileText, FolderOpen, Loader2, Printer, Search, X } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "../../lib/supabase";
 
-type Order = {
-  id: string;
-  order_no: string;
-  customer_name: string | null;
-  subtotal: number;
-  discount_amount: number;
-  total: number;
-  amount_paid: number;
-  balance?: number;
-  status: string;
-  created_at: string;
-  transacted_by?: string;
-};
+type Order={id:string;order_no:string;customer_name:string|null;subtotal:number;discount_amount:number;total:number;amount_paid:number;balance?:number;status:string;created_at:string;transacted_by?:string};
+type DetailItem={id:string;product_id:string;item_name:string;unit_price:number;quantity:number;line_total:number};
+type Payment={channel:string;amount:number;transaction_type:string;status:string};
 
-const money = (value: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(value || 0));
-const statusText = (status: string) => {
-  const normalized = String(status || "").toLowerCase();
-  if (normalized === "completed") return "Completed";
-  if (normalized === "voided") return "Voided";
-  if (normalized === "draft") return "Draft";
-  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "Pending";
-};
+const money=(v:number)=>new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP"}).format(Number(v||0));
+const statusText=(s:string)=>{const n=String(s||"").toLowerCase();if(n==="completed")return"Completed";if(n==="voided")return"Voided";if(n==="draft")return"Draft";return n?n.charAt(0).toUpperCase()+n.slice(1):"Pending"};
+const normalizeWM=(v:string)=>{const c=String(v||"").trim().replace(/^#/ ,"");return c?c.replace(/^(?:WM-)+/i,"WM-"):""};
+const esc=(v:unknown)=>String(v??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]!));
 
-function printDocument(order: Order, kind: "receipt" | "slip" | "order") {
-  const title = kind === "receipt" ? "Receipt" : kind === "slip" ? "Payment Slip" : "Order";
-  const customer = order.customer_name || "Walk-in Customer";
-  const date = new Date(order.created_at).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title} - ${order.order_no}</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#17243a}main{max-width:760px;margin:auto}h1{margin:0 0 4px;font-size:24px}h2{margin:20px 0 8px;font-size:16px}p{margin:5px 0;color:#536b88}.head{display:flex;justify-content:space-between;border-bottom:1px solid #d9e2ec;padding-bottom:14px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:18px}.row{display:flex;justify-content:space-between;border-bottom:1px solid #edf1f5;padding:9px 0}.total{font-size:18px;font-weight:800;border-top:2px solid #17243a;margin-top:12px;padding-top:12px}@media print{body{padding:10mm}}</style></head><body><main><div class="head"><div><h1>PRINTWISE</h1><p>${title}</p></div><strong>${order.order_no}</strong></div><div class="meta"><div><b>Customer</b><br>${customer}</div><div><b>Date</b><br>${date}</div><div><b>Status</b><br>${statusText(order.status)}</div><div><b>Transacted By</b><br>${order.transacted_by || "Not recorded"}</div></div><h2>Order Summary</h2><div class="row"><span>Subtotal</span><b>${money(order.subtotal)}</b></div><div class="row"><span>Discount</span><b>- ${money(order.discount_amount)}</b></div><div class="row total"><span>Total</span><b>${money(order.total)}</b></div><div class="row"><span>Amount Paid</span><b>${money(order.amount_paid)}</b></div><div class="row"><span>Balance</span><b>${money(Math.max(0, Number(order.balance || 0)))} </b></div></main><script>window.onload=()=>{window.focus();window.print();setTimeout(()=>window.close(),500)}</script></body></html>`;
-  const popup = window.open("", "_blank", "width=820,height=720");
-  if (!popup) return;
-  popup.document.write(html);
-  popup.document.close();
+async function printDocument(order:Order,kind:"receipt"|"slip"|"order"){
+  const popup=window.open("","wise-order-print","width=420,height=820");
+  if(!popup)return;
+  const title=kind==="receipt"?"Receipt":kind==="slip"?"Payment Slip":"Order";
+  const customer=order.customer_name||"Walk-in Customer";
+  const date=new Date(order.created_at).toLocaleString("en-PH",{dateStyle:"medium",timeStyle:"short"});
+  let items:DetailItem[]=[];let payment="Cash";
+  try{
+    const {data}=await supabase.auth.getSession();const token=data.session?.access_token;
+    if(token){const r=await fetch(`/api/orders?orderId=${encodeURIComponent(order.id)}`,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});const x=await r.json();if(r.ok){items=(x.items||[]).map((i:any)=>({...i,unit_price:Number(i.unit_price||0),quantity:Number(i.quantity||0),line_total:Number(i.line_total||0)}));const p=(x.payments||[]).find((p:any)=>p.transaction_type==="payment"&&p.status==="successful");if(p?.channel)payment=String(p.channel).toLowerCase()==="cash"?"Cash":String(p.channel).toUpperCase()==="GCASH"?"GCash":String(p.channel);}}
+  }catch{}
+  const orderNo=normalizeWM(order.order_no);const isWM=orderNo.startsWith("WM-");
+  const lines=items.map(i=>`<div class="item"><span>${esc(i.quantity)} ${esc(i.item_name)}</span><b>${money(i.line_total)}</b></div>`).join("");
+  const change=Math.max(0,Number(order.amount_paid||0)-Number(order.total||0));
+  const qr=isWM?`<section class="qr"><div class="qr-title">ORDER STATUS</div><div class="qr-box"><div id="qr"></div></div><div class="qr-order">${esc(orderNo)}</div><div class="qr-hint">Scan to view your order status</div></section>`:"";
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${title} - ${esc(orderNo||order.order_no)}</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;width:72mm;margin:0 auto;padding:7mm 5mm;color:#003b70;background:#fff;font-size:12px}.receipt{text-align:left}.store{text-align:center;font-size:19px;font-weight:800;margin:0 0 16px}.meta{line-height:1.45}.line{border-top:1px solid #c8d4df;margin:13px 0}.item{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #dbe3ea}.item span{max-width:68%}.labelrow{display:flex;justify-content:space-between;padding:7px 0}.grand{font-size:18px;font-weight:800;border-top:1px solid #c8d4df;border-bottom:1px solid #c8d4df;padding:13px 0;margin-top:4px}.footer{text-align:center;border-top:1px solid #c8d4df;margin-top:15px;padding-top:25px;font-size:14px}.qr{text-align:center;border-top:1px dashed #9aa9b8;margin-top:18px;padding-top:14px}.qr-title{font-size:10px;font-weight:800;letter-spacing:1px}.qr-box{margin:8px auto;width:30mm;height:30mm}.qr-box svg{display:block;width:30mm;height:30mm}.qr-order{font-size:10px;font-weight:700;margin-top:6px}.qr-hint{font-size:8px;color:#667085;margin-top:3px}@media print{@page{size:72mm auto;margin:0}body{padding:6mm 4mm}}</style></head><body><main class="receipt"><h2 class="store">Espacio</h2><div class="meta">${esc(date)}<br>Order #: ${esc(orderNo||order.order_no)}<br>Payment: ${esc(payment)}<br>Customer: ${esc(customer)}</div><div class="line"></div>${lines||`<div class="labelrow"><span>Order</span><b>${money(order.total)}</b></div>`}<div class="line"></div><div class="labelrow"><span>Items:</span><b>${items.reduce((n,i)=>n+Number(i.quantity||0),0)||0}</b></div><div class="labelrow"><span>Subtotal:</span><b>${money(order.subtotal)}</b></div>${Number(order.discount_amount||0)>0?`<div class="labelrow"><span>Discount:</span><b>- ${money(order.discount_amount)}</b></div>`:""}<div class="labelrow grand"><span>Total Amount:</span><b>${money(order.total)}</b></div><div class="labelrow"><span>Total Paid:</span><b>${money(order.amount_paid)}</b></div><div class="labelrow"><span>Change:</span><b>${money(change)}</b></div><div class="footer">THANK YOU! COME AGAIN!</div>${qr}</main>${isWM?`<script>const svg=${JSON.stringify("" )};</script>`:""}</body></html>`;
+  popup.document.write(html);popup.document.close();
+  if(isWM){const host=popup.document.getElementById("qr");if(host){const src=document.querySelector(`[data-order-qr="${CSS.escape(order.id)}"] svg`) as SVGElement|null;if(src)host.innerHTML=src.outerHTML;}}
+  popup.onload=()=>{setTimeout(()=>{popup.focus();popup.print();popup.onafterprint=()=>popup.close()},120)};
 }
 
-export default function OrdersQuickModal() {
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"orders" | "unpaid">("orders");
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const handleQuickOrder = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      const button = target?.closest(".wise-quick-action") as HTMLElement | null;
-      if (!button) return;
-      const label = button.querySelector("span")?.textContent?.trim().toLowerCase();
-      if (label !== "orders") return;
-      event.preventDefault();
-      event.stopPropagation();
-      setOpen(true);
-    };
-    document.addEventListener("click", handleQuickOrder, true);
-    return () => document.removeEventListener("click", handleQuickOrder, true);
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    let active = true;
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (!token) throw new Error("Please sign in again.");
-        const response = await fetch("/api/orders", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || "Unable to load orders.");
-        if (active) setOrders((payload.orders ?? []).map((order: any) => ({
-          ...order,
-          subtotal: Number(order.subtotal || 0),
-          discount_amount: Number(order.discount_amount || 0),
-          total: Number(order.total || 0),
-          amount_paid: Number(order.amount_paid || 0),
-          balance: Number(order.balance || 0),
-        })));
-      } catch (err: any) {
-        if (active) setError(err?.message || "Unable to load orders.");
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    load();
-    return () => { active = false; };
-  }, [open]);
-
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const source = tab === "unpaid"
-      ? orders.filter((order) => String(order.status).toLowerCase() === "draft" || Number(order.balance || 0) > 0)
-      : orders;
-    return source.filter((order) => `${order.order_no} ${order.customer_name || ""} ${order.transacted_by || ""} ${order.status}`.toLowerCase().includes(term));
-  }, [orders, search, tab]);
-
-  const unpaidCount = orders.filter((order) => String(order.status).toLowerCase() === "draft" || Number(order.balance || 0) > 0).length;
-
-  if (!open) return null;
-
-  return <div className="wise-orders-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
-    <section className="wise-orders-modal" role="dialog" aria-modal="true" aria-label="Orders">
-      <header className="wise-orders-head"><div><h2>Orders</h2><p>View, reopen, print, and manage POS orders.</p></div><button type="button" className="wise-orders-close" onClick={() => setOpen(false)} aria-label="Close"><X size={21} /></button></header>
-      <div className="wise-orders-tabs"><button type="button" className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ClipboardList size={17} /> Orders</button><button type="button" className={tab === "unpaid" ? "active" : ""} onClick={() => setTab("unpaid")}><Clock3 size={17} /> Draft &amp; Unpaid ({unpaidCount})</button></div>
-      <div className="wise-orders-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by order number, receipt number, or notes" /></div>
-      {error && <div className="wise-orders-error">{error}</div>}
-      <div className="wise-orders-list">
-        {loading ? <div className="wise-orders-empty"><Loader2 className="wise-spin" size={28} /><strong>Loading orders...</strong><span>Fetching the latest POS orders.</span></div> : filtered.length ? filtered.map((order) => {
-          const unpaid = String(order.status).toLowerCase() === "draft" || Number(order.balance || 0) > 0;
-          return <article className="wise-order-card" key={order.id}>
-            <div className="wise-order-main"><div className="wise-order-title"><strong>{order.order_no}</strong><span className={`wise-order-status ${String(order.status).toLowerCase()}`}>{statusText(order.status)}</span><span className={`wise-order-paid ${unpaid ? "unpaid" : "paid"}`}>{unpaid ? "Unpaid" : "Paid"}</span></div><div className="wise-order-meta"><span><CalendarDays size={16} />{new Date(order.created_at).toLocaleDateString("en-PH", { month: "short", day: "2-digit", year: "numeric" })}</span><span><Clock3 size={16} />{new Date(order.created_at).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</span></div>{order.customer_name && <div className="wise-order-customer"><FileText size={15} />{order.customer_name}</div>}</div>
-            <div className="wise-order-actions"><strong>{money(order.total)}</strong><div><button type="button" className="primary" onClick={() => { window.location.assign(`/orders?orderId=${encodeURIComponent(order.id)}`); }}><FolderOpen size={17} /> Open</button>{!unpaid && <button type="button" onClick={() => printDocument(order, "receipt")}><Printer size={17} /> Receipt</button>}<button type="button" onClick={() => printDocument(order, "slip")}><FileText size={17} /> Slip</button><ChevronRight size={19} className="wise-order-arrow" /></div></div>
-          </article>;
-        }) : <div className="wise-orders-empty"><CheckCircle2 size={30} /><strong>{tab === "unpaid" ? "No draft or unpaid orders" : "No orders found"}</strong><span>{search ? "Try another search term." : "Orders created through WISE POS will appear here."}</span></div>}
-      </div>
-      <footer className="wise-orders-footer">Showing {filtered.length} order{filtered.length === 1 ? "" : "s"}<span> · {orders.length} total loaded</span></footer>
-    </section>
-  </div>;
+export default function OrdersQuickModal(){
+ const [open,setOpen]=useState(false),[tab,setTab]=useState<"orders"|"unpaid">("orders"),[orders,setOrders]=useState<Order[]>([]),[search,setSearch]=useState(""),[loading,setLoading]=useState(false),[error,setError]=useState("");
+ useEffect(()=>{const h=(e:MouseEvent)=>{const t=e.target as HTMLElement|null;const b=t?.closest(".wise-quick-action") as HTMLElement|null;if(!b)return;if(b.querySelector("span")?.textContent?.trim().toLowerCase()!=="orders")return;e.preventDefault();e.stopPropagation();setOpen(true)};document.addEventListener("click",h,true);return()=>document.removeEventListener("click",h,true)},[]);
+ useEffect(()=>{if(!open)return;let active=true;(async()=>{setLoading(true);setError("");try{const {data}=await supabase.auth.getSession();const token=data.session?.access_token;if(!token)throw new Error("Please sign in again.");const r=await fetch("/api/orders",{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});const x=await r.json().catch(()=>({}));if(!r.ok)throw new Error(x.error||"Unable to load orders.");if(active)setOrders((x.orders??[]).map((o:any)=>({...o,subtotal:Number(o.subtotal||0),discount_amount:Number(o.discount_amount||0),total:Number(o.total||0),amount_paid:Number(o.amount_paid||0),balance:Number(o.balance||0)})))}catch(e:any){if(active)setError(e?.message||"Unable to load orders.")}finally{if(active)setLoading(false)}})();return()=>{active=false}},[open]);
+ const filtered=useMemo(()=>{const term=search.trim().toLowerCase();const source=tab==="unpaid"?orders.filter(o=>String(o.status).toLowerCase()==="draft"||Number(o.balance||0)>0):orders;return source.filter(o=>`${o.order_no} ${o.customer_name||""} ${o.transacted_by||""} ${o.status}`.toLowerCase().includes(term))},[orders,search,tab]);
+ const unpaidCount=orders.filter(o=>String(o.status).toLowerCase()==="draft"||Number(o.balance||0)>0).length;
+ if(!open)return null;
+ return <div className="wise-orders-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setOpen(false)}}><section className="wise-orders-modal" role="dialog" aria-modal="true" aria-label="Orders"><header className="wise-orders-head"><div><h2>Orders</h2><p>View, reopen, print, and manage POS orders.</p></div><button type="button" className="wise-orders-close" onClick={()=>setOpen(false)} aria-label="Close"><X size={21}/></button></header><div className="wise-orders-tabs"><button type="button" className={tab==="orders"?"active":""} onClick={()=>setTab("orders")}><ClipboardList size={17}/> Orders</button><button type="button" className={tab==="unpaid"?"active":""} onClick={()=>setTab("unpaid")}><Clock3 size={17}/> Draft &amp; Unpaid ({unpaidCount})</button></div><div className="wise-orders-search"><Search size={18}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by order number, receipt number, or notes"/></div>{error&&<div className="wise-orders-error">{error}</div>}<div className="wise-orders-list">{loading?<div className="wise-orders-empty"><Loader2 className="wise-spin" size={28}/><strong>Loading orders...</strong><span>Fetching the latest POS orders.</span></div>:filtered.length?filtered.map(order=>{const unpaid=String(order.status).toLowerCase()==="draft"||Number(order.balance||0)>0;const wm=normalizeWM(order.order_no);return <article className="wise-order-card" key={order.id}><div className="wise-order-main"><div className="wise-order-title"><strong>{order.order_no}</strong><span className={`wise-order-status ${String(order.status).toLowerCase()}`}>{statusText(order.status)}</span><span className={`wise-order-paid ${unpaid?"unpaid":"paid"}`}>{unpaid?"Unpaid":"Paid"}</span></div><div className="wise-order-meta"><span><CalendarDays size={16}/>{new Date(order.created_at).toLocaleDateString("en-PH",{month:"short",day:"2-digit",year:"numeric"})}</span><span><Clock3 size={16}/>{new Date(order.created_at).toLocaleTimeString("en-PH",{hour:"numeric",minute:"2-digit"})}</span></div>{order.customer_name&&<div className="wise-order-customer"><FileText size={15}/>{order.customer_name}</div>}</div><div className="wise-order-actions"><strong>{money(order.total)}</strong><div><button type="button" className="primary" onClick={()=>window.location.assign(`/orders?orderId=${encodeURIComponent(order.id)}`)}><FolderOpen size={17}/> Open</button>{!unpaid&&<button type="button" onClick={()=>printDocument(order,"receipt")}><Printer size={17}/> Receipt</button>}<button type="button" onClick={()=>printDocument(order,"slip")}><FileText size={17}/> Slip</button><div data-order-qr={order.id} style={{display:"none"}}>{wm.startsWith("WM-")&&<QRCodeSVG value={`${typeof window!=="undefined"?window.location.origin:""}/menu/status?order=${encodeURIComponent(wm)}`} size={180} level="M"/>}</div><ChevronRight size={19} className="wise-order-arrow"/></div></div></article>}) : <div className="wise-orders-empty"><CheckCircle2 size={30}/><strong>{tab==="unpaid"?"No draft or unpaid orders":"No orders found"}</strong><span>{search?"Try another search term.":"Orders created through WISE POS will appear here."}</span></div>}</div><footer className="wise-orders-footer">Showing {filtered.length} order{filtered.length===1?"":"s"}<span> · {orders.length} total loaded</span></footer></section></div>;
 }
