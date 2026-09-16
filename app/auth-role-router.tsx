@@ -10,6 +10,9 @@ const staffAllowedRoutes = [
   "/orders",
   "/gcash-bayad",
   "/customers",
+  "/wise-menu",
+  "/wise-kitchen",
+  "/wise-kitchen/recipes",
 ];
 
 function roleOf(user: any) {
@@ -36,15 +39,12 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
       const role = roleOf(user);
 
       if (role === "staff") {
-        // Staff may freely use only their assigned working tools.
         if (!isStaffAllowedRoute(pathname)) {
           router.replace("/staff");
         }
         return;
       }
 
-      // Unknown/missing role must never be treated as an administrator.
-      // Keep unknown users out of the staff portal until their role is resolved.
       if (pathname === "/staff" || pathname.startsWith("/staff/")) {
         router.replace("/dashboard");
       }
@@ -53,8 +53,6 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
     enforceCurrentRoute();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      // Do not redirect on token/session refresh or when the user switches browser tabs.
-      // Only route after an actual sign-in, and preserve the current page when already signed in.
       if (event === "SIGNED_IN" && session?.user) {
         const role = roleOf(session.user);
         if (role === "staff" && !isStaffAllowedRoute(pathname)) router.replace("/staff");
