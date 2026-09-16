@@ -13,16 +13,24 @@ export default function WiseMenuPendingAction(){
   const [message,setMessage]=useState("");
 
   useEffect(()=>{
-    const query=new URLSearchParams(window.location.search).get("wiseMenuOrder")?.trim();
-    if(query){sessionStorage.setItem(KEY,query);setOrderId(query);return;}
-    setOrderId(sessionStorage.getItem(KEY)||"");
+    let active=true;
+    const resolve=async()=>{
+      const query=new URLSearchParams(window.location.search).get("wiseMenuOrder")?.trim();
+      const candidate=query||sessionStorage.getItem(KEY)||"";
+      if(!candidate)return;
+      if(query)sessionStorage.setItem(KEY,candidate);
+      try{
+        const {data}=await supabase.auth.getSession();
+        const token=data.session?.access_token;
+        if(!token){if(active)setOrderId(candidate);return}
+        const response=await fetch(`/api/pos/wise-menu?orderId=${encodeURIComponent(candidate)}`,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});
+        if(!response.ok){sessionStorage.removeItem(KEY);if(active)setOrderId("");return}
+        if(active)setOrderId(candidate);
+      }catch{if(active)setOrderId(candidate)}
+    };
+    resolve();
+    return()=>{active=false};
   },[]);
-
-  useEffect(()=>{
-    if(!orderId)return;
-    const handler=()=>setOrderId(new URLSearchParams(window.location.search).get("wiseMenuOrder")?.trim()||sessionStorage.getItem(KEY)||"");
-    window.addEventListener("popstate",handler);return()=>window.removeEventListener("popstate",handler);
-  },[orderId]);
 
   if(!orderId)return null;
 
