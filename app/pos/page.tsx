@@ -12,6 +12,7 @@ type CartItem = Product & { quantity: number };
 type Receipt = { orderNo: string; payment: string; amountPaid: number; change: number; total: number; subtotal: number; customer: string; createdAt: string; items: CartItem[] };
 type ShiftData = { sales: number; discounts: number; orders: number; cash: number; nonCash: number; voided: number; loading: boolean };
 type DiscountType = "senior" | "pwd" | "athlete" | "solo_parent" | "percentage" | "amount" | null;
+type WiseMenuOrder = { id: string; order_no: string; customer_name: string | null; total: number; amount_paid: number; balance: number; notes: string | null; created_at: string; items: Array<{ product_id: string; product_name: string; quantity: number; unit_price: number; line_total: number }> };
 
 const payments = [
   { key: "Cash", icon: Banknote }, { key: "GCash", icon: Smartphone }, { key: "Maya", icon: Smartphone },
@@ -26,6 +27,7 @@ export default function POSPage() {
   const [search, setSearch] = useState(""), [category, setCategory] = useState("All"), [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState(""), [discount, setDiscount] = useState(0), [payment, setPayment] = useState("Cash"), [tendered, setTendered] = useState(0);
   const [checkoutOpen, setCheckoutOpen] = useState(false), [saving, setSaving] = useState(false), [message, setMessage] = useState(""), [receipt, setReceipt] = useState<Receipt | null>(null), [moreOpen, setMoreOpen] = useState(false);
+  const [wiseMenuOrderId, setWiseMenuOrderId] = useState(""), [wiseMenuOrderNo, setWiseMenuOrderNo] = useState("");
   const [shiftOpen, setShiftOpen] = useState(false), [shiftData, setShiftData] = useState<ShiftData>({ sales: 0, discounts: 0, orders: 0, cash: 0, nonCash: 0, voided: 0, loading: false });
   const [discountOpen, setDiscountOpen] = useState(false), [discountType, setDiscountType] = useState<DiscountType>(null), [discountRate, setDiscountRate] = useState(20);
   const [discountCustomerName, setDiscountCustomerName] = useState(""), [discountId, setDiscountId] = useState(""), [discountTin, setDiscountTin] = useState("");
@@ -55,6 +57,43 @@ export default function POSPage() {
     };
     load();
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !products.length) return;
+    const orderId = new URLSearchParams(window.location.search).get("wiseMenuOrder")?.trim();
+    if (!orderId || orderId === wiseMenuOrderId) return;
+    let cancelled = false;
+    const loadWiseMenuSale = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) throw new Error("Your session has expired. Please sign in again.");
+        const response = await fetch(`/api/pos/wise-menu?orderId=${encodeURIComponent(orderId)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok || !payload.order) throw new Error(payload.error || "Unable to load the WISE MENU order into Current Sale.");
+        if (cancelled) return;
+        const order: WiseMenuOrder = payload.order;
+        const loadedItems: CartItem[] = order.items.map((item) => {
+          const product = products.find((p) => p.id === item.product_id);
+          return { id: item.product_id, name: item.product_name, category: product?.category || "WISE MENU", price: Number(item.unit_price), unit: product?.unit, image_url: product?.image_url || null, item_type: product?.item_type || "product", quantity: Number(item.quantity) };
+        }).filter((item) => item.quantity > 0);
+        if (!loadedItems.length) throw new Error("The WISE MENU order has no valid items.");
+        setCart(loadedItems);
+        setCustomer(order.customer_name || "");
+        setDiscount(0);
+        setPayment("Cash");
+        setTendered(0);
+        setWiseMenuOrderId(order.id);
+        setWiseMenuOrderNo(order.order_no);
+        setMessage(`WISE MENU ${order.order_no} loaded into Current Sale. Select payment and complete the sale.`);
+        window.history.replaceState({}, "", "/pos");
+      } catch (error: any) {
+        if (!cancelled) setMessage(error?.message || "Unable to load the WISE MENU order into Current Sale.");
+      }
+    };
+    loadWiseMenuSale();
+    return () => { cancelled = true; };
+  }, [user, products, wiseMenuOrderId]);
 
   useEffect(() => {
     if (!shiftOpen || !user) return;
@@ -92,7 +131,7 @@ export default function POSPage() {
 
   const add = (product: Product) => setCart((current) => { const found = current.find((item) => item.id === product.id); return found ? current.map((item) => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...current, { ...product, quantity: 1 }]; });
   const qty = (id: string, delta: number) => setCart((current) => current.map((item) => item.id === id ? { ...item, quantity: item.quantity + delta } : item).filter((item) => item.quantity > 0));
-  const clear = () => { setCart([]); setCustomer(""); setDiscount(0); setTendered(0); setPayment("Cash"); setMessage(""); };
+  const clear = () => { setCart([]); setCustomer(""); setDiscount(0); setTendered(0); setPayment("Cash"); setWiseMenuOrderId(""); setWiseMenuOrderNo(""); setMessage(""); };
 
   const signIn = async () => { setAuthMessage(""); setAuthLoading(true); const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) setAuthMessage(error.message); setAuthLoading(false); };
   const openCheckout = () => { if (!cart.length) { setMessage("Add an item to the cart before checkout."); return; } if (payment !== "Cash") setTendered(total); setMessage(""); setCheckoutOpen(true); };
@@ -100,49 +139,28 @@ export default function POSPage() {
     if (!cart.length) { setMessage("Add an item before applying a discount."); return; }
     setDiscountType("senior"); setDiscountRate(20); setDiscountCustomerName(""); setDiscountId(""); setDiscountTin(""); setChildName(""); setChildDob(""); setChildAge(""); setCustomDiscountValue(""); setDiscountOpen(true);
   };
-  const selectDiscountType = (type: Exclude<DiscountType, null>) => {
-    setDiscountType(type);
-    if (type === "senior" || type === "pwd") setDiscountRate(20);
-  };
+  const selectDiscountType = (type: Exclude<DiscountType, null>) => { setDiscountType(type); if (type === "senior" || type === "pwd") setDiscountRate(20); };
   const openOrders = () => window.location.assign("/orders");
   const openSettings = () => window.location.assign("/settings");
 
   const applyDiscount = () => {
     if (!cart.length) { setDiscountOpen(false); setMessage("Add an item before applying a discount."); return; }
     let amount = 0;
-    if (discountType === "senior" || discountType === "pwd") {
-      if (!discountCustomerName.trim() || !discountId.trim()) { setMessage(`Enter the customer's name and ${discountType === "senior" ? "Senior Citizen" : "PWD"} ID number.`); return; }
-      amount = subtotal * (discountRate / 100);
-    } else if (discountType === "athlete") {
-      if (!discountCustomerName.trim() || !discountId.trim()) { setMessage("Enter the customer's name and National Athlete ID number."); return; }
-      amount = subtotal * 0.20;
-    } else if (discountType === "solo_parent") {
-      if (!discountCustomerName.trim() || !discountId.trim() || !childName.trim() || !childDob || !childAge) { setMessage("Complete the Solo Parent and child information."); return; }
-      amount = subtotal * 0.10;
-    } else if (discountType === "percentage") {
-      const value = Number(customDiscountValue);
-      if (!Number.isFinite(value) || value < 1 || value > 100) { setMessage("Enter a percentage between 1 and 100."); return; }
-      amount = subtotal * (value / 100);
-    } else if (discountType === "amount") {
-      const value = Number(customDiscountValue);
-      if (!Number.isFinite(value) || value <= 0) { setMessage("Enter a valid discount amount."); return; }
-      amount = value;
-    } else {
-      setMessage("Select a discount type first."); return;
-    }
+    if (discountType === "senior" || discountType === "pwd") { if (!discountCustomerName.trim() || !discountId.trim()) { setMessage(`Enter the customer's name and ${discountType === "senior" ? "Senior Citizen" : "PWD"} ID number.`); return; } amount = subtotal * (discountRate / 100); }
+    else if (discountType === "athlete") { if (!discountCustomerName.trim() || !discountId.trim()) { setMessage("Enter the customer's name and National Athlete ID number."); return; } amount = subtotal * 0.20; }
+    else if (discountType === "solo_parent") { if (!discountCustomerName.trim() || !discountId.trim() || !childName.trim() || !childDob || !childAge) { setMessage("Complete the Solo Parent and child information."); return; } amount = subtotal * 0.10; }
+    else if (discountType === "percentage") { const value = Number(customDiscountValue); if (!Number.isFinite(value) || value < 1 || value > 100) { setMessage("Enter a percentage between 1 and 100."); return; } amount = subtotal * (value / 100); }
+    else if (discountType === "amount") { const value = Number(customDiscountValue); if (!Number.isFinite(value) || value <= 0) { setMessage("Enter a valid discount amount."); return; } amount = value; }
+    else { setMessage("Select a discount type first."); return; }
     const applied = Math.min(subtotal, Math.max(0, Number(amount.toFixed(2))));
-    setDiscount(applied);
-    if (discountCustomerName.trim()) setCustomer(discountCustomerName.trim());
-    setDiscountOpen(false); setMessage("");
+    setDiscount(applied); if (discountCustomerName.trim()) setCustomer(discountCustomerName.trim()); setDiscountOpen(false); setMessage("");
   };
 
   const printReceipt = (slip = false) => {
     if (!receipt) return;
     const popup = window.open("", "wise-print", "width=420,height=720");
     if (!popup) { setMessage("Please allow pop-ups to print the receipt."); return; }
-    const created = new Date(receipt.createdAt);
-    const dateText = created.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
-    const title = slip ? "ORDER SLIP" : "RECEIPT";
+    const created = new Date(receipt.createdAt); const dateText = created.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }); const title = slip ? "ORDER SLIP" : "RECEIPT";
     const lines = receipt.items.map((item) => `<div class="row"><span>${item.quantity} ${item.name}</span><b>${money(item.price * item.quantity)}</b></div>`).join("");
     popup.document.write(`<html><head><title>${title} ${receipt.orderNo}</title><style>body{font-family:Arial,sans-serif;width:72mm;margin:0 auto;padding:12px;color:#111;font-size:12px}h2{text-align:center;margin:0 0 4px}p{text-align:center;margin:4px 0 14px}.row{display:flex;justify-content:space-between;gap:8px;margin:8px 0}.row span{max-width:65%}hr{border:0;border-top:1px dashed #999;margin:12px 0}.total{display:flex;justify-content:space-between;font-size:15px;font-weight:700}</style></head><body><h2>Espacio</h2><p>${title}<br>${receipt.orderNo}<br>${dateText}</p>${receipt.customer ? `<div>Customer: ${receipt.customer}</div>` : ""}${lines}<hr><div class="row"><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div><div class="total"><span>Total</span><span>${money(receipt.total)}</span></div>${slip ? "" : `<div class="row"><span>Paid</span><b>${money(receipt.amountPaid)}</b></div><div class="row"><span>Change</span><b>${money(receipt.change)}</b></div>`}<p>THANK YOU! COME AGAIN!</p><script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}</script></body></html>`);
     popup.document.close();
@@ -157,20 +175,19 @@ export default function POSPage() {
     try {
       const { data } = await supabase.auth.getSession(); const token = data.session?.access_token;
       if (!token) throw new Error("Your session has expired. Please sign in again.");
-      const now = Date.now();
+      const now = Date.now(); const transactionNo = `W-${now}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`; const amountPaid = payment === "Cash" ? tendered : total; const createdAt = new Date().toISOString();
+
+      if (wiseMenuOrderId) {
+        const response = await fetch("/api/pos/wise-menu", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ posOrderId: wiseMenuOrderId, channel: payment.toLowerCase().replace(/\s+/g, "_"), amountPaid, transactionNo }) });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "Unable to complete WISE MENU payment.");
+        const completedOrderNo = payload.order_no || wiseMenuOrderNo || `WISE-${wiseMenuOrderId.slice(0, 8)}`;
+        setReceipt({ orderNo: completedOrderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), createdAt, items: [...cart] });
+        setCheckoutOpen(false); setMoreOpen(false); setWiseMenuOrderId(""); setWiseMenuOrderNo(""); window.history.replaceState({}, "", "/pos"); return;
+      }
+
       const orderNo = `WISE-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${String(now).slice(-6)}`;
-      const transactionNo = `W-${now}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-      const amountPaid = payment === "Cash" ? tendered : total;
-      const createdAt = new Date().toISOString();
-      const response = await fetch("/api/pos/checkout", {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          orderNo, transactionNo, customerName: customer.trim() || null, subtotal, discountAmount,
-          discountType: discountAmount > 0 ? "amount" : null, discountValue: discountAmount,
-          total, amountPaid, channel: payment.toLowerCase().replace(/\s+/g, "_"),
-          items: cart.map((item) => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity, lineTotal: item.price * item.quantity })),
-        }),
-      });
+      const response = await fetch("/api/pos/checkout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ orderNo, transactionNo, customerName: customer.trim() || null, subtotal, discountAmount, discountType: discountAmount > 0 ? "amount" : null, discountValue: discountAmount, total, amountPaid, channel: payment.toLowerCase().replace(/\s+/g, "_"), items: cart.map((item) => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity, lineTotal: item.price * item.quantity })) }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok || !payload.order_id) throw new Error(payload.error || "Unable to save the sale.");
       setReceipt({ orderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), createdAt, items: [...cart] }); setCheckoutOpen(false); setMoreOpen(false);
@@ -190,7 +207,7 @@ export default function POSPage() {
       {message && <div className="wise-notice">{message}</div>}
       {productsLoading ? <div className="wise-empty"><ShoppingCart size={34} /><strong>Loading products & services...</strong><span>WISE POS is loading the items enabled for checkout.</span></div> : filtered.length ? <div className="wise-product-grid">{filtered.map((product) => <button className="wise-product" key={product.id} onClick={() => add(product)}>{product.image_url ? <img src={product.image_url} alt="" loading="lazy" decoding="async" /> : <div className="wise-product-letter">{product.name.charAt(0).toUpperCase()}</div>}<div className="wise-product-info"><strong>{product.name}</strong><span>{product.item_type === "service" ? "Service" : product.category}</span><b>{money(product.price)}{product.unit ? ` / ${product.unit}` : ""}</b></div><span className="wise-add"><Plus size={16} /></span></button>)}</div> : <div className="wise-empty"><ShoppingCart size={34} /><strong>No products or services are enabled for POS</strong><span>Go to Products & Services and turn on “Show in POS” for the items you want to sell.</span></div>}
     </section>
-    <aside className="wise-cart"><div className="wise-cart-head"><div><strong>Current Sale</strong><span>{cart.length} item{cart.length === 1 ? "" : "s"}</span></div><button onClick={clear} disabled={!cart.length}><Trash2 size={17} /> Clear</button></div><div className="wise-cart-body">{cart.length ? cart.map((item) => <div className="wise-cart-item" key={item.id}><div className="wise-cart-item-main"><strong>{item.name}</strong><span>{money(item.price)} each</span></div><div className="wise-cart-controls"><button onClick={() => qty(item.id, -1)}><Minus size={14} /></button><b>{item.quantity}</b><button onClick={() => qty(item.id, 1)}><Plus size={14} /></button><strong>{money(item.price * item.quantity)}</strong></div></div>) : <div className="wise-cart-empty"><ShoppingCart size={38} /><strong>Your cart is empty</strong><span>Select products or services to start a sale.</span></div>}</div><div className="wise-cart-footer"><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Customer name (optional)" /><div className="wise-summary"><span>Subtotal</span><b>{money(subtotal)}</b><span>Discount</span><b>- {money(discountAmount)}</b><strong>Total</strong><strong>{money(total)}</strong></div><div className="wise-discount"><label>Discount</label><input ref={discountRef} id="wise-discount-input" type="number" min="0" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value) || 0)} placeholder="0.00" /></div><button className="wise-checkout" disabled={!cart.length} onClick={openCheckout}><ReceiptText size={19} /> CHECKOUT <span>{money(total)}</span></button></div></aside>
+    <aside className="wise-cart"><div className="wise-cart-head"><div><strong>Current Sale</strong><span>{cart.length} item{cart.length === 1 ? "" : "s"}{wiseMenuOrderNo ? ` · ${wiseMenuOrderNo}` : ""}</span></div><button onClick={clear} disabled={!cart.length}><Trash2 size={17} /> Clear</button></div><div className="wise-cart-body">{cart.length ? cart.map((item) => <div className="wise-cart-item" key={item.id}><div className="wise-cart-item-main"><strong>{item.name}</strong><span>{money(item.price)} each</span></div><div className="wise-cart-controls"><button onClick={() => qty(item.id, -1)}><Minus size={14} /></button><b>{item.quantity}</b><button onClick={() => qty(item.id, 1)}><Plus size={14} /></button><strong>{money(item.price * item.quantity)}</strong></div></div>) : <div className="wise-cart-empty"><ShoppingCart size={38} /><strong>Your cart is empty</strong><span>Select products or services to start a sale.</span></div>}</div><div className="wise-cart-footer"><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Customer name (optional)" /><div className="wise-summary"><span>Subtotal</span><b>{money(subtotal)}</b><span>Discount</span><b>- {money(discountAmount)}</b><strong>Total</strong><strong>{money(total)}</strong></div><div className="wise-discount"><label>Discount</label><input ref={discountRef} id="wise-discount-input" type="number" min="0" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value) || 0)} placeholder="0.00" /></div><button className="wise-checkout" disabled={!cart.length} onClick={openCheckout}><ReceiptText size={19} /> CHECKOUT <span>{money(total)}</span></button></div></aside>
     <nav className="wise-quick-actions" aria-label="POS quick actions">
       <button type="button" className="wise-quick-action" onClick={focusDiscount} title="Apply discount"><Percent size={21} /><span>Discount</span></button>
       <button type="button" className="wise-quick-action" onClick={openOrders} title="View orders"><ClipboardList size={21} /><span>Orders</span></button>
@@ -232,7 +249,7 @@ export default function POSPage() {
 
     {shiftOpen && <div className="wise-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShiftOpen(false); }}><div className="wise-modal wise-shift-modal"><div className="wise-modal-head"><div><strong>Current Shift</strong><span>Today's live POS activity for your account</span></div><button onClick={() => setShiftOpen(false)}><X size={20} /></button></div><div className="wise-shift-content">{shiftData.loading ? <div className="wise-empty"><Clock3 size={30} /><strong>Loading shift data...</strong></div> : <><div className="wise-shift-total"><CircleDollarSign size={23} /><div><span>Today's completed sales</span><strong>{money(shiftData.sales)}</strong></div></div><div className="wise-shift-grid"><div><span>Orders</span><b>{shiftData.orders}</b></div><div><span>Cash</span><b>{money(shiftData.cash)}</b></div><div><span>Non-cash</span><b>{money(shiftData.nonCash)}</b></div><div><span>Discounts</span><b>{money(shiftData.discounts)}</b></div><div><span>Voided orders</span><b>{shiftData.voided}</b></div></div></>}</div><div className="wise-modal-actions"><button className="wise-secondary" onClick={() => setShiftOpen(false)}>Close</button><button className="wise-primary" onClick={() => window.location.reload()}>Refresh Shift</button></div></div></div>}
 
-    {checkoutOpen && <div className="wise-modal-backdrop"><div className="wise-modal"><div className="wise-modal-head"><div><strong>Complete Sale</strong><span>WISE POS</span></div><button onClick={() => !saving && setCheckoutOpen(false)}><X size={20} /></button></div><div className="wise-modal-content"><div className="wise-total-card"><span>Total to collect</span><strong>{money(total)}</strong></div><label>Payment method</label><div className="wise-payment-grid">{payments.map(({ key, icon: Icon }) => <button key={key} className={payment === key ? "active" : ""} onClick={() => { setPayment(key); if (key !== "Cash") setTendered(total); }}><Icon size={18} />{key}</button>)}</div>{payment === "Cash" && <><label>Amount received</label><input className="wise-tendered" type="number" min={total} value={tendered || ""} onChange={(e) => setTendered(Number(e.target.value) || 0)} placeholder={money(total)} /><div className="wise-change"><span>Change</span><strong>{money(change)}</strong></div></>}</div><div className="wise-modal-actions"><button className="wise-secondary" onClick={() => setCheckoutOpen(false)} disabled={saving}>Cancel</button><button className="wise-primary" onClick={checkout} disabled={saving || (payment === "Cash" && tendered < total)}>{saving ? "PROCESSING..." : `COMPLETE SALE · ${money(total)}`}</button></div></div></div>}
+    {checkoutOpen && <div className="wise-modal-backdrop"><div className="wise-modal"><div className="wise-modal-head"><div><strong>{wiseMenuOrderId ? "Complete WISE MENU Sale" : "Complete Sale"}</strong><span>{wiseMenuOrderId ? `POS payment for ${wiseMenuOrderNo}` : "WISE POS"}</span></div><button onClick={() => !saving && setCheckoutOpen(false)}><X size={20} /></button></div><div className="wise-modal-content"><div className="wise-total-card"><span>Total to collect</span><strong>{money(total)}</strong></div><label>Payment method</label><div className="wise-payment-grid">{payments.map(({ key, icon: Icon }) => <button key={key} className={payment === key ? "active" : ""} onClick={() => { setPayment(key); if (key !== "Cash") setTendered(total); }}><Icon size={18} />{key}</button>)}</div>{payment === "Cash" && <><label>Amount received</label><input className="wise-tendered" type="number" min={total} value={tendered || ""} onChange={(e) => setTendered(Number(e.target.value) || 0)} placeholder={money(total)} /><div className="wise-change"><span>Change</span><strong>{money(change)}</strong></div></>}</div><div className="wise-modal-actions"><button className="wise-secondary" onClick={() => setCheckoutOpen(false)} disabled={saving}>Cancel</button><button className="wise-primary" onClick={checkout} disabled={saving || (payment === "Cash" && tendered < total)}>{saving ? "PROCESSING..." : `COMPLETE SALE · ${money(total)}`}</button></div></div></div>}
 
     {receipt && <div className="wise-sale-complete-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setMoreOpen(false); }}>
       <div className="wise-sale-complete-page">
