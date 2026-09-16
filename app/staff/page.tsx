@@ -28,7 +28,7 @@ const cards = [
 export default function StaffPage() {
   const router = useRouter();
   const [name, setName] = useState("Staff");
-  const [businessName, setBusinessName] = useState("PrintWise");
+  const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState("");
 
@@ -41,6 +41,7 @@ export default function StaffPage() {
         router.replace("/pos");
         return;
       }
+
       const role = user.app_metadata?.role || user.user_metadata?.role;
       if (role !== "staff") {
         router.replace("/dashboard");
@@ -49,25 +50,22 @@ export default function StaffPage() {
 
       setName(user.user_metadata?.full_name || user.email?.split("@")[0] || "Staff");
 
-      // Use the business name configured for the logged-in account/workspace.
+      // Business identity belongs to the login profile, not the global company setting.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("business_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
       const configuredBusinessName =
+        profile?.business_name ||
         user.user_metadata?.business_name ||
         user.user_metadata?.businessName ||
         user.app_metadata?.business_name ||
         user.app_metadata?.businessName;
 
-      if (configuredBusinessName) {
+      if (active && configuredBusinessName) {
         setBusinessName(String(configuredBusinessName));
-      } else {
-        const { data: settings } = await supabase
-          .from("company_settings")
-          .select("business_name")
-          .limit(1)
-          .maybeSingle();
-
-        if (active && settings?.business_name) {
-          setBusinessName(settings.business_name);
-        }
       }
 
       setLoading(false);
@@ -110,12 +108,14 @@ export default function StaffPage() {
     );
   }
 
+  const displayBusinessName = businessName || "Staff Workspace";
+
   return (
     <main className="staff-page">
       <section className="staff-shell">
         <header className="staff-hero">
           <div className="staff-hero-content">
-            <div className="staff-eyebrow">{businessName.toUpperCase()} • STAFF PORTAL</div>
+            <div className="staff-eyebrow">{displayBusinessName.toUpperCase()} • STAFF PORTAL</div>
             <div className="staff-welcome-row">
               <div>
                 <h1>Welcome, {name}</h1>
@@ -170,7 +170,7 @@ export default function StaffPage() {
           </div>
         </section>
 
-        <footer className="staff-footer">{businessName.toUpperCase()} POS • STAFF WORKSPACE</footer>
+        <footer className="staff-footer">{displayBusinessName.toUpperCase()} POS • STAFF WORKSPACE</footer>
       </section>
     </main>
   );
