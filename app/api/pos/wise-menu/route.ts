@@ -1,25 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const publicKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-function adminClient() {
-  return createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-}
+type AuthContext = { admin: SupabaseClient; userClient: SupabaseClient; userId: string };
 
-async function authorize(request: NextRequest) {
+async function authorize(request: NextRequest): Promise<AuthContext> {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (!token) throw new Error("Authentication required");
-  const admin = adminClient();
-  const { data, error } = await admin.auth.getUser(token);
-  if (error || !data.user) throw new Error("Authentication required");
-  const { data: profile, error: profileError } = await admin.from("profiles").select("role,is_active").eq("id", data.user.id).maybeSingle();
-  if (profileError || !profile?.is_active || !["admin", "staff", "cashier"].includes(profile.role)) throw new Error("Not authorized");
-  return { admin, userId: data.user.id };
+  if (!supabaseUrl || !publicKey || !serviceKey) throw new Error("Supabase configuration is missing");
+
+  const userClient = createClient(supabaseUrl, publicKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const { data: authData, error: authError } = await userClient.auth.getUser(token);
+  if (authError || !authData.user) throw new Error("Authentication required");
+
+  const admin = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("role,is_active")
+    .eq("id", authData.user.id)
+    .maybeSingle();
+  if (profileError) throw profileError;
+  if (!profile?.is_active || !["admin", "staff", "cashier"].includes(profile.role)) throw new Error("Not authorized");
+
+  return { admin, userClient, userId: authData.user.id };
 }
 
 export async function GET(request: NextRequest) {
@@ -32,7 +44,7 @@ export async function GET(request: NextRequest) {
       .from("wise_menu_orders")
       .select("id,order_no,customer_name,customer_email,total,subtotal,notes,created_at,status")
       .eq("id", orderId)
-      .in("status", ["accepted", "new"])
+      .eq("status", "accepted")
       .maybeSingle();
     if (orderError) throw orderError;
     if (!order) throw new Error("WISE MENU order is no longer available for Current Sale.");
@@ -67,21 +79,29 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     const message = error?.message || "Unable to load WISE MENU order.";
-    return NextResponse.json({ error: message }, { status: message === "Authentication required" ? 401 : 403 });
+    const status = message === "Authentication required" ? 401 : message === "Not authorized" ? 403 : 400;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { admin } = await authorize(request);
+    // IMPORTANT: use the authenticated user client for the RPC. The WISE MENU
+    // checkout function uses auth.uid() to authorize the cashier. Calling it
+    // through a service-role client makes auth.uid() null and incorrectly
+    // returns "POS checkout is not permitted for this account".
+    const { userClient } = await authorize(request);
     const body = await request.json().catch(() => ({}));
     const wiseMenuOrderId = String(body.wiseMenuOrderId || body.posOrderId || "").trim();
     const channel = String(body.channel || "cash").trim();
     const amountPaid = Number(body.amountPaid);
     const transactionNo = String(body.transactionNo || "").trim();
-    if (!wiseMenuOrderId || !Number.isFinite(amountPaid) || amountPaid < 0 || !transactionNo) throw new Error("Invalid payment details.");
 
-    const { data, error } = await admin.rpc("checkout_wise_menu_order", {
+    if (!wiseMenuOrderId || !Number.isFinite(amountPaid) || amountPaid < 0 || !transactionNo) {
+      throw new Error("Invalid payment details.");
+    }
+
+    const { data, error } = await userClient.rpc("checkout_wise_menu_order", {
       p_wise_menu_order_id: wiseMenuOrderId,
       p_payment_channel: channel,
       p_amount_paid: amountPaid,
@@ -91,6 +111,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data);
   } catch (error: any) {
     const message = error?.message || "Unable to complete WISE MENU payment.";
-    return NextResponse.json({ error: message }, { status: message === "Authentication required" ? 401 : 400 });
+    const status = message === "Authentication required" ? 401 : message === "Not authorized" ? 403 : 400;
+    return NextResponse.json({ error: message }, { status });
   }
 }
