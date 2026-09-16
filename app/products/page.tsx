@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Edit3, Grid2X2, Package, Plus, Power, Search, Save, SlidersHorizontal, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, Edit3, Grid2X2, MoreHorizontal, Package, Plus, Power, Search, Save, SlidersHorizontal, Tag, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
 import "./products.css";
@@ -34,9 +34,12 @@ export default function ProductsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sort, setSort] = useState("name");
   const [activeCategory, setActiveCategory] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true), [message, setMessage] = useState(""), [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false), [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductForm>(emptyForm), [imageFile, setImageFile] = useState<File | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const pageSize = 10;
 
   const loadProducts = async () => {
     setLoading(true);
@@ -47,6 +50,7 @@ export default function ProductsPage() {
   };
 
   useEffect(() => { supabase.auth.getUser().then(({ data }) => { if (!data.user) window.location.href = "/pos"; else loadProducts(); }); }, []);
+  useEffect(() => { const onKey = (event: KeyboardEvent) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); searchRef.current?.focus(); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
 
   const categories = useMemo(() => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b)), [products]);
   const categoryCounts = useMemo(() => categories.map((category) => ({ category, count: products.filter((p) => p.category === category).length })), [categories, products]);
@@ -66,6 +70,14 @@ export default function ProductsPage() {
       return matchesSearch && matchesType && matchesCategory && matchesStatus && matchesTab;
     }).sort((a, b) => sort === "price-low" ? a.price - b.price : sort === "price-high" ? b.price - a.price : sort === "category" ? a.category.localeCompare(b.category) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
   }, [products, search, typeFilter, categoryFilter, statusFilter, activeCategory, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pagedProducts = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const rangeStart = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(currentPage * pageSize, filtered.length);
+
+  useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [currentPage, totalPages]);
+  useEffect(() => { setCurrentPage(1); }, [search, typeFilter, categoryFilter, statusFilter, activeCategory, sort]);
 
   const openAdd = () => { setEditingId(null); setForm(emptyForm); setImageFile(null); setMessage(""); setModalOpen(true); };
   const openEdit = (p: Product) => { setEditingId(p.id); setImageFile(null); setForm({ item_type: p.item_type, sku: p.sku || "", name: p.name, category: p.category, description: p.description || "", unit: p.unit || (p.item_type === "service" ? "service" : "piece"), price: String(p.price), icon_key: p.icon_key || "box", image_url: p.image_url || "", show_in_pos: p.show_in_pos, track_inventory: p.track_inventory }); setMessage(""); setModalOpen(true); };
@@ -94,10 +106,11 @@ export default function ProductsPage() {
       <div className="products-stat"><div className="products-stat-icon"><Package size={15}/></div><div><strong>{products.length}</strong><span>Total Items</span></div></div>
       <div className="products-stat"><div className="products-stat-icon green"><span style={{width:7,height:7,borderRadius:"50%",background:"currentColor"}}/></div><div><strong>{products.filter(p=>p.is_active).length}</strong><span>Active Items</span></div></div>
       <div className="products-stat"><div className="products-stat-icon gray"><span style={{width:7,height:7,borderRadius:"50%",background:"currentColor"}}/></div><div><strong>{products.filter(p=>!p.is_active).length}</strong><span>Inactive Items</span></div></div>
+      <div className="products-stat"><div className="products-stat-icon" style={{background:"#fff0f3",color:"#e44767"}}><Tag size={15}/></div><div><strong>{categories.length}</strong><span>Categories</span></div></div>
     </div></div>
 
     <div className="products-toolbar">
-      <div className="products-search"><Search size={18}/><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search products and services..."/></div>
+      <div className="products-search"><Search size={18}/><input ref={searchRef} value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search products and services..."/><kbd>Ctrl K</kbd></div>
       <label className="products-select"><select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)}><option value="all">All Types</option><option value="product">Products</option><option value="service">Services</option></select><ChevronDown size={15}/></label>
       <label className="products-select"><select value={categoryFilter} onChange={(e)=>setCategoryFilter(e.target.value)}><option value="all">All Categories</option>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select><ChevronDown size={15}/></label>
       <label className="products-select"><select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)}><option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select><ChevronDown size={15}/></label>
@@ -110,22 +123,23 @@ export default function ProductsPage() {
       <button className={`products-category ${activeCategory === "id" ? "active" : ""}`} onClick={()=>setActiveCategory("id")}>▣ ID / Tarjetas <span className="products-category-count">{idCount}</span></button>
       <button className={`products-category ${activeCategory === "stickers" ? "active" : ""}`} onClick={()=>setActiveCategory("stickers")}>◇ Stickers <span className="products-category-count">{stickerCount}</span></button>
       {categoryCounts.filter(x=>!["printing","food","id","stickers"].includes(x.category.toLowerCase())).slice(0,3).map(x=><button key={x.category} className={`products-category ${activeCategory===x.category?"active":""}`} onClick={()=>setActiveCategory(x.category)}><SlidersHorizontal size={14}/> {x.category} <span className="products-category-count">{x.count}</span></button>)}
-      <label className="products-select" style={{marginLeft:"auto",minWidth:150,height:38}}><select value={sort} onChange={(e)=>setSort(e.target.value)}><option value="name">Sort: Name A-Z</option><option value="category">Sort: Category</option><option value="price-low">Sort: Price Low</option><option value="price-high">Sort: Price High</option></select><ChevronDown size={14}/></label>
+      {categoryCounts.length > 7 && <button className="products-category"><MoreHorizontal size={14}/> More Categories <ChevronDown size={13}/></button>}
+      <label className="products-select products-sort-select"><select value={sort} onChange={(e)=>setSort(e.target.value)}><option value="name">Sort: Name A-Z</option><option value="category">Sort: Category</option><option value="price-low">Sort: Price Low</option><option value="price-high">Sort: Price High</option></select><ChevronDown size={14}/></label>
     </div>
 
     {message && <div className="products-message">{message}</div>}
     <section className="products-table-card"><div className="products-table-scroll"><table className="products-table"><thead><tr><th className="products-number">#</th><th>Product / Service</th><th>Type</th><th>Category</th><th>Price</th><th>POS</th><th>Status</th><th>Action</th></tr></thead><tbody>
-      {loading ? <tr><td colSpan={8} className="products-empty">Loading products and services...</td></tr> : filtered.length === 0 ? <tr><td colSpan={8} className="products-empty">No products or services found.</td></tr> : filtered.map((p,index)=><tr key={p.id}>
-        <td className="products-number">{index+1}</td>
+      {loading ? <tr><td colSpan={8} className="products-empty">Loading products and services...</td></tr> : pagedProducts.length === 0 ? <tr><td colSpan={8} className="products-empty">No products or services found.</td></tr> : pagedProducts.map((p,index)=><tr key={p.id}>
+        <td className="products-number">{(currentPage-1)*pageSize+index+1}</td>
         <td><div className="product-cell">{p.image_url ? <img className="product-thumb" src={p.image_url} alt=""/> : <div className="product-thumb-fallback"><Package size={17}/></div>}<div><span className="product-name">{p.name}</span>{p.sku && <span className="product-sku">SKU: {p.sku}</span>}</div></div></td>
         <td className="product-type">{p.item_type === "service" ? "Service" : "Product"}</td>
         <td><span className={`product-category-badge ${categoryClass(p.category)}`}>{p.category}</span></td>
         <td><span className="product-price">₱{p.price.toFixed(2)} <span>/ {p.unit}</span></span></td>
         <td><button className={`products-toggle ${p.show_in_pos ? "on" : ""}`} onClick={()=>toggle(p,"show_in_pos")} aria-label={`Toggle POS visibility for ${p.name}`}><span className="products-switch"><span/></span>{p.show_in_pos ? "Shown" : "Hidden"}</button></td>
         <td><button className={`products-status ${p.is_active ? "" : "off"}`} onClick={()=>toggle(p,"is_active")}><span className="products-status-dot"/>{p.is_active ? "Active" : "Inactive"}</button></td>
-        <td><div className="products-actions"><button className="products-action" title="Edit product/service" onClick={()=>openEdit(p)}><Edit3 size={15}/></button><button className="products-action danger" title={p.is_active ? "Deactivate" : "Activate"} onClick={()=>toggle(p,"is_active")}><Power size={15}/></button></div></td>
+        <td><div className="products-actions"><button className="products-action products-edit-action" title="Edit product/service" onClick={()=>openEdit(p)}><Edit3 size={15}/><span>Edit</span></button><button className="products-action products-more-action" title="More actions"><MoreHorizontal size={16}/></button><button className="products-action danger" title={p.is_active ? "Deactivate" : "Activate"} onClick={()=>toggle(p,"is_active")}><Power size={15}/></button></div></td>
       </tr>)}
-    </tbody></table></div><footer className="products-footer"><span>Showing 1–{filtered.length} of {filtered.length} items</span><div className="products-pagination"><button className="products-page-btn" disabled><ChevronLeft size={15}/></button><button className="products-page-btn current">1</button><button className="products-page-btn" disabled><ChevronRight size={15}/></button></div></footer></section>
+    </tbody></table></div><footer className="products-footer"><span>Showing {rangeStart}–{rangeEnd} of {filtered.length} items</span><div className="products-pagination"><button className="products-page-btn" disabled={currentPage===1} onClick={()=>setCurrentPage((p)=>Math.max(1,p-1))}><ChevronLeft size={15}/></button>{Array.from({length:totalPages},(_,i)=>i+1).slice(0,5).map((page)=><button key={page} className={`products-page-btn ${currentPage===page?"current":""}`} onClick={()=>setCurrentPage(page)}>{page}</button>)}<button className="products-page-btn" disabled={currentPage===totalPages} onClick={()=>setCurrentPage((p)=>Math.min(totalPages,p+1))}><ChevronRight size={15}/></button></div><label className="products-page-size">Show <select value={pageSize} readOnly><option value={10}>10</option></select> per page</label></footer></section>
   </section>
 
   {modalOpen && <div className="products-modal-backdrop"><div className="products-modal">
