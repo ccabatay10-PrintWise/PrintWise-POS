@@ -10,12 +10,20 @@ export default function PrintReceiptAnimation() {
   const [orderNo, setOrderNo] = useState("");
   const qrHost = useRef<HTMLDivElement>(null);
 
+  const normalizeWiseMenuOrder = (value: string) => {
+    const cleaned = value.trim().replace(/^#/, "");
+    if (!cleaned) return "";
+    // Guard against the UI accidentally displaying WM-WM-... while the real WISE MENU order is WM-....
+    return cleaned.replace(/^(?:WM-)+/i, "WM-");
+  };
+
   const readWiseMenuOrder = (element: HTMLElement | null) => {
     if (!element) return "";
     const meta = Array.from(element.querySelectorAll(".wise-sale-meta span")).map((el) => el.textContent?.trim() || "");
     const orderText = meta.find((text) => text.toLowerCase().startsWith("order #:")) || "";
     const value = orderText.replace(/^order\s*#:\s*/i, "").trim();
-    return value.startsWith("WM-") ? value : "";
+    const normalized = normalizeWiseMenuOrder(value);
+    return normalized.startsWith("WM-") ? normalized : "";
   };
 
   useEffect(() => {
@@ -55,7 +63,6 @@ export default function PrintReceiptAnimation() {
 
   useEffect(() => {
     if (!orderNo || !receipt) return;
-    // Keep a hidden QR source available for the print popup as a fallback.
     const value = `${window.location.origin}/menu/status?order=${encodeURIComponent(orderNo)}`;
     const host = qrHost.current;
     if (host) host.dataset.value = value;
