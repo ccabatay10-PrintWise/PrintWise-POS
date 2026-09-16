@@ -5,23 +5,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-// Use the same public Supabase key configured by the application client.
-// Keep ANON_KEY as a backwards-compatible fallback for older deployments.
 const publicKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const service = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 async function auth(req: NextRequest) {
-  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (!token) throw new Error("Authentication required");
-  if (!url || !publicKey) throw new Error("Supabase configuration is missing");
+  if (!url || !publicKey || !service) throw new Error("Supabase configuration is missing");
 
   const sb = createClient(url, publicKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
   const { data: { user }, error } = await sb.auth.getUser(token);
   if (error || !user) throw new Error("Authentication required");
 
-  const admin = createClient(url, service);
+  const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: profile } = await admin
     .from("profiles")
     .select("role,is_active")
@@ -41,7 +40,8 @@ export async function GET(req: NextRequest) {
       .from("wise_menu_orders")
       .select("id,order_no,customer_name,customer_email,notes,status,total,subtotal,created_at,updated_at,wise_menu_order_items(product_id,product_name,quantity,unit_price,line_total,options)")
       .eq("status", "new")
-      .order("created_at", { ascending: true });
+      // Newest customer order first.
+      .order("created_at", { ascending: false });
     if (error) throw error;
     return NextResponse.json({ orders: data || [] });
   } catch (e: any) {
