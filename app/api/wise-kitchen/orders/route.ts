@@ -21,16 +21,39 @@ async function auth(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const { admin } = await auth(req);
-    const { data: orders, error } = await admin.from("wise_menu_orders").select("id,order_no,customer_name,notes,status,total,created_at,wise_menu_order_items(product_name,quantity,unit_price,line_total,product_id)").in("status", ["new", "preparing", "ready"]).order("created_at", { ascending: true });
+    // A cashier confirmation changes the WISE MENU order from `new` to `accepted`.
+    // Kitchen must receive that accepted order so it can start preparation.
+    const { data: orders, error } = await admin
+      .from("wise_menu_orders")
+      .select("id,order_no,customer_name,notes,status,total,created_at,wise_menu_order_items(product_name,quantity,unit_price,line_total,product_id)")
+      .in("status", ["new", "accepted", "preparing", "ready"])
+      .order("created_at", { ascending: true });
     if (error) throw error;
     const items = orders || [];
     const productIds = [...new Set(items.flatMap((o: any) => o.wise_menu_order_items?.map((i: any) => i.product_id) || []))];
     let recipes: any[] = [];
     if (productIds.length) {
-      const { data: r } = await admin.from("wise_product_recipes").select("id,product_id,recipe_name,wise_product_recipe_items(quantity,unit,inventory_item_id,inventory_items(name))").in("product_id", productIds);
+      const { data: r } = await admin
+        .from("wise_product_recipes")
+        .select("id,product_id,recipe_name,wise_product_recipe_items(quantity,unit,inventory_item_id,inventory_items(name))")
+        .in("product_id", productIds);
       recipes = r || [];
     }
-    const result = items.map((o: any) => ({ ...o, items: (o.wise_menu_order_items || []).map((i: any) => { const recipe = recipes.find((r: any) => r.product_id === i.product_id); return { ...i, recipe_name: recipe?.recipe_name || null, ingredients: (recipe?.wise_product_recipe_items || []).map((x: any) => ({ name: x.inventory_items?.name || "Ingredient", quantity: Number(x.quantity) * Number(i.quantity), unit: x.unit || "unit" })) }; }) }));
+    const result = items.map((o: any) => ({
+      ...o,
+      items: (o.wise_menu_order_items || []).map((i: any) => {
+        const recipe = recipes.find((r: any) => r.product_id === i.product_id);
+        return {
+          ...i,
+          recipe_name: recipe?.recipe_name || null,
+          ingredients: (recipe?.wise_product_recipe_items || []).map((x: any) => ({
+            name: x.inventory_items?.name || "Ingredient",
+            quantity: Number(x.quantity) * Number(i.quantity),
+            unit: x.unit || "unit"
+          }))
+        };
+      })
+    }));
     return NextResponse.json({ orders: result });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "Unauthorized" }, { status: e.message === "Authentication required" ? 401 : 403 });
