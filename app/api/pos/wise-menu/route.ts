@@ -26,21 +26,47 @@ export async function GET(request: NextRequest) {
   try {
     const { admin } = await authorize(request);
     const orderId = request.nextUrl.searchParams.get("orderId")?.trim();
+    if (!orderId) throw new Error("WISE MENU order is required.");
 
-    if (orderId) {
-      const { data: order, error: orderError } = await admin.from("pos_orders").select("id,order_no,customer_name,total,amount_paid,balance,notes,created_at,source_type,source_id,status").eq("id", orderId).eq("source_type", "wise_menu_order").eq("status", "pending").maybeSingle();
-      if (orderError) throw orderError;
-      if (!order) throw new Error("WISE MENU order is no longer available for payment.");
-      const { data: items, error: itemsError } = await admin.from("pos_order_items").select("product_id,product_name,quantity,unit_price,line_total").eq("order_id", orderId).order("created_at", { ascending: true });
-      if (itemsError) throw itemsError;
-      return NextResponse.json({ ok: true, order: { ...order, items: items ?? [] } });
-    }
+    const { data: order, error: orderError } = await admin
+      .from("wise_menu_orders")
+      .select("id,order_no,customer_name,customer_email,total,subtotal,notes,created_at,status")
+      .eq("id", orderId)
+      .in("status", ["accepted", "new"])
+      .maybeSingle();
+    if (orderError) throw orderError;
+    if (!order) throw new Error("WISE MENU order is no longer available for Current Sale.");
 
-    const { data, error } = await admin.from("pos_orders").select("id,order_no,customer_name,total,amount_paid,balance,notes,created_at,source_type,source_id").eq("source_type", "wise_menu_order").eq("status", "pending").order("created_at", { ascending: true });
-    if (error) throw error;
-    return NextResponse.json({ ok: true, orders: data ?? [] });
+    const { data: items, error: itemsError } = await admin
+      .from("wise_menu_order_items")
+      .select("product_id,product_name,quantity,unit_price,line_total")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: true });
+    if (itemsError) throw itemsError;
+    if (!items?.length) throw new Error("WISE MENU order has no items.");
+
+    return NextResponse.json({
+      ok: true,
+      order: {
+        id: order.id,
+        order_no: order.order_no,
+        customer_name: order.customer_name,
+        total: Number(order.total),
+        amount_paid: 0,
+        balance: Number(order.total),
+        notes: order.notes,
+        created_at: order.created_at,
+        items: items.map((item) => ({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+          line_total: Number(item.line_total),
+        })),
+      },
+    });
   } catch (error: any) {
-    const message = error?.message || "Unable to load WISE MENU orders.";
+    const message = error?.message || "Unable to load WISE MENU order.";
     return NextResponse.json({ error: message }, { status: message === "Authentication required" ? 401 : 403 });
   }
 }
@@ -49,13 +75,14 @@ export async function POST(request: NextRequest) {
   try {
     const { admin } = await authorize(request);
     const body = await request.json().catch(() => ({}));
-    const posOrderId = String(body.posOrderId || "").trim();
+    const wiseMenuOrderId = String(body.wiseMenuOrderId || body.posOrderId || "").trim();
     const channel = String(body.channel || "cash").trim();
     const amountPaid = Number(body.amountPaid);
     const transactionNo = String(body.transactionNo || "").trim();
-    if (!posOrderId || !Number.isFinite(amountPaid) || amountPaid < 0 || !transactionNo) throw new Error("Invalid payment details.");
-    const { data, error } = await admin.rpc("finalize_wise_menu_pos_payment", {
-      p_pos_order_id: posOrderId,
+    if (!wiseMenuOrderId || !Number.isFinite(amountPaid) || amountPaid < 0 || !transactionNo) throw new Error("Invalid payment details.");
+
+    const { data, error } = await admin.rpc("checkout_wise_menu_order", {
+      p_wise_menu_order_id: wiseMenuOrderId,
       p_payment_channel: channel,
       p_amount_paid: amountPaid,
       p_transaction_no: transactionNo,
