@@ -52,15 +52,16 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     if (!body?.order_id) return NextResponse.json({ error: "Order is required" }, { status: 400 });
 
-    // The conversion function calls auth.uid(), so execute the RPC with the
-    // cashier's JWT context rather than the service-role client.
-    const { data, error } = await userClient.rpc("convert_wise_menu_order_to_pos", {
+    // Confirmation does NOT create a POS/Orders record yet. It only accepts
+    // the WISE MENU order and hands its ID to Current Sale. The POS order is
+    // created only after the cashier completes payment in Current Sale.
+    const { data, error } = await userClient.rpc("accept_wise_menu_order", {
       p_order_id: body.order_id,
     });
     if (error) throw error;
     return NextResponse.json(data || { ok: true });
   } catch (e: any) {
-    const message = e.message || "Unable to send order to POS";
+    const message = e.message || "Unable to send order to Current Sale";
     const status = message === "Authentication required" ? 401 : message === "Not authorized" ? 403 : 400;
     return NextResponse.json({ error: message }, { status });
   }
