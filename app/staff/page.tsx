@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, ReceiptText, ShoppingCart, Users, Wallet } from "lucide-react";
+import { ChefHat, LogOut, ReceiptText, ShoppingCart, Users, Wallet, UtensilsCrossed } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 export default function StaffPage() {
@@ -42,6 +42,8 @@ export default function StaffPage() {
 
   const cards = [
     { href: "/pos", icon: ShoppingCart, title: "Point of Sale", text: "Create and process customer orders." },
+    { href: "/wise-menu", icon: UtensilsCrossed, title: "WISE MENU", text: "Receive customer QR menu orders and send confirmed orders to POS." },
+    { href: "/wise-kitchen", icon: ChefHat, title: "WISE KITCHEN", text: "Receive kitchen orders and view recipes, measurements, and preparation details." },
     { href: "/orders", icon: ReceiptText, title: "Orders", text: "View and manage order records." },
     { href: "/gcash-bayad", icon: Wallet, title: "GCash / Bayad", text: "Process and record payment transactions." },
     { href: "/customers", icon: Users, title: "Customers", text: "Access customer information." },
