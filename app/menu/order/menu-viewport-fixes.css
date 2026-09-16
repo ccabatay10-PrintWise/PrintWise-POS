@@ -1,0 +1,24 @@
+:root{--wm-visual-vh:100dvh}
+
+/* iOS/Android-safe product modal: the portal is attached to body, and this overlay owns the full visible viewport. */
+.wm-product-overlay{position:fixed!important;inset:0!important;width:100vw!important;height:var(--wm-visual-vh,100dvh)!important;min-height:100svh!important;z-index:2147483000!important;display:grid!important;place-items:center!important;box-sizing:border-box!important;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))!important;overflow:hidden!important}
+.wm-product-modal{position:relative!important;inset:auto!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important;margin:0!important;width:min(900px,calc(100vw - 24px))!important;height:min(720px,calc(var(--wm-visual-vh,100dvh) - 24px))!important;max-height:calc(var(--wm-visual-vh,100dvh) - 24px)!important;align-self:center!important;justify-self:center!important;overflow:hidden!important}
+.wm-product-media{min-height:0!important;height:100%!important;overflow:hidden!important}
+.wm-product-media video,.wm-product-media img{width:100%!important;height:100%!important;object-fit:cover!important}
+
+@media(max-width:760px){
+  .wm-product-overlay{padding:8px!important;place-items:center!important}
+  .wm-product-modal{width:calc(100vw - 16px)!important;height:min(760px,calc(var(--wm-visual-vh,100dvh) - 16px))!important;max-height:calc(var(--wm-visual-vh,100dvh) - 16px)!important;grid-template-columns:1fr!important;grid-template-rows:minmax(210px,44%) minmax(0,56%)!important;border-radius:18px!important}
+  .wm-product-media{height:auto!important;min-height:0!important}
+  .wm-product-info{min-height:0!important;max-height:none!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;padding:16px!important}
+  .wm-product-info h2{font-size:22px!important}
+  .wm-add-cart-large{min-height:52px!important;flex:0 0 auto!important}
+}
+
+@media(max-width:380px){
+  .wm-product-modal{width:calc(100vw - 12px)!important;height:min(680px,calc(var(--wm-visual-vh,100dvh) - 12px))!important;max-height:calc(var(--wm-visual-vh,100dvh) - 12px)!important;grid-template-rows:minmax(175px,40%) minmax(0,60%)!important}
+  .wm-product-info{padding:13px!important}
+}
+
+/* Never allow the popup to inherit a transform/scrolling context from the menu. */
+body:has(.wm-product-overlay){overflow:hidden!important}
