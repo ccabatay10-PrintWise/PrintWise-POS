@@ -15,14 +15,25 @@ const staffAllowedRoutes = [
   "/wise-kitchen/recipes",
 ];
 
-function roleOf(user: any) {
-  return user?.app_metadata?.role || user?.user_metadata?.role || "unknown";
-}
-
 function isStaffAllowedRoute(pathname: string) {
   return staffAllowedRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
+}
+
+async function effectiveRole(user: any) {
+  if (!user) return "";
+  const metadataRole = user.app_metadata?.role || user.user_metadata?.role;
+  if (metadataRole) return String(metadataRole).toLowerCase();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role,is_active")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.is_active === false) return "inactive";
+  return String(profile?.role || "").toLowerCase();
 }
 
 export default function AuthRoleRouter({ children }: { children: React.ReactNode }) {
@@ -32,14 +43,14 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
   useEffect(() => {
     let active = true;
 
-    const enforceCurrentRoute = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!active || !user) return;
-
-      const role = String(roleOf(user)).toLowerCase();
+    const enforce = async (user: any, forceStaffLanding = false) => {
+      if (!user) return;
+      const role = await effectiveRole(user);
+      if (!active) return;
 
       if (role === "staff") {
-        if (!isStaffAllowedRoute(pathname)) {
+        // Staff always starts at the Staff Portal after authentication.
+        if (forceStaffLanding || !isStaffAllowedRoute(pathname)) {
           router.replace("/staff");
         }
         return;
@@ -50,21 +61,11 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
       }
     };
 
-    void enforceCurrentRoute();
+    supabase.auth.getUser().then(({ data }) => void enforce(data.user));
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active || !session?.user) return;
-      const role = String(roleOf(session.user)).toLowerCase();
-
-      if (event === "SIGNED_IN" && role === "staff") {
-        // A staff login always opens the Staff Portal first.
-        router.replace("/staff");
-        return;
-      }
-
-      if (event === "SIGNED_IN" && role !== "staff" && pathname === "/staff") {
-        router.replace("/dashboard");
-      }
+      void enforce(session.user, event === "SIGNED_IN");
     });
 
     return () => {
