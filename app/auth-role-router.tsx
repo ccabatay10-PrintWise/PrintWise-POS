@@ -36,7 +36,7 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
       const { data: { user } } = await supabase.auth.getUser();
       if (!active || !user) return;
 
-      const role = roleOf(user);
+      const role = String(roleOf(user)).toLowerCase();
 
       if (role === "staff") {
         if (!isStaffAllowedRoute(pathname)) {
@@ -50,13 +50,20 @@ export default function AuthRoleRouter({ children }: { children: React.ReactNode
       }
     };
 
-    enforceCurrentRoute();
+    void enforceCurrentRoute();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        const role = roleOf(session.user);
-        if (role === "staff" && !isStaffAllowedRoute(pathname)) router.replace("/staff");
-        if (role !== "staff" && (pathname === "/staff" || pathname.startsWith("/staff/"))) router.replace("/dashboard");
+      if (!active || !session?.user) return;
+      const role = String(roleOf(session.user)).toLowerCase();
+
+      if (event === "SIGNED_IN" && role === "staff") {
+        // A staff login always opens the Staff Portal first.
+        router.replace("/staff");
+        return;
+      }
+
+      if (event === "SIGNED_IN" && role !== "staff" && pathname === "/staff") {
+        router.replace("/dashboard");
       }
     });
 
