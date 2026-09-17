@@ -67,14 +67,11 @@ async function getAdmin(request: NextRequest) {
     return { error: jsonError("Your session has expired. Please sign in again.", 401) };
   }
 
-  // user_metadata is intentionally NOT trusted for authorization because a signed-in
-  // user can change user metadata. Prefer the server-controlled app_metadata role,
-  // then verify the authoritative profiles table with the service client.
   let role = metadataRole(data.user);
   const admin = adminClient();
   const { data: profile, error: profileError } = await admin
     .from("profiles")
-    .select("role,is_active")
+    .select("role,is_active,business_name")
     .eq("id", data.user.id)
     .maybeSingle();
 
@@ -88,16 +85,28 @@ async function getAdmin(request: NextRequest) {
     return { error: jsonError("Admin access is required to manage staff accounts.", 403) };
   }
 
-  return { user: data.user };
+  let businessName = String(profile?.business_name || "").trim();
+  if (!businessName) {
+    const { data: settings } = await admin
+      .from("company_settings")
+      .select("business_name")
+      .limit(1)
+      .maybeSingle();
+    businessName = String(settings?.business_name || "").trim();
+  }
+
+  return { user: data.user, businessName };
 }
 
-function staffRecord(user: any) {
+function staffRecord(user: any, profile?: any) {
+  const profileActive = profile?.is_active;
+  const authActive = !user.banned_until || new Date(user.banned_until).getTime() <= Date.now();
   return {
     id: user.id,
-    name: user.user_metadata?.full_name || user.email || "Staff",
-    email: user.email || "",
+    name: profile?.full_name || user.user_metadata?.full_name || user.email || "Staff",
+    email: profile?.email || user.email || "",
     role: "Staff",
-    active: !user.banned_until || new Date(user.banned_until).getTime() <= Date.now(),
+    active: profileActive === false ? false : authActive,
     created_at: user.created_at,
   };
 }
@@ -110,11 +119,28 @@ export async function GET(request: NextRequest) {
   const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (error) return jsonError(`Unable to load staff accounts: ${error.message}`, 400);
 
-  const staff = data.users
-    .filter((user) => metadataRole(user) === "staff")
-    .map(staffRecord);
+  const staffUsers = data.users.filter((user) => {
+    const appRole = metadataRole(user);
+    const userRole = String(user.user_metadata?.role || "").trim().toLowerCase();
+    return appRole === "staff" || userRole === "staff";
+  });
 
-  return NextResponse.json({ staff });
+  const ids = staffUsers.map(user => user.id);
+  let profiles: any[] = [];
+  if (ids.length) {
+    const { data: profileRows } = await admin
+      .from("profiles")
+      .select("id,full_name,email,role,is_active,business_name")
+      .in("id", ids);
+    profiles = profileRows || [];
+  }
+
+  const profileMap = new Map(profiles.map(profile => [profile.id, profile]));
+  const staff = staffUsers
+    .filter(user => String(profileMap.get(user.id)?.role || "staff").toLowerCase() === "staff")
+    .map(user => staffRecord(user, profileMap.get(user.id)));
+
+  return NextResponse.json({ staff, businessName: auth.businessName || "WISE POS" });
 }
 
 export async function POST(request: NextRequest) {
@@ -160,11 +186,28 @@ export async function POST(request: NextRequest) {
           ...existing.user_metadata,
           full_name: name,
           role: "staff",
+          business_name: auth.businessName || existing.user_metadata?.business_name || "WISE POS",
+        },
+        app_metadata: {
+          ...existing.app_metadata,
+          role: "staff",
         },
       });
       if (updateError || !updated.user) {
         return jsonError(updateError?.message || "The existing account could not be updated as a staff account.", 400);
       }
+
+      const { error: profileError } = await admin.from("profiles").upsert({
+        id: existing.id,
+        full_name: name,
+        email,
+        role: "staff",
+        is_active: true,
+        business_name: auth.businessName || existing.user_metadata?.business_name || "WISE POS",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" });
+      if (profileError) return jsonError(`The login was updated, but the staff profile could not be saved: ${profileError.message}`, 500);
+
       return NextResponse.json({
         success: true,
         created: false,
@@ -177,11 +220,31 @@ export async function POST(request: NextRequest) {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: name, role: "staff" },
+      user_metadata: {
+        full_name: name,
+        role: "staff",
+        business_name: auth.businessName || "WISE POS",
+      },
+      app_metadata: { role: "staff" },
     });
 
     if (error || !data.user) {
       return jsonError(error?.message || "Supabase did not return the new staff account.", 400);
+    }
+
+    const { error: profileError } = await admin.from("profiles").upsert({
+      id: data.user.id,
+      full_name: name,
+      email,
+      role: "staff",
+      is_active: true,
+      business_name: auth.businessName || "WISE POS",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" });
+
+    if (profileError) {
+      await admin.auth.admin.deleteUser(data.user.id);
+      return jsonError(`The staff login could not be completed because its profile could not be created: ${profileError.message}`, 500);
     }
 
     return NextResponse.json({ success: true, created: true, staff: staffRecord(data.user) });
@@ -189,6 +252,11 @@ export async function POST(request: NextRequest) {
 
   const staffId = String(body.staffId || "").trim();
   if (!staffId) return jsonError("Staff account not found.", 400);
+
+  const { data: target, error: targetError } = await admin.auth.admin.getUserById(staffId);
+  if (targetError || !target.user) return jsonError("Staff account not found.", 404);
+  const targetRole = metadataRole(target.user) || String(target.user.user_metadata?.role || "").trim().toLowerCase();
+  if (targetRole !== "staff") return jsonError("Only staff accounts can be changed here.", 403);
 
   if (action === "reset_password") {
     const password = String(body.password || "");
@@ -200,10 +268,17 @@ export async function POST(request: NextRequest) {
 
   if (action === "toggle_active") {
     const active = Boolean(body.active);
-    const { error } = await admin.auth.admin.updateUserById(staffId, {
+    const { error: authError } = await admin.auth.admin.updateUserById(staffId, {
       ban_duration: active ? "none" : "876000h",
     });
-    if (error) return jsonError(error.message, 400);
+    if (authError) return jsonError(authError.message, 400);
+
+    const { error: profileError } = await admin
+      .from("profiles")
+      .update({ is_active: active, updated_at: new Date().toISOString() })
+      .eq("id", staffId);
+    if (profileError) return jsonError(`Login status changed, but the staff profile could not be updated: ${profileError.message}`, 500);
+
     return NextResponse.json({ success: true });
   }
 
