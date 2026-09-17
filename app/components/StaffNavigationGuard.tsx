@@ -30,8 +30,7 @@ function lockStaffNavigation() {
     ".sidebar a[href], .sidebar button, .quick-action[href], .brand[href]"
   ).forEach((element) => {
     const href = element.getAttribute("href");
-    const isNavigation = Boolean(href);
-    const shouldLock = isNavigation ? !allowedPath(href as string) : false;
+    const shouldLock = href ? !allowedPath(href) : false;
 
     element.classList.toggle("staff-nav-disabled", shouldLock);
     if (shouldLock) {
@@ -51,20 +50,20 @@ export default function StaffNavigationGuard() {
 
     const apply = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!mounted) return;
+      if (!mounted || !user) return;
 
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role,is_active")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!mounted) return;
       const role = String(
-        user?.app_metadata?.role || user?.user_metadata?.role || ""
+        profile?.role || user.app_metadata?.role || user.user_metadata?.role || ""
       ).toLowerCase();
 
-      const { data: profile } = user
-        ? await supabase.from("profiles").select("role,is_active").eq("id", user.id).maybeSingle()
-        : { data: null };
-
-      if (!mounted) return;
-      const effectiveRole = String(profile?.role || role).toLowerCase();
-
-      if (effectiveRole === "staff" && profile?.is_active !== false) {
+      if (role === "staff" && profile?.is_active !== false) {
         lockStaffNavigation();
         observer = new MutationObserver(lockStaffNavigation);
         observer.observe(document.body, { childList: true, subtree: true });
@@ -78,5 +77,17 @@ export default function StaffNavigationGuard() {
     };
   }, []);
 
-  return null;
+  return (
+    <style jsx global>{`
+      .staff-nav-disabled {
+        opacity: 0.38 !important;
+        filter: grayscale(0.65) !important;
+        pointer-events: none !important;
+        user-select: none !important;
+      }
+      .staff-nav-disabled .nav-arrow {
+        opacity: 0.35 !important;
+      }
+    `}</style>
+  );
 }
