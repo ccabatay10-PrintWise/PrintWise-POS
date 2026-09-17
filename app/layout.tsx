@@ -3,6 +3,7 @@ import "./globals.css";
 import AuthRoleRouter from "./auth-role-router";
 import ReceivedFileNotificationBridge from "./components/ReceivedFileNotificationBridge";
 import SmartPriceApprovalBridge from "./components/SmartPriceApprovalBridge";
+import StaffNavigationGuard from "./components/StaffNavigationGuard";
 
 export const metadata: Metadata = {
   title: "PrintWise POS",
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body>
         <AuthRoleRouter>{children}</AuthRoleRouter>
+        <StaffNavigationGuard />
         <ReceivedFileNotificationBridge />
         <SmartPriceApprovalBridge />
       </body>
