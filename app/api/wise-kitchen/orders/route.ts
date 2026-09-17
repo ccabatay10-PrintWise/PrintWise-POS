@@ -30,19 +30,23 @@ export async function GET(req: NextRequest) {
     const items = orders || [];
     const productIds = [...new Set(items.flatMap((o: any) => o.wise_menu_order_items?.map((i: any) => i.product_id) || []))];
     let recipes: any[] = [];
+    let products: any[] = [];
     if (productIds.length) {
-      const { data: r } = await admin
-        .from("wise_product_recipes")
-        .select("id,product_id,recipe_name,wise_product_recipe_items(quantity,unit,inventory_item_id,inventory_items(name))")
-        .in("product_id", productIds);
+      const [{ data: r }, { data: p }] = await Promise.all([
+        admin.from("wise_product_recipes").select("id,product_id,recipe_name,wise_product_recipe_items(quantity,unit,inventory_item_id,inventory_items(name))").in("product_id", productIds),
+        admin.from("products").select("id,requires_cup_label").in("id", productIds)
+      ]);
       recipes = r || [];
+      products = p || [];
     }
     const result = items.map((o: any) => ({
       ...o,
       items: (o.wise_menu_order_items || []).map((i: any) => {
         const recipe = recipes.find((r: any) => r.product_id === i.product_id);
+        const product = products.find((p: any) => p.id === i.product_id);
         return {
           ...i,
+          requires_cup_label: Boolean(product?.requires_cup_label),
           recipe_name: recipe?.recipe_name || null,
           ingredients: (recipe?.wise_product_recipe_items || []).map((x: any) => ({
             name: x.inventory_items?.name || "Ingredient",
