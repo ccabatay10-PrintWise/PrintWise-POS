@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard,
   LogOut, Menu, Package, Plus, ReceiptText, Settings, ShoppingCart,
-  UserPlus, Users, Wallet, X, Utensils,
+  UserPlus, Users, Wallet, X, Utensils, ShieldCheck,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
@@ -100,7 +100,6 @@ export default function Sidebar() {
           </a>
         </div>
 
-        {/* Only the main navigation scrolls. Quick Actions and Account stay fixed. */}
         <div className="sidebar-main-scroll">
           <div className="nav-label">MAIN MENU</div>
           <nav className="sidebar-nav">
@@ -114,6 +113,13 @@ export default function Sidebar() {
                 </a>
               );
             })}
+            {userRole === "admin" && (
+              <a href="/staff-management" className={`nav-item ${pathname === "/staff-management" ? "active" : ""}`}>
+                <span className="nav-icon"><ShieldCheck size={18} /></span>
+                <span className="nav-text">Staff Management</span>
+                <ChevronRight className="nav-arrow" size={15} />
+              </a>
+            )}
           </nav>
         </div>
 
