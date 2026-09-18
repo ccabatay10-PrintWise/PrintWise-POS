@@ -165,6 +165,9 @@ export async function POST(request: NextRequest) {
     if (!name || !email || password.length < 6) {
       return jsonError("Enter a full name, valid email, and password with at least 6 characters.", 400);
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return jsonError("Enter a valid email address.", 400);
+    }
 
     const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({
       page: 1,
@@ -179,6 +182,30 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing) {
+      const { data: existingProfile, error: existingProfileError } = await admin
+        .from("profiles")
+        .select("role,is_active,business_name")
+        .eq("id", existing.id)
+        .maybeSingle();
+
+      if (existingProfileError) {
+        return jsonError(`Unable to verify the existing account before staff provisioning: ${existingProfileError.message}`, 500);
+      }
+
+      const existingRole = String(
+        existingProfile?.role ||
+        metadataRole(existing) ||
+        existing.user_metadata?.role ||
+        ""
+      ).trim().toLowerCase();
+
+      if (existingRole && existingRole !== "staff") {
+        return jsonError(
+          "That email already belongs to an existing non-staff account. Use a different email address; existing admin/cashier accounts cannot be converted from Staff Management.",
+          409,
+        );
+      }
+
       const { data: updated, error: updateError } = await admin.auth.admin.updateUserById(existing.id, {
         password,
         email_confirm: true,
@@ -186,7 +213,7 @@ export async function POST(request: NextRequest) {
           ...existing.user_metadata,
           full_name: name,
           role: "staff",
-          business_name: auth.businessName || existing.user_metadata?.business_name || "WISE POS",
+          business_name: auth.businessName || existingProfile?.business_name || existing.user_metadata?.business_name || "WISE POS",
         },
         app_metadata: {
           ...existing.app_metadata,
@@ -203,7 +230,7 @@ export async function POST(request: NextRequest) {
         email,
         role: "staff",
         is_active: true,
-        business_name: auth.businessName || existing.user_metadata?.business_name || "WISE POS",
+        business_name: auth.businessName || existingProfile?.business_name || existing.user_metadata?.business_name || "WISE POS",
         updated_at: new Date().toISOString(),
       }, { onConflict: "id" });
       if (profileError) return jsonError(`The login was updated, but the staff profile could not be saved: ${profileError.message}`, 500);
