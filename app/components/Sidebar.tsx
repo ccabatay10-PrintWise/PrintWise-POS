@@ -203,6 +203,18 @@ export default function Sidebar() {
         .sidebar-compact .sidebar-logout{width:calc(100% - 6px)!important;margin:7px 3px 0!important;min-height:42px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.08)!important;border-radius:9px!important;background:transparent!important;color:#9da3ad!important;font-size:10px;font-weight:800;letter-spacing:.7px;cursor:pointer}
         .sidebar-compact .sidebar-logout:hover{color:#fff!important;border-color:rgba(215,25,32,.55)!important;background:rgba(215,25,32,.08)!important}
         .mobile-sidebar-toggle,.mobile-sidebar-backdrop{display:none}
+        @media(max-width:1200px) and (min-width:761px){
+          .sidebar-compact{flex-basis:240px;width:240px!important}
+          .sidebar-compact .brand-copy small{font-size:8px}
+          .sidebar-compact .nav-text{font-size:11px}
+          .sidebar-compact .quick-action{min-height:74px!important;padding:8px!important}
+        }
+        @media(max-width:900px) and (min-width:761px){
+          .sidebar-compact{flex-basis:220px;width:220px!important}
+          .sidebar-compact .nav-text{font-size:10.5px}
+          .sidebar-compact .quick-actions-grid{gap:5px!important}
+          .sidebar-compact .quick-action{min-height:70px!important}
+        }
         @media(max-width:760px){
           .sidebar-compact{position:fixed!important;left:0;top:0;bottom:0;width:min(88vw,320px)!important;height:100dvh!important;z-index:3000!important;transform:translateX(-105%);transition:transform .24s ease}
           .sidebar-compact.mobile-open{transform:translateX(0)!important}
