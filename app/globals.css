@@ -88,18 +88,18 @@ button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active { 
 .workspace > * { min-width: 0; max-width: 100%; }
 
 @media (max-width: 1200px) {
-  :root { --pw-control-size: 40px; --pw-page-gutter: 22px; --pw-sidebar-width: 72px; }
-  .workspace { width: calc(100% - 72px); }
+  :root { --pw-control-size: 40px; --pw-page-gutter: 22px; --pw-sidebar-width: 240px; }
+  .workspace { width: calc(100% - var(--pw-sidebar-width)); min-width: 0; }
   .dashboard-header, .topbar { padding-inline: var(--pw-page-gutter); }
   .pos-layout { padding: var(--pw-page-gutter); }
 }
 
 @media (max-width: 900px) {
-  :root { --pw-control-size: 42px; --pw-page-gutter: 16px; --pw-card-radius: 14px; }
+  :root { --pw-control-size: 42px; --pw-page-gutter: 16px; --pw-card-radius: 14px; --pw-sidebar-width: 220px; }
+  .workspace { width: calc(100% - var(--pw-sidebar-width)); min-width: 0; }
   :where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: 42px; }
   :where(input, select, textarea) { min-height: 42px; }
   :where(.dashboard-card, .stat-card, .kpi-card, .metric-card, .catalog-panel, .order-panel) { max-width: 100%; min-width: 0; }
-  .workspace { width: calc(100% - 72px); }
   .topbar { min-height: 76px; }
   .top-actions { gap: 8px; }
   .pos-layout { gap: 12px; }
@@ -110,6 +110,7 @@ button:active, .quick-action:active, .nav-item:active, .sidebar-logout:active { 
   body { font-size: 14px; }
   .app-shell { display: block; min-height: 100dvh; }
   .workspace { width: 100%; max-width: 100%; min-height: 100dvh; }
+  .page-content, .dashboard-content, .app-content, .products-workspace, .orders-workspace { width: 100%; max-width: 100%; }
   .workspace > * { max-width: 100%; }
   :where(button, [role="button"], .nav-item, .quick-action, .sidebar-logout) { min-height: 44px; }
   :where(input, select, textarea) { min-height: 44px; font-size: 16px; }
