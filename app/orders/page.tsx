@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ReceiptText, Search, User, CalendarDays, X, Printer, Calculator, Ban, ShieldCheck, AlertTriangle, Shirt, CupSoda, Sticker, Image, FileText, Barcode, Layers3, PenLine, CheckCircle2, ClipboardList, CircleDollarSign, CalendarClock } from "lucide-react";
+import { ReceiptText, Search, User, CalendarDays, X, Printer, Calculator, Ban, ShieldCheck, AlertTriangle, Shirt, CupSoda, Sticker, Image, FileText, Barcode, Layers3, PenLine, CheckCircle2, ClipboardList, CircleDollarSign, CalendarClock, RefreshCw, Eye, Filter, ShoppingBag, TrendingUp } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../pos/pos.css";
 import "./orders.css";
@@ -65,6 +65,7 @@ export default function OrdersPage() {
   const [voidPassword, setVoidPassword] = useState("");
   const [voidError, setVoidError] = useState("");
   const [voiding, setVoiding] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     let active = true;
@@ -89,9 +90,35 @@ export default function OrdersPage() {
     return () => { active = false; };
   }, []);
 
-  const filtered = orders.filter((o) =>
-    `${o.order_no} ${o.customer_name || ""} ${o.transacted_by || ""} ${o.status}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = orders.filter((o) => {
+    const matchesSearch = String(o.order_no + " " + (o.customer_name || "") + " " + (o.transacted_by || "") + " " + o.status)
+      .toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || String(o.status || "").toLowerCase() === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const completedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "completed");
+  const voidedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "voided");
+  const completedSales = completedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+  const refreshOrders = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await apiGet("/api/orders");
+      setOrders((payload.orders ?? []).map((o: any) => ({
+        ...o,
+        subtotal: Number(o.subtotal || 0),
+        discount_amount: Number(o.discount_amount || 0),
+        total: Number(o.total || 0),
+        amount_paid: Number(o.amount_paid || 0),
+      })));
+    } catch (err: any) {
+      setError(err?.message || "Unable to refresh orders.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openOrder = async (order: Order) => {
     setSelected(order);
@@ -241,5 +268,48 @@ export default function OrdersPage() {
     printInFrame(html);
   };
 
-  return <main className="app-shell"><Sidebar /><section className="workspace"><header className="topbar"><div><h1>Orders</h1><p>View completed PrintWise POS transactions and create project costings.</p></div></header><div className="pos-layout" style={{ gridTemplateColumns: "1fr" }}><section className="catalog-panel"><div className="search-box"><Search size={19} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order number, customer, cashier, or status..." /></div>{error && <div className="message">{error}</div>}<div style={{ overflowX: "auto", marginTop: 18 }}><table className="orders-table"><thead><tr><th>Order No.</th><th>Customer</th><th>Transacted By</th><th>Date & Time</th><th>Total</th><th>Paid</th><th>Status</th></tr></thead><tbody>{loading ? <tr><td colSpan={7}>Loading orders...</td></tr> : filtered.length === 0 ? <tr><td colSpan={7}>No orders found.</td></tr> : filtered.map((o) => <tr key={o.id} onClick={() => openOrder(o)} style={{ cursor: "pointer" }}><td><b>{o.order_no}</b></td><td><User size={14} /> {o.customer_name || "Walk-in Customer"}</td><td><User size={14} /> <b>{o.transacted_by || "Not recorded"}</b></td><td><CalendarDays size={14} /> {new Date(o.created_at).toLocaleString()}</td><td>₱{o.total.toFixed(2)}</td><td>₱{o.amount_paid.toFixed(2)}</td><td><span className={`order-status ${String(o.status || "").toLowerCase() === "voided" ? "voided" : ""}`}>{o.status}</span></td></tr>)}</tbody></table></div></section></div></section>{selected && <div className="order-details-backdrop"><div className="order-details-modal" role="dialog" aria-modal="true" aria-labelledby="order-details-title"><div className="order-details-header"><div className="order-details-title-wrap"><div className="order-details-brand"><ReceiptText size={30} /></div><div><h2 id="order-details-title"><span>ORDER</span> DETAILS</h2><p>View transaction information and manage this order.</p></div></div><button className="order-details-close" onClick={() => setSelected(null)} aria-label="Close order details"><X size={24} /></button></div><div className="order-details-rule" /><div className="order-details-mobile-meta"><b>{selected.order_no}</b><span>•</span><span>Transacted by: <strong>{selected.transacted_by || "Not recorded"}</strong></span></div><div className="order-meta-grid"><div className="order-meta-card"><div className="order-meta-icon"><ClipboardList size={22} /></div><div><span>ORDER NO.</span><b>{selected.order_no}</b></div></div><div className="order-meta-card"><div className="order-meta-icon"><CalendarClock size={22} /></div><div><span>DATE & TIME</span><b>{new Date(selected.created_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</b><small>{new Date(selected.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</small></div></div><div className="order-meta-card"><div className="order-meta-icon"><User size={22} /></div><div><span>TRANSACTED BY</span><b>{selected.transacted_by || "Not recorded"}</b><small>Cashier / Administrator</small></div></div><div className="order-meta-card status-card"><div><span>STATUS</span><div className={`order-detail-status ${String(selected.status || "").toLowerCase() === "voided" ? "is-voided" : ""}`}>{String(selected.status || "").toLowerCase() === "voided" ? <Ban size={18} /> : <CheckCircle2 size={18} />} {String(selected.status || "").toLowerCase() === "voided" ? "VOIDED" : String(selected.status || "").toUpperCase()}</div></div></div></div><div className="order-items-card"><div className="order-items-head"><span>ITEM</span><span>QTY</span><span>UNIT PRICE</span><span>TOTAL</span></div><div className="order-items-body">{loadingItems ? <div className="order-loading">Loading items...</div> : items.length === 0 ? <div className="order-loading">No order items found.</div> : items.map((i) => <div className="order-item-row" key={i.id}><div className="order-item-main"><OrderItemVisual item={i} /><div><b>{i.item_name}</b><small>{i.category || "Printing Service"}</small></div></div><strong>{i.quantity}</strong><strong>₱{i.unit_price.toFixed(2)}</strong><strong>₱{i.line_total.toFixed(2)}</strong></div>)}</div></div><div className="order-total-card"><div className="order-summary-intro"><div className="order-summary-icon"><CircleDollarSign size={38} /></div><div><b>ORDER SUMMARY</b><span>Review the total amount for this transaction.</span></div></div><div className="order-summary-values"><div><span>Subtotal</span><b>₱{selected.subtotal.toFixed(2)}</b></div><div><span>Discount</span><b>₱{selected.discount_amount.toFixed(2)}</b></div><div className="order-summary-total"><span>TOTAL AMOUNT</span><b>₱{selected.total.toFixed(2)}</b></div></div></div><div className="order-details-actions"><button className="order-action close" onClick={() => setSelected(null)}><X size={20} /> CLOSE</button><button className="order-action costing" onClick={createCosting} disabled={loadingItems || String(selected.status || "").toLowerCase() === "voided"}><Calculator size={20} /> CREATE COSTING</button><button className="order-action void" onClick={requestVoid} disabled={voiding || String(selected.status || "").toLowerCase() === "voided"}><Ban size={20} /> {String(selected.status || "").toLowerCase() === "voided" ? "VOIDED" : "VOID TRANSACTION"}</button><button className="order-action print" onClick={reprintReceipt} disabled={loadingItems}><ReceiptText size={21} /> RE-PRINT RECEIPT</button><button className="order-action print" onClick={printOrder} disabled={loadingItems}><Printer size={21} /> PRINT CONTRACT / SAVE AS PDF</button></div></div></div>}{showVoidModal && selected && <div className="void-modal-backdrop"><div className="void-modal" role="dialog" aria-modal="true" aria-labelledby="void-title"><button className="void-modal-close" onClick={() => !voiding && setShowVoidModal(false)} aria-label="Close"><X size={19} /></button><div className="void-modal-icon"><ShieldCheck size={25} /></div><h2 id="void-title">Admin Authorization Required</h2><p>Enter the <b>admin password</b> before voiding <b>{selected.order_no}</b>.</p><div className="void-warning"><AlertTriangle size={18} /><span>This will mark the transaction as <b>VOIDED</b> and keep the record for order history and audit purposes.</span></div><label className="void-password-label">Admin Password<input autoFocus type="password" value={voidPassword} onChange={(e) => setVoidPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && confirmVoid()} placeholder="Enter admin password" disabled={voiding} /></label>{voidError && <div className="void-error">{voidError}</div>}<div className="void-modal-actions"><button onClick={() => setShowVoidModal(false)} disabled={voiding}>Cancel</button><button className="void-confirm-btn" onClick={confirmVoid} disabled={voiding || !voidPassword}><Ban size={17} />{voiding ? "VOIDING..." : "CONFIRM VOID"}</button></div></div></div>}</main>;
+  return <main className="app-shell">
+    <Sidebar />
+    <section className="workspace orders-workspace">
+      <header className="topbar orders-topbar">
+        <div>
+          <div className="orders-eyebrow"><ReceiptText size={15} /> TRANSACTION MANAGEMENT</div>
+          <h1>Orders</h1>
+          <p>Review completed sales, customer transactions, and order documents in one place.</p>
+        </div>
+        <button className="orders-refresh-btn" onClick={refreshOrders} disabled={loading}><RefreshCw size={17} className={loading ? "spin" : ""} /> {loading ? "Refreshing..." : "Refresh"}</button>
+      </header>
+      <div className="orders-summary-grid">
+        <div className="orders-summary-card"><div className="orders-summary-icon blue"><ShoppingBag size={21} /></div><div><span>Total Orders</span><strong>{orders.length}</strong><small>All recorded transactions</small></div></div>
+        <div className="orders-summary-card"><div className="orders-summary-icon green"><CheckCircle2 size={21} /></div><div><span>Completed</span><strong>{completedOrders.length}</strong><small>Successfully paid sales</small></div></div>
+        <div className="orders-summary-card"><div className="orders-summary-icon red"><Ban size={21} /></div><div><span>Voided</span><strong>{voidedOrders.length}</strong><small>Transactions kept for audit</small></div></div>
+        <div className="orders-summary-card"><div className="orders-summary-icon gold"><TrendingUp size={21} /></div><div><span>Completed Sales</span><strong>₱{completedSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>Based on completed orders</small></div></div>
+      </div>
+      <section className="orders-content-card">
+        <div className="orders-content-head"><div><h2>Transaction History</h2><p>{filtered.length} {filtered.length === 1 ? "transaction" : "transactions"} displayed</p></div>
+          <div className="orders-tools">
+            <div className="orders-search"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order, customer, cashier..." />{search && <button onClick={() => setSearch("")} aria-label="Clear search"><X size={15} /></button>}</div>
+            <label className="orders-filter"><Filter size={16} /><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter order status"><option value="all">All Status</option><option value="completed">Completed</option><option value="voided">Voided</option></select><span className="orders-filter-chevron">⌄</span></label>
+          </div>
+        </div>
+        {error && <div className="message orders-message">{error}</div>}
+        <div className="orders-table-wrap"><table className="orders-table orders-table-enhanced">
+          <thead><tr><th>Order</th><th>Customer</th><th>Cashier</th><th>Date & Time</th><th className="num">Total</th><th className="num">Paid</th><th>Status</th><th className="action-col">Action</th></tr></thead>
+          <tbody>
+            {loading ? <tr><td colSpan={8}><div className="orders-empty"><RefreshCw className="spin" size={22} /><span>Loading transactions...</span></div></td></tr> : filtered.length === 0 ? <tr><td colSpan={8}><div className="orders-empty"><ReceiptText size={28} /><strong>No transactions found</strong><span>Try another search or status filter.</span></div></td></tr> : filtered.map((o) => {
+              const isVoided = String(o.status || "").toLowerCase() === "voided"; const date = new Date(o.created_at);
+              return <tr key={o.id} onClick={() => openOrder(o)} className="order-table-row">
+                <td><div className="order-number-cell"><div className="order-number-icon"><ReceiptText size={16} /></div><div><b>{o.order_no}</b><small>Transaction ID</small></div></div></td>
+                <td><div className="order-person-cell"><div className="order-avatar"><User size={14} /></div><span>{o.customer_name || "Walk-in Customer"}</span></div></td>
+                <td><span className="cashier-name">{o.transacted_by || "Not recorded"}</span></td>
+                <td><div className="order-date-cell"><b>{date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</b><span>{date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span></div></td>
+                <td className="num"><strong>₱{o.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></td><td className="num"><span className="paid-amount">₱{o.amount_paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></td>
+                <td><span className={"order-status enhanced-status " + (isVoided ? "voided" : "")}><span className="status-dot" />{o.status}</span></td>
+                <td className="action-col"><button className="view-order-btn" onClick={(e) => { e.stopPropagation(); openOrder(o); }}><Eye size={15} /> View</button></td>
+              </tr>; })}
+          </tbody></table></div>
+        <div className="orders-content-footer"><span>Showing <b>{filtered.length}</b> of <b>{orders.length}</b> transactions</span><span>Click any row to view complete order details</span></div>
+      </section>
+    </section>
+{selected && <div className="order-details-backdrop"><div className="order-details-modal" role="dialog" aria-modal="true" aria-labelledby="order-details-title"><div className="order-details-header"><div className="order-details-title-wrap"><div className="order-details-brand"><ReceiptText size={30} /></div><div><h2 id="order-details-title"><span>ORDER</span> DETAILS</h2><p>View transaction information and manage this order.</p></div></div><button className="order-details-close" onClick={() => setSelected(null)} aria-label="Close order details"><X size={24} /></button></div><div className="order-details-rule" /><div className="order-details-mobile-meta"><b>{selected.order_no}</b><span>•</span><span>Transacted by: <strong>{selected.transacted_by || "Not recorded"}</strong></span></div><div className="order-meta-grid"><div className="order-meta-card"><div className="order-meta-icon"><ClipboardList size={22} /></div><div><span>ORDER NO.</span><b>{selected.order_no}</b></div></div><div className="order-meta-card"><div className="order-meta-icon"><CalendarClock size={22} /></div><div><span>DATE & TIME</span><b>{new Date(selected.created_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</b><small>{new Date(selected.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</small></div></div><div className="order-meta-card"><div className="order-meta-icon"><User size={22} /></div><div><span>TRANSACTED BY</span><b>{selected.transacted_by || "Not recorded"}</b><small>Cashier / Administrator</small></div></div><div className="order-meta-card status-card"><div><span>STATUS</span><div className={`order-detail-status ${String(selected.status || "").toLowerCase() === "voided" ? "is-voided" : ""}`}>{String(selected.status || "").toLowerCase() === "voided" ? <Ban size={18} /> : <CheckCircle2 size={18} />} {String(selected.status || "").toLowerCase() === "voided" ? "VOIDED" : String(selected.status || "").toUpperCase()}</div></div></div></div><div className="order-items-card"><div className="order-items-head"><span>ITEM</span><span>QTY</span><span>UNIT PRICE</span><span>TOTAL</span></div><div className="order-items-body">{loadingItems ? <div className="order-loading">Loading items...</div> : items.length === 0 ? <div className="order-loading">No order items found.</div> : items.map((i) => <div className="order-item-row" key={i.id}><div className="order-item-main"><OrderItemVisual item={i} /><div><b>{i.item_name}</b><small>{i.category || "Printing Service"}</small></div></div><strong>{i.quantity}</strong><strong>₱{i.unit_price.toFixed(2)}</strong><strong>₱{i.line_total.toFixed(2)}</strong></div>)}</div></div><div className="order-total-card"><div className="order-summary-intro"><div className="order-summary-icon"><CircleDollarSign size={38} /></div><div><b>ORDER SUMMARY</b><span>Review the total amount for this transaction.</span></div></div><div className="order-summary-values"><div><span>Subtotal</span><b>₱{selected.subtotal.toFixed(2)}</b></div><div><span>Discount</span><b>₱{selected.discount_amount.toFixed(2)}</b></div><div className="order-summary-total"><span>TOTAL AMOUNT</span><b>₱{selected.total.toFixed(2)}</b></div></div></div><div className="order-details-actions"><button className="order-action close" onClick={() => setSelected(null)}><X size={20} /> CLOSE</button><button className="order-action costing" onClick={createCosting} disabled={loadingItems || String(selected.status || "").toLowerCase() === "voided"}><Calculator size={20} /> CREATE COSTING</button><button className="order-action void" onClick={requestVoid} disabled={voiding || String(selected.status || "").toLowerCase() === "voided"}><Ban size={20} /> {String(selected.status || "").toLowerCase() === "voided" ? "VOIDED" : "VOID TRANSACTION"}</button><button className="order-action print" onClick={reprintReceipt} disabled={loadingItems}><ReceiptText size={21} /> RE-PRINT RECEIPT</button><button className="order-action print" onClick={printOrder} disabled={loadingItems}><Printer size={21} /> PRINT CONTRACT / SAVE AS PDF</button></div></div></div>}{showVoidModal && selected && <div className="void-modal-backdrop"><div className="void-modal" role="dialog" aria-modal="true" aria-labelledby="void-title"><button className="void-modal-close" onClick={() => !voiding && setShowVoidModal(false)} aria-label="Close"><X size={19} /></button><div className="void-modal-icon"><ShieldCheck size={25} /></div><h2 id="void-title">Admin Authorization Required</h2><p>Enter the <b>admin password</b> before voiding <b>{selected.order_no}</b>.</p><div className="void-warning"><AlertTriangle size={18} /><span>This will mark the transaction as <b>VOIDED</b> and keep the record for order history and audit purposes.</span></div><label className="void-password-label">Admin Password<input autoFocus type="password" value={voidPassword} onChange={(e) => setVoidPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && confirmVoid()} placeholder="Enter admin password" disabled={voiding} /></label>{voidError && <div className="void-error">{voidError}</div>}<div className="void-modal-actions"><button onClick={() => setShowVoidModal(false)} disabled={voiding}>Cancel</button><button className="void-confirm-btn" onClick={confirmVoid} disabled={voiding || !voidPassword}><Ban size={17} />{voiding ? "VOIDING..." : "CONFIRM VOID"}</button></div></div></div>}</main>;
 }
