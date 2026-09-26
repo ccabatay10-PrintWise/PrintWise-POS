@@ -125,5 +125,19 @@ export default function WisePricingPage(){
     </>:<div style={{padding:22,textAlign:"center",color:"#858c93",fontSize:12,background:"#fafbfb",borderRadius:10,marginTop:20}}>Run Calculate to generate a price from the product's live recipe and inventory costs.</div>}
    </aside>
   </div>
- </section></main>;
+ <style jsx global>{`
+  section.workspace{overflow-x:hidden!important;background:#f6f7f9!important;}
+  section.workspace>div[style*="max-width:1600px"]{max-width:1380px!important;width:100%!important;margin:0 auto!important;padding:22px 28px 40px!important;box-sizing:border-box!important;}
+  section.workspace>div[style*="max-width:1600px"]>header{margin-bottom:16px!important;}
+  section.workspace>div[style*="max-width:1600px"]>header h1{font-size:30px!important;letter-spacing:-.02em!important;}
+  section.workspace>div[style*="max-width:1600px"]>header p{font-size:13px!important;max-width:700px!important;}
+  section.workspace>div[style*="max-width:1600px"]>div[style*="grid-template-columns:1fr 1.3fr 1fr"]{grid-template-columns:minmax(240px,.9fr) minmax(420px,1.4fr) minmax(280px,1fr)!important;gap:14px!important;}
+  section.workspace>div[style*="max-width:1600px"]>div[style*="grid-template-columns:1.65fr 1fr"]{grid-template-columns:minmax(0,1.55fr) minmax(330px,.85fr)!important;gap:14px!important;margin-top:14px!important;}
+  section.workspace .wp-polish{display:none!important;}
+  section.workspace h2{letter-spacing:-.01em;}
+  section.workspace input,section.workspace select{transition:border-color .15s,box-shadow .15s;}
+  section.workspace input:focus,section.workspace select:focus{outline:none!important;border-color:#c81c1c!important;box-shadow:0 0 0 3px rgba(200,28,28,.08)!important;}
+  @media(max-width:1250px){section.workspace>div[style*="max-width:1600px"]>div[style*="grid-template-columns:1fr 1.3fr 1fr"]{grid-template-columns:1fr 1.35fr!important;}section.workspace>div[style*="max-width:1600px"]>div[style*="grid-template-columns:1.65fr 1fr"]{grid-template-columns:1fr!important;}}
+  @media(max-width:800px){section.workspace>div[style*="max-width:1600px"]{padding:18px 14px 30px!important;}section.workspace>div[style*="max-width:1600px"]>div[style*="grid-template-columns:1fr 1.3fr 1fr"]{grid-template-columns:1fr!important;}section.workspace>div[style*="max-width:1600px"]>header{flex-direction:column!important;}}
+`}</style></section></main>;
 }
