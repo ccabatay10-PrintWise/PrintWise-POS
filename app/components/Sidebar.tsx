@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard,
+  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator,
   LogOut, Menu, Package, Plus, ReceiptText, Settings, ShoppingCart,
   UserPlus, Users, Wallet, X, Utensils, ShieldCheck,
 } from "lucide-react";
@@ -15,6 +15,7 @@ const nav = [
   [Utensils, "WISE MENU", "/wise-menu"],
   [ChefHat, "WISE KITCHEN", "/wise-kitchen"],
   [Beaker, "Recipe Manager", "/wise-kitchen/recipes"],
+  [Calculator, "WISE Pricing", "/wise-pricing"],
   [ReceiptText, "Transactions", "/orders"],
   [Wallet, "Payments", "/gcash-bayad"],
   [Package, "Products & Services", "/products"],
