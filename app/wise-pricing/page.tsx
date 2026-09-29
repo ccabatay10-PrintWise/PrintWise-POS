@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, ChefHat, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { Calculator, ChefHat, Loader2, Plus, Save, Trash2, Coffee, Utensils, ShoppingBag, HelpCircle, ArrowRight, CheckCircle2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../../lib/supabase";
 
@@ -22,6 +22,7 @@ export default function WisePricingPage(){
  const [qty,setQty]=useState(1),[measurement,setMeasurement]=useState(1),[channel,setChannel]=useState("dine_in");
  const [result,setResult]=useState<Result|null>(null);
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");
+ const [advancedOpen,setAdvancedOpen]=useState(true);
  const selected=useMemo(()=>products.find(p=>p.id===productId),[products,productId]);
 
  useEffect(()=>{void loadProducts()},[]);
@@ -50,6 +51,15 @@ export default function WisePricingPage(){
    if(e)setError(e.message);else setResult(data as Result);
    setBusy(false);
  }
+ async function applyRecommendedPrice(){
+   if(!result||!productId||!selected)return;
+   const ok=window.confirm(`Set ${selected.name} POS price to ${money(result.recommended_unit_price)}?`);
+   if(!ok)return;
+   setBusy(true);setError("");setMessage("");
+   const {error:e}=await supabase.from("products").update({price:result.recommended_unit_price}).eq("id",productId);
+   if(e)setError(e.message);else{setProducts(ps=>ps.map(p=>p.id===productId?{...p,price:result.recommended_unit_price}:p));setMessage("Recommended price applied to POS.");}
+   setBusy(false);
+ }
  async function saveProfile(){
    if(!productId)return;
    setBusy(true);setError("");setMessage("");
@@ -70,17 +80,19 @@ export default function WisePricingPage(){
  if(loading)return <main className="app-shell"><Sidebar/><section className="workspace espac-pricing"><div className="loading"><Loader2/>Loading Espacio Pricing…</div></section></main>;
 
  return <main className="app-shell"><Sidebar/><section className="workspace espac-pricing">
-  <header className="ep-header"><div><div className="ep-kicker"><ChefHat size={15}/> ESPACIO COFFEE & RESTAURANT</div><h1>WISE Pricing</h1><p>Smart menu pricing based on your actual recipe, inventory cost, waste, labor, overhead and packaging.</p></div><div className="ep-badge">₱ PHP · RESTAURANT MODE</div></header>
+  <header className="ep-header"><div><div className="ep-kicker"><ChefHat size={15}/> ESPACIO COFFEE & RESTAURANT</div><h1>Let WISE find your selling price.</h1><p>Choose a menu item, check your costs, then calculate a practical selling price.</p></div><div className="ep-badge">₱ PHP · RESTAURANT MODE</div></header>
+  <div className="friendly-bar"><span><CheckCircle2 size={15}/> <b>Simple 3-step pricing</b></span><span>① Choose item</span><ArrowRight size={13}/><span>② Set costs</span><ArrowRight size={13}/><span>③ Get your price</span></div>
   {error&&<div className="ep-alert error">{error}</div>}{message&&<div className="ep-alert success">{message}</div>}
 
   <div className="ep-grid">
-   <section className="ep-card product-card"><div className="step">01</div><h2>Menu Item</h2><p>Select an Espacio menu item. WISE reads its WISE KITCHEN recipe.</p>
+   <section className="ep-card product-card"><div className="step">01 · START HERE</div><h2>Which menu item are you pricing?</h2><p>Pick a product. WISE will use its recipe and current inventory costs.</p>
     <select value={productId} onChange={e=>void chooseProduct(e.target.value)} className="ep-input">{products.map(p=><option key={p.id} value={p.id}>{p.name}{p.category?" · "+p.category:""}</option>)}</select>
     {selected&&<div className="current-price"><span>Current POS price</span><b>{money(selected.price)}</b></div>}
-    <a href="/wise-kitchen/recipes" className="recipe-link"><ChefHat size={15}/> Edit recipe in WISE KITCHEN</a>
+    <div className="product-help"><HelpCircle size={14}/><span>Need to change ingredients or measurements?</span></div><a href="/wise-kitchen/recipes" className="recipe-link"><ChefHat size={15}/> Edit recipe in WISE KITCHEN</a>
    </section>
 
-   <section className="ep-card"><div className="step">02</div><h2>Espacio Costing Rules</h2><p>Set the real operating costs used to calculate your target gross margin.</p>
+   <section className="ep-card"><div className="step">02 · YOUR COSTS</div><h2>Tell WISE how you price</h2><p>You can start with the two numbers that matter most, then add your operating costs.</p>
+    <div className="quick-presets"><span>Quick margin:</span>{[50,55,60,65,70].map(v=><button key={v} className={Number(profile.target_margin_percent)===v?"selected":""} onClick={()=>setProfile(p=>({...p,target_margin_percent:v}))}>{v}%</button>)}</div>
     <div className="rule-grid">
       <Field label="Target Gross Margin %" value={profile.target_margin_percent} onChange={v=>setProfile(p=>({...p,target_margin_percent:v}))} suffix="%" />
       <Field label="Expected Waste %" value={profile.waste_percent} onChange={v=>setProfile(p=>({...p,waste_percent:v}))} suffix="%" />
@@ -90,17 +102,19 @@ export default function WisePricingPage(){
       <Field label="Minimum Selling Price" value={profile.minimum_price} onChange={v=>setProfile(p=>({...p,minimum_price:v}))} prefix="₱" />
       <Field label="Round Price Up To" value={profile.rounding_increment} onChange={v=>setProfile(p=>({...p,rounding_increment:v}))} prefix="₱" />
     </div>
-    <button className="ep-btn secondary" onClick={saveProfile} disabled={busy}><Save size={15}/> Save Rules</button>
+    <button className="advanced-toggle" onClick={()=>setAdvancedOpen(v=>!v)}><span><HelpCircle size={14}/> Operating costs & price controls</span><b>{advancedOpen?"Hide":"Show"}</b></button>
+    {advancedOpen&&<div className="advanced-panel"><p className="mini-note">Optional, but adding these makes the recommendation more realistic.</p><div className="advanced-grid"><Field label="Labor / Serving" value={profile.labor_cost_per_unit} onChange={v=>setProfile(p=>({...p,labor_cost_per_unit:v}))} prefix="₱" /><Field label="Overhead / Serving" value={profile.overhead_cost_per_unit} onChange={v=>setProfile(p=>({...p,overhead_cost_per_unit:v}))} prefix="₱" /><Field label="Packaging / Serving" value={profile.packaging_cost_per_unit} onChange={v=>setProfile(p=>({...p,packaging_cost_per_unit:v}))} prefix="₱" /><Field label="Minimum Selling Price" value={profile.minimum_price} onChange={v=>setProfile(p=>({...p,minimum_price:v}))} prefix="₱" /><Field label="Round Price Up To" value={profile.rounding_increment} onChange={v=>setProfile(p=>({...p,rounding_increment:v}))} prefix="₱" /></div></div>}
+    <button className="ep-btn secondary save-rules" onClick={saveProfile} disabled={busy}><Save size={15}/> Save My Pricing Rules</button>
    </section>
 
-   <section className="ep-card calculate-card"><div className="step">03</div><h2>Pricing Scenario</h2><p>Choose how this item will be sold. Takeout automatically adds packaging cost.</p>
-    <div className="channel-grid">{["dine_in","takeout","catering"].map(c=><button key={c} className={channel===c?"active":""} onClick={()=>{setChannel(c);setResult(null)}}>{label(c)}</button>)}</div>
+   <section className="ep-card calculate-card"><div className="step">03 · SELLING SCENARIO</div><h2>How will you sell it?</h2><p>Choose dine-in, takeout or catering. WISE adjusts the calculation for the selling situation.</p>
+    <div className="channel-grid">{["dine_in","takeout","catering"].map(c=><button key={c} className={channel===c?"active":""} onClick={()=>{setChannel(c);setResult(null)}}>{c==="dine_in"?<Utensils size={14}/>:c==="takeout"?<ShoppingBag size={14}/>:<Coffee size={14}/>}<span>{label(c)}</span></button>)}</div>
     <div className="scenario-grid">
       <Field label="Quantity / Servings" value={qty} onChange={setQty} />
       <Field label="Measurement Factor" value={measurement} onChange={setMeasurement} step="0.01" />
     </div>
     <div className="hint">For normal menu pricing, keep Measurement Factor at <b>1</b>. Use it when one recipe serving is multiplied by a known measurement.</div>
-    <button className="calculate" onClick={calculate} disabled={busy||!productId}>{busy?<Loader2/>:<Calculator size={17}/>} CALCULATE ESPACIO PRICE</button>
+    <button className="calculate" onClick={calculate} disabled={busy||!productId}>{busy?<Loader2/>:<Calculator size={17}/>} FIND MY SELLING PRICE</button>
    </section>
   </div>
 
@@ -111,7 +125,7 @@ export default function WisePricingPage(){
     {!breaks.length&&<div className="empty-break">No catering breaks configured. Main Espacio pricing rules will be used.</div>}
    </section>
 
-   <aside className="ep-card result-card"><div className="result-kicker">ESPACIO RECOMMENDED SELLING PRICE</div>{result?<><div className="hero-price">{money(result.recommended_unit_price)}</div><div className="hero-sub">{money(result.recommended_total_price)} total · {label(result.channel)} · {result.quantity} serving{result.quantity===1?"":"s"}</div><div className="metrics"><Metric label="Recipe / Materials" value={result.material_cost}/><Metric label="Waste" value={result.waste_cost}/><Metric label="Labor" value={result.labor_cost}/><Metric label="Overhead" value={result.overhead_cost}/><Metric label="Packaging" value={result.packaging_cost}/><Metric label="Total Cost" value={result.total_cost} strong/></div><div className="chips"><span>Gross Margin {result.target_margin_percent}%</span><span>Food Cost {result.food_cost_percent}%</span></div><div className="method">{result.pricing_method==="catering_quantity_break"?"Catering quantity price":"Cost + gross margin"} · {result.recipe_item_count} recipe ingredients</div></>:<div className="result-empty"><Calculator size={28}/><b>Your price will appear here</b><span>Calculate after selecting the menu item and costing rules.</span></div>}</aside>
+   <aside className="ep-card result-card"><div className="result-kicker">YOUR WISE PRICE</div>{result?<><div className="result-title">Suggested selling price</div><div className="hero-price">{money(result.recommended_unit_price)}</div><div className="hero-sub">{money(result.recommended_total_price)} total · {label(result.channel)} · {result.quantity} serving{result.quantity===1?"":"s"}</div><div className="price-compare"><div><small>Current POS</small><b>{money(selected?.price||0)}</b></div><ArrowRight size={15}/><div className="suggested"><small>WISE suggests</small><b>{money(result.recommended_unit_price)}</b></div></div><div className="metrics"><Metric label="Recipe / Materials" value={result.material_cost}/><Metric label="Waste" value={result.waste_cost}/><Metric label="Labor" value={result.labor_cost}/><Metric label="Overhead" value={result.overhead_cost}/><Metric label="Packaging" value={result.packaging_cost}/><Metric label="Total Cost" value={result.total_cost} strong/></div><div className="chips"><span>Gross Margin {result.target_margin_percent}%</span><span>Food Cost {result.food_cost_percent}%</span></div><div className="method">{result.pricing_method==="catering_quantity_break"?"Catering quantity price":"Cost + gross margin"} · {result.recipe_item_count} recipe ingredients</div><button className="apply-price" onClick={applyRecommendedPrice} disabled={busy}><CheckCircle2 size={15}/> Use This Price in POS</button></>:<div className="result-empty"><Calculator size={28}/><b>Your price will appear here</b><span>Calculate after selecting the menu item and costing rules.</span></div>}</aside>
   </div>
 
   <div className="ep-note"><b>Important:</b> WISE uses the inventory item's unit cost and converts common recipe units automatically (g ↔ kg, ml ↔ L, oz ↔ g, fl oz ↔ ml). Keep recipe measurements accurate in WISE KITCHEN.</div>
@@ -121,19 +135,19 @@ export default function WisePricingPage(){
     .espac-pricing .ep-header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin:0 0 12px!important;padding:0!important;min-height:54px}
     .ep-kicker{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:900;letter-spacing:.14em;color:#9f1d22}.ep-header h1{font-size:26px;line-height:1;letter-spacing:-.03em;margin:5px 0 3px}.ep-header p{margin:0;color:#687078;font-size:13px}.ep-badge{font-size:10px;font-weight:900;background:#fff;border:1px solid #e2e5e8;border-radius:999px;padding:9px 12px;color:#626970;white-space:nowrap}
     .ep-alert{padding:11px 13px;border-radius:10px;margin-bottom:12px;font-size:12px}.ep-alert.error{background:#fff0f0;color:#a11d1d}.ep-alert.success{background:#eef9f1;color:#277246}
-    .ep-grid{display:grid;grid-template-columns:250px minmax(400px,1fr) 300px;gap:10px;align-items:start}.ep-card{background:#fff;border:1px solid #e1e5e8;border-radius:11px;padding:14px;box-shadow:0 3px 12px rgba(24,30,35,.025);min-width:0}.ep-card h2{margin:2px 0 4px;font-size:15px;line-height:1.2}.ep-card p{margin:0 0 10px;color:#747b82;font-size:10px;line-height:1.4}.step{font-size:9px;font-weight:900;letter-spacing:.15em;color:#a41e23}.step.small{margin-bottom:3px}
+    .ep-grid{display:grid;grid-template-columns:250px minmax(400px,1fr) 300px;gap:10px;align-items:start}.ep-card{background:#fff;border:1px solid #e1e5e8;border-radius:11px;padding:14px;box-shadow:0 3px 12px rgba(24,30,35,.025);min-width:0}.ep-card h2{margin:2px 0 4px;font-size:16px;line-height:1.2}.friendly-bar{display:flex;align-items:center;gap:9px;padding:8px 11px;margin:0 0 10px;background:#fff;border:1px solid #e3e6e8;border-radius:9px;color:#697179;font-size:10px}.friendly-bar span:first-child{color:#28754b}.friendly-bar svg{vertical-align:middle}.product-help{display:flex;align-items:center;gap:6px;margin-top:11px;color:#7b838a;font-size:9px}.quick-presets{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:3px 0 10px;padding:8px;background:#f7f8f9;border-radius:8px;font-size:9px;color:#717980}.quick-presets button{border:1px solid #dfe3e6;background:#fff;border-radius:999px;padding:5px 8px;font-size:9px;font-weight:800;cursor:pointer}.quick-presets button.selected{background:#a91e23;color:#fff;border-color:#a91e23}.advanced-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;border:0;border-top:1px solid #eceff1;background:transparent;padding:10px 0;color:#606970;font-size:10px;font-weight:800;cursor:pointer}.advanced-toggle span{display:flex;align-items:center;gap:6px}.advanced-toggle b{font-size:9px;color:#a31e23}.advanced-panel{background:#fafbfb;border:1px solid #eceff1;border-radius:8px;padding:9px;margin-bottom:9px}.mini-note{font-size:9px!important;margin:0 0 8px!important}.advanced-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.save-rules{width:100%}.ep-card p{margin:0 0 10px;color:#747b82;font-size:10px;line-height:1.4}.step{font-size:9px;font-weight:900;letter-spacing:.15em;color:#a41e23}.step.small{margin-bottom:3px}
     .ep-input{width:100%;min-height:40px;padding:9px 10px;border:1px solid #dfe3e6;border-radius:8px;background:#fff;color:#343a40;font-size:13px;box-sizing:border-box}.ep-input:focus{outline:none;border-color:#b51f24;box-shadow:0 0 0 3px rgba(181,31,36,.08)}
     .current-price{display:flex;justify-content:space-between;align-items:center;background:#f7f8f9;border-radius:9px;padding:11px;margin-top:12px;font-size:11px}.current-price b{font-size:15px}.recipe-link{display:flex;align-items:center;gap:6px;color:#8f1b20;text-decoration:none;font-size:11px;font-weight:800;margin-top:13px}
     .rule-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}.rule-grid label{font-size:10px;font-weight:800;color:#5e666e}.rule-grid input{margin-top:5px}
     .field-wrap{position:relative}.field-wrap input{margin-top:5px}.field-label{font-size:10px;font-weight:800;color:#5e666e}.field-prefix,.field-suffix{position:absolute;top:31px;font-size:11px;color:#777;pointer-events:none}.field-prefix{left:9px}.field-suffix{right:9px}.has-prefix{padding-left:24px}.has-suffix{padding-right:24px}
     .ep-btn{border:1px solid #dfe3e6;background:#fff;border-radius:8px;padding:9px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:10px;font-weight:900;cursor:pointer}.ep-btn.secondary:hover{border-color:#bd252a}
-    .channel-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px}.channel-grid button{border:1px solid #dfe3e6;background:#fafbfb;border-radius:8px;padding:10px 5px;font-size:10px;font-weight:900;cursor:pointer}.channel-grid button.active{background:#a91e23;color:#fff;border-color:#a91e23}
+    .channel-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px}.channel-grid button{border:1px solid #dfe3e6;background:#fafbfb;border-radius:9px;padding:10px 5px;font-size:10px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}.channel-grid button.active{box-shadow:0 3px 8px rgba(169,30,35,.16)}.channel-grid button.active{background:#a91e23;color:#fff;border-color:#a91e23}
     .scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.scenario-grid .field-wrap{margin-bottom:11px}.hint{font-size:10px;line-height:1.5;color:#7a8289;background:#f7f8f9;padding:9px;border-radius:8px;margin-bottom:11px}.calculate{width:100%;min-height:42px;border:0;border-radius:9px;background:#a91e23;color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}.calculate:disabled{opacity:.65;cursor:wait}
     .ep-lower{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:10px;margin-top:10px;align-items:start}.section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px}.section-head h2{margin:0 0 4px}.break-head,.break-row{display:grid;grid-template-columns:1fr 1fr 1fr 80px;gap:8px;align-items:center}.break-head{font-size:9px;font-weight:900;color:#7b838a;padding:10px 0 7px}.break-row{padding:8px 0;border-top:1px solid #eef0f2}.row-actions{display:flex;gap:4px}.icon-btn{width:32px;height:32px;border:1px solid #dfe3e6;background:#fff;border-radius:7px;display:grid;place-items:center;cursor:pointer}.icon-btn.danger{color:#a91e23}.empty-break{padding:20px;text-align:center;background:#fafbfb;border-radius:9px;color:#838b92;font-size:11px}
-    .result-card{background:linear-gradient(155deg,#fff,#fff7f7)}.result-kicker{font-size:9px;font-weight:900;letter-spacing:.14em;color:#a31e23}.hero-price{font-size:36px;font-weight:950;letter-spacing:-.04em;margin-top:4px;line-height:1.05}.hero-sub{font-size:11px;color:#70777e}.metrics{margin-top:13px}.metrics>div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eceff1;font-size:11px}.metrics .strong{font-weight:900}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}.chips span{background:#f0f2f3;padding:6px 8px;border-radius:999px;font-size:9px;font-weight:900}.method{font-size:9px;color:#7b8289;margin-top:11px}.result-empty{min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;color:#7d858c;font-size:10px}.result-empty svg{color:#b9bec2}.loading{display:flex;gap:8px;align-items:center;padding:30px}
+    .result-card{background:linear-gradient(155deg,#fff,#fff7f7)}.result-kicker{font-size:9px;font-weight:900;letter-spacing:.14em;color:#a31e23}.result-title{font-size:12px;font-weight:800;color:#343a40;margin-top:5px}.price-compare{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-top:11px;padding:8px;background:#f7f8f9;border-radius:8px}.price-compare>div{display:flex;flex-direction:column;gap:2px}.price-compare small{font-size:8px;color:#7b838a}.price-compare b{font-size:12px}.price-compare .suggested b{color:#28754b}.apply-price{width:100%;margin-top:10px;min-height:38px;border:1px solid #b9dec7;border-radius:8px;background:#effaf3;color:#28754b;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}.apply-price:disabled{opacity:.6}.hero-price{font-size:36px;font-weight:950;letter-spacing:-.04em;margin-top:4px;line-height:1.05}.hero-sub{font-size:11px;color:#70777e}.metrics{margin-top:13px}.metrics>div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eceff1;font-size:11px}.metrics .strong{font-weight:900}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}.chips span{background:#f0f2f3;padding:6px 8px;border-radius:999px;font-size:9px;font-weight:900}.method{font-size:9px;color:#7b8289;margin-top:11px}.result-empty{min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;color:#7d858c;font-size:10px}.result-empty svg{color:#b9bec2}.loading{display:flex;gap:8px;align-items:center;padding:30px}
     .ep-note{margin-top:12px;padding:11px 13px;border:1px dashed #d9dde0;border-radius:10px;color:#727a82;font-size:10px;background:#fafbfb}
     @media(max-width:1250px){.ep-grid{grid-template-columns:1fr 1.35fr}.ep-grid>.calculate-card{grid-column:1/-1}.ep-lower{grid-template-columns:1fr}.result-card{min-height:0}}
-    @media(max-width:800px){.espac-pricing{padding:15px 13px 28px!important}.ep-header{flex-direction:column!important}.ep-grid,.ep-lower{grid-template-columns:1fr}.ep-grid>.calculate-card{grid-column:auto}.rule-grid,.scenario-grid{grid-template-columns:1fr}.break-head,.break-row{grid-template-columns:1fr 1fr}.break-head span:nth-child(3),.break-row .ep-input:nth-child(3){display:none}.break-head span:last-child{display:none}.ep-badge{white-space:normal}.hero-price{font-size:36px}}
+    @media(max-width:800px){.friendly-bar{flex-wrap:wrap}.advanced-grid{grid-template-columns:1fr}.espac-pricing{padding:15px 13px 28px!important}.ep-header{flex-direction:column!important}.ep-grid,.ep-lower{grid-template-columns:1fr}.ep-grid>.calculate-card{grid-column:auto}.rule-grid,.scenario-grid{grid-template-columns:1fr}.break-head,.break-row{grid-template-columns:1fr 1fr}.break-head span:nth-child(3),.break-row .ep-input:nth-child(3){display:none}.break-head span:last-child{display:none}.ep-badge{white-space:normal}.hero-price{font-size:36px}}
   `}</style>
  </section></main>;
 }
