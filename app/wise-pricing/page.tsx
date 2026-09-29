@@ -67,13 +67,24 @@ export default function WisePricingPage(){
    setBusy(false);
  }
  async function deleteBreak(b:Break){if(b.id)await supabase.from("wise_pricing_quantity_breaks").delete().eq("id",b.id);setBreaks(bs=>bs.filter(x=>x!==b))}
- if(loading)return <main className="app-shell"><Sidebar/><section className="workspace"><div style={{padding:40,display:"flex",gap:10,alignItems:"center"}}><Loader2/>Loading WISE Pricing...</div></section></main>;
+ if(loading)return <main className="app-shell"><Sidebar/><section className="workspace"><div style={{padding:40,display:"flex",gap:10,alignItems:"center"}}><Loader2/>Loading WISE Pricing...</div>
+  <style jsx global>{`
+    .app-shell:has(.wise-pricing-workspace){display:flex!important;align-items:stretch!important;width:100%!important;min-height:100vh!important;max-width:100vw!important;overflow-x:hidden!important;}
+    .wise-pricing-workspace{display:block!important;position:relative!important;top:auto!important;left:auto!important;right:auto!important;transform:none!important;align-self:stretch!important;flex:1 1 auto!important;width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:100vh!important;margin:0!important;padding:18px 28px 40px!important;box-sizing:border-box!important;overflow-x:hidden!important;overflow-y:visible!important;}
+    .wise-pricing-workspace>header{margin:0 0 18px!important;padding:0!important;min-height:0!important;height:auto!important;display:flex!important;align-items:flex-start!important;}
+    .wise-pricing-workspace>header h1{margin:6px 0 5px!important;}
+    .wise-pricing-workspace .wise-pricing-top-grid,.wise-pricing-workspace .wise-pricing-bottom-grid{width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important;}
+    .wise-pricing-workspace .wise-pricing-top-grid>section,.wise-pricing-workspace .wise-pricing-bottom-grid>section{min-width:0!important;box-sizing:border-box!important;}
+    @media(max-width:1250px){.wise-pricing-workspace .wise-pricing-top-grid{grid-template-columns:minmax(220px,.8fr) minmax(360px,1.2fr)!important}.wise-pricing-workspace .wise-pricing-top-grid>section:nth-child(3){grid-column:1/-1}.wise-pricing-workspace .wise-pricing-bottom-grid{grid-template-columns:1fr!important;}}
+    @media(max-width:800px){.wise-pricing-workspace{padding:14px 14px 28px!important}.wise-pricing-workspace>header{flex-direction:column!important}.wise-pricing-workspace .wise-pricing-top-grid{grid-template-columns:1fr!important}.wise-pricing-workspace .wise-pricing-top-grid>section:nth-child(3){grid-column:auto!important;}}
+  `}</style>
+</section></main>;
 
  const card={background:"#fff",border:"1px solid #e3e7eb",borderRadius:16,padding:20,boxShadow:"0 8px 25px rgba(20,30,40,.04)"};
  const input={width:"100%",boxSizing:"border-box" as const,padding:"10px 12px",border:"1px solid #dfe4e8",borderRadius:9,fontSize:14};
  const button={display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px 14px",borderRadius:9,border:"1px solid #dfe4e8",fontWeight:800,fontSize:11,cursor:"pointer" as const,background:"#fff"};
 
- return <main className="app-shell"><Sidebar/><section className="workspace" style={{padding:"28px 32px",maxWidth:1600}}>
+ return <main className="app-shell"><Sidebar/><section className="workspace wise-pricing-workspace">
   <header style={{display:"flex",justifyContent:"space-between",gap:20,alignItems:"flex-start",marginBottom:20}}>
    <div><div style={{fontSize:11,fontWeight:850,letterSpacing:".12em",color:"#b92020",display:"flex",alignItems:"center",gap:7}}><Calculator size={15}/> WISE PRICING ENGINE</div><h1 style={{margin:"7px 0 5px",fontSize:32}}>WISE Pricing</h1><p style={{margin:0,color:"#6b7280",maxWidth:800}}>Generate a selling price from real material costs, recipe quantities, measurements, labor, waste, overhead and quantity breaks.</p></div>
    <a href="/wise-kitchen/recipes" style={{...button,textDecoration:"none",color:"#3d444b"}}>Open Recipe Manager <ExternalLink size={15}/></a>
@@ -81,7 +92,7 @@ export default function WisePricingPage(){
   {error&&<div style={{padding:12,background:"#fff0f0",color:"#a11d1d",borderRadius:9,marginBottom:12}}>{error}</div>}
   {message&&<div style={{padding:12,background:"#edf9f1",color:"#267246",borderRadius:9,marginBottom:12}}>{message}</div>}
 
-  <div style={{display:"grid",gridTemplateColumns:"1fr 1.3fr 1fr",gap:16}}>
+  <div className="wise-pricing-top-grid" style={{display:"grid",gridTemplateColumns:"minmax(240px,.9fr) minmax(420px,1.4fr) minmax(280px,1fr)",gap:16}}>
    <section style={card}><h2>1. Select Product</h2><p style={{color:"#737a81",fontSize:12}}>WISE reads the product recipe and current inventory unit costs.</p>
     <select value={productId} onChange={e=>void chooseProduct(e.target.value)} style={input}>{products.map(p=><option key={p.id} value={p.id}>{p.name}{p.sku?" · "+p.sku:""}</option>)}</select>
     {selected&&<div style={{marginTop:16,padding:12,borderRadius:10,background:"#f7f8f9",display:"flex",justifyContent:"space-between"}}><span>Current POS price</span><b>{money(selected.price)}</b></div>}
@@ -104,7 +115,7 @@ export default function WisePricingPage(){
    </section>
   </div>
 
-  <div style={{display:"grid",gridTemplateColumns:"1.65fr 1fr",gap:16,marginTop:16}}>
+  <div className="wise-pricing-bottom-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1.55fr) minmax(330px,.85fr)",gap:16,marginTop:16}}>
    <section style={card}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}><div><h2>Quantity Pricing</h2><p style={{color:"#737a81",fontSize:12}}>Give bulk orders their own margin or fixed unit price.</p></div><button style={button} onClick={addBreak}><Plus size={16}/> Add Break</button></div>
     {breaks.length>0&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 86px",gap:10,fontSize:10,fontWeight:800,color:"#777f87",padding:"10px 0"}}><span>Minimum Qty</span><span>Margin %</span><span>Fixed Unit Price</span><span/></div>}
     {breaks.map((b,i)=><div key={b.id||"new-"+i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 86px",gap:10,alignItems:"center",padding:"8px 0",borderTop:"1px solid #edf0f2"}}>
