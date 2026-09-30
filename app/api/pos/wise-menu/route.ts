@@ -49,9 +49,14 @@ export async function POST(request: NextRequest) {
     const wiseMenuOrderId = String(body.wiseMenuOrderId || body.posOrderId || "").trim();
     const channel = String(body.channel || "cash").trim();
     const amountPaid = Number(body.amountPaid);
+    const subtotal = Number(body.subtotal);
+    const discountType = body.discountType ? String(body.discountType) : null;
+    const discountValue = Number(body.discountValue || 0);
+    const discountAmount = Number(body.discountAmount || 0);
+    const total = Number(body.total);
     const transactionNo = String(body.transactionNo || "").trim();
-    if (!wiseMenuOrderId || !Number.isFinite(amountPaid) || amountPaid < 0 || !transactionNo) throw new Error("Invalid payment details.");
-    const { data, error } = await userClient.rpc("checkout_wise_menu_order", { p_wise_menu_order_id: wiseMenuOrderId, p_payment_channel: channel, p_amount_paid: amountPaid, p_transaction_no: transactionNo });
+    if (!wiseMenuOrderId || !Number.isFinite(amountPaid) || amountPaid < 0 || !Number.isFinite(subtotal) || !Number.isFinite(discountValue) || !Number.isFinite(discountAmount) || !Number.isFinite(total) || !transactionNo) throw new Error("Invalid payment details.");
+    const { data, error } = await userClient.rpc("checkout_wise_menu_order", { p_wise_menu_order_id: wiseMenuOrderId, p_payment_channel: channel, p_amount_paid: amountPaid, p_transaction_no: transactionNo, p_subtotal: subtotal, p_discount_type: discountType, p_discount_value: discountValue, p_discount_amount: discountAmount, p_total: total });
     if (error) throw error;
     return NextResponse.json(data);
   } catch (error: any) {
