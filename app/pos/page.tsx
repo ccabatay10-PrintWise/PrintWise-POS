@@ -33,6 +33,9 @@ export default function POSPage() {
   const [discountCustomerName, setDiscountCustomerName] = useState(""), [discountId, setDiscountId] = useState(""), [discountTin, setDiscountTin] = useState("");
   const [childName, setChildName] = useState(""), [childDob, setChildDob] = useState(""), [childAge, setChildAge] = useState("");
   const [customDiscountValue, setCustomDiscountValue] = useState("");
+  const [printerOpen, setPrinterOpen] = useState(false), [printerScanning, setPrinterScanning] = useState(false);
+  const [printerConnected, setPrinterConnected] = useState(false), [printerName, setPrinterName] = useState("No receipt printer detected");
+  const [printerType, setPrinterType] = useState("Browser Print");
   const discountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -156,6 +159,70 @@ export default function POSPage() {
     setDiscount(applied); if (discountCustomerName.trim()) setCustomer(discountCustomerName.trim()); setDiscountOpen(false); setMessage("");
   };
 
+  const scanReceiptPrinters = async (allowPicker = false) => {
+    setPrinterScanning(true);
+    setPrinterConnected(false);
+    setPrinterName("Scanning for receipt printers...");
+    try {
+      const nav: any = typeof navigator !== "undefined" ? navigator : null;
+      let foundName = "";
+      let foundType = "";
+
+      if (nav?.usb?.getDevices) {
+        try {
+          const devices = await nav.usb.getDevices();
+          const printer = devices.find((device: any) => device.productName || device.manufacturerName);
+          if (printer) {
+            foundName = printer.productName || printer.manufacturerName || "USB Receipt Printer";
+            foundType = "USB";
+          }
+        } catch {}
+      }
+
+      if (!foundName && nav?.serial?.getPorts) {
+        try {
+          const ports = await nav.serial.getPorts();
+          if (ports.length) {
+            foundName = "Serial Receipt Printer";
+            foundType = "Serial";
+          }
+        } catch {}
+      }
+
+      if (!foundName && allowPicker && nav?.usb?.requestDevice) {
+        try {
+          const device = await nav.usb.requestDevice({ filters: [] });
+          if (device) {
+            foundName = device.productName || device.manufacturerName || "USB Receipt Printer";
+            foundType = "USB";
+          }
+        } catch {}
+      }
+
+      if (!foundName && allowPicker && nav?.serial?.requestPort) {
+        try {
+          const port = await nav.serial.requestPort();
+          if (port) {
+            foundName = "Serial Receipt Printer";
+            foundType = "Serial";
+          }
+        } catch {}
+      }
+
+      if (foundName) {
+        setPrinterConnected(true);
+        setPrinterName(foundName);
+        setPrinterType(foundType);
+      } else {
+        setPrinterConnected(false);
+        setPrinterName("No receipt printer detected");
+        setPrinterType("Browser Print");
+      }
+    } finally {
+      setPrinterScanning(false);
+    }
+  };
+
   const printReceipt = (slip = false) => {
     if (!receipt) return;
     const popup = window.open("", "wise-print", "width=420,height=720");
@@ -213,10 +280,32 @@ export default function POSPage() {
       <button type="button" className="wise-quick-action" onClick={openOrders} title="View orders"><ClipboardList size={21} /><span>Orders</span></button>
       <button type="button" className="wise-quick-action wise-quick-action-active" onClick={() => setShiftOpen(true)} title="View current shift"><Clock3 size={21} /><span>Shift</span></button>
       <button type="button" className="wise-quick-action" onClick={clear} disabled={!cart.length} title="Clear current sale"><Eraser size={21} /><span>Clear</span></button>
-      <button type="button" className="wise-quick-action" onClick={() => window.print()} title="Print current POS screen"><Printer size={21} /><span>Printer</span></button>
+      <button type="button" className="wise-quick-action" onClick={() => { setPrinterOpen(true); void scanReceiptPrinters(false); }} title="Detect receipt printer"><Printer size={21} /><span>Printer</span></button>
       <button type="button" className="wise-quick-action" onClick={openSettings} title="Open POS settings"><Settings2 size={21} /><span>Settings</span></button>
       <button type="button" className="wise-quick-action" onClick={() => window.location.reload()} title="Refresh POS"><RefreshCw size={21} /><span>Refresh</span></button>
     </nav></div>
+
+    {printerOpen && <div className="wise-printer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setPrinterOpen(false); }}>
+      <div className="wise-printer-modal">
+        <div className="wise-printer-head">
+          <div className="wise-printer-title-row"><Printer size={27} /><h2>Receipt Printer</h2></div>
+          <button className="wise-printer-close" type="button" onClick={() => setPrinterOpen(false)} aria-label="Close"><X size={20} /></button>
+          <p>Detect and connect a receipt printer for WISE POS.</p>
+        </div>
+        <div className="wise-printer-tabs">
+          <button type="button" className="active"><Printer size={17} />Receipt Printer</button>
+          <button type="button" onClick={() => window.print()}><ReceiptText size={17} />Browser Print</button>
+        </div>
+        <div className="wise-printer-status-card">
+          <div className="wise-printer-status-label">PRINTER STATUS</div>
+          <div className={`wise-printer-status ${printerConnected ? "connected" : ""}`}><span className="wise-printer-status-dot" />{printerConnected ? "Connected" : printerScanning ? "Checking..." : "Not Connected"}</div>
+          <p>{printerConnected ? <><strong>{printerName}</strong><br /><span>{printerType} printer detected and available to this browser.</span></> : <>WISE POS can detect USB/Serial receipt printers that the browser has permission to access. Windows-installed/network printers may not appear here.</>}</p>
+          <div className="wise-printer-guide"><span>Tip: Use Chrome or Edge over HTTPS for USB/Serial detection.</span></div>
+          <button className="wise-printer-scan" type="button" onClick={() => void scanReceiptPrinters(true)} disabled={printerScanning}><RefreshCw size={18} className={printerScanning ? "wise-spin" : ""} />{printerScanning ? "DETECTING PRINTER..." : printerConnected ? "SCAN AGAIN" : "DETECT / CONNECT PRINTER"}</button>
+          <button className="wise-printer-test" type="button" disabled={!printerConnected} onClick={() => window.print()}><Printer size={17} />TEST PRINT</button>
+        </div>
+      </div>
+    </div>}
 
     {discountOpen && <div className="wise-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDiscountOpen(false); }}><div className="wise-modal wise-discount-modal">
       <div className="wise-modal-head"><div><strong>Select Discount</strong><span>This will be applied to all line items</span></div><button onClick={() => setDiscountOpen(false)}><X size={20} /></button></div>
