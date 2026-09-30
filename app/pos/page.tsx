@@ -178,7 +178,7 @@ export default function POSPage() {
       const now = Date.now(); const transactionNo = `W-${now}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`; const amountPaid = payment === "Cash" ? tendered : total; const createdAt = new Date().toISOString();
 
       if (wiseMenuOrderId) {
-        const response = await fetch("/api/pos/wise-menu", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ posOrderId: wiseMenuOrderId, channel: payment.toLowerCase().replace(/\s+/g, "_"), amountPaid, transactionNo }) });
+        const response = await fetch("/api/pos/wise-menu", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ posOrderId: wiseMenuOrderId, channel: payment.toLowerCase().replace(/\s+/g, "_"), amountPaid, transactionNo, subtotal, discountType: discountAmount > 0 ? "amount" : null, discountValue: discountAmount, discountAmount, total }) });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.ok) throw new Error(payload.error || "Unable to complete WISE MENU payment.");
         const completedOrderNo = payload.order_no || wiseMenuOrderNo || `WISE-${wiseMenuOrderId.slice(0, 8)}`;
