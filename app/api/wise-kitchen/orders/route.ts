@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const { admin } = await auth(req);
     const { data: orders, error } = await admin
       .from("wise_menu_orders")
-      .select("id,order_no,customer_name,notes,status,total,created_at,wise_menu_order_items(product_name,quantity,unit_price,line_total,product_id,options)")
+      .select("id,order_no,customer_name,notes,status,total,created_at,source_type,wise_menu_order_items(product_name,quantity,unit_price,line_total,product_id,options)")
       .in("status", ["new", "accepted", "preparing", "ready"])
       .order("created_at", { ascending: true });
     if (error) throw error;
