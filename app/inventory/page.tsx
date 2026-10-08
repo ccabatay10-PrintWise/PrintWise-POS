@@ -8,10 +8,10 @@ import "../pos/pos.css";
 import "./inventory.css";
 import Sidebar from "../components/Sidebar";
 
-type InventoryItem={id:string;name:string;category:string;unit:string;quantity:number;reorder_level:number;unit_cost:number;is_active:boolean;product_id:string|null;product_ids?:string[]};
+type InventoryItem={id:string;name:string;category:string;unit:string;quantity:number;reorder_level:number;unit_cost:number;is_active:boolean;product_id:string|null;product_ids?:string[];density_g_per_ml?:number|null};
 type Product={id:string;name:string;category:string;price:number};
-type Form={name:string;category:string;unit:string;quantity:string;reorder_level:string;unit_cost:string;product_id:string;product_ids:string[]};
-const empty:Form={name:"",category:"",unit:"piece",quantity:"0",reorder_level:"0",unit_cost:"0",product_id:"",product_ids:[]};
+type Form={name:string;category:string;unit:string;quantity:string;reorder_level:string;unit_cost:string;density_g_per_ml:string;product_id:string;product_ids:string[]};
+const empty:Form={name:"",category:"",unit:"piece",quantity:"0",reorder_level:"0",unit_cost:"0",density_g_per_ml:"",product_id:"",product_ids:[]};
 
 export default function InventoryPage(){
  const[items,setItems]=useState<InventoryItem[]>([]),[products,setProducts]=useState<Product[]>([]),[search,setSearch]=useState(""),[productSearch,setProductSearch]=useState(""),[loading,setLoading]=useState(true),[message,setMessage]=useState(""),[modalError,setModalError]=useState(""),[open,setOpen]=useState(false),[editing,setEditing]=useState<string|null>(null),[form,setForm]=useState<Form>(empty),[saving,setSaving]=useState(false);
@@ -24,7 +24,7 @@ export default function InventoryPage(){
  if(ids.length){const{data:mapData,error:mapError}=await supabase.from("inventory_item_products").select("inventory_item_id,product_id").in("inventory_item_id",ids);if(!mapError)mappings=mapData??[]}
  const byItem=new Map<string,string[]>();
  mappings.forEach((m:any)=>{const a=byItem.get(m.inventory_item_id)||[];a.push(m.product_id);byItem.set(m.inventory_item_id,a)});
- setItems((data??[]).map((x:any)=>({...x,product_id:x.product_id||null,product_ids:byItem.get(x.id)||[],quantity:Number(x.quantity||0),reorder_level:Number(x.reorder_level||0),unit_cost:Number(x.unit_cost??x.cost_per_unit??0)})));
+ setItems((data??[]).map((x:any)=>({...x,product_id:x.product_id||null,product_ids:byItem.get(x.id)||[],quantity:Number(x.quantity||0),reorder_level:Number(x.reorder_level||0),unit_cost:Number(x.unit_cost??x.cost_per_unit??0),density_g_per_ml:x.density_g_per_ml==null?null:Number(x.density_g_per_ml)})));
  setLoading(false);
 };
  const loadProducts=async(token:string)=>{try{const response=await fetch("/api/products",{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Unable to load products.");setProducts((payload.products??[]).map((p:any)=>({id:p.id,name:p.name,category:p.category,price:Number(p.price||0)})));}catch(error:any){setMessage(`Unable to load products: ${error?.message||"Unknown error"}`)}};
@@ -36,12 +36,12 @@ export default function InventoryPage(){
  const openEdit=(i:InventoryItem)=>{setEditing(i.id);setModalError("");setProductSearch("");setForm({name:i.name,category:i.category,unit:i.unit,quantity:String(i.quantity),reorder_level:String(i.reorder_level),unit_cost:String(i.unit_cost||0),product_id:i.product_id||"",product_ids:i.product_ids||[]});setOpen(true)};
  const closeModal=()=>{if(!saving)setOpen(false)};
  const save=async()=>{
- const name=form.name.trim(),category=form.category.trim(),quantity=Number(form.quantity),reorder=Number(form.reorder_level),unitCost=Number(form.unit_cost);
+ const name=form.name.trim(),category=form.category.trim(),quantity=Number(form.quantity),reorder=Number(form.reorder_level),unitCost=Number(form.unit_cost),density=form.density_g_per_ml.trim()===""?null:Number(form.density_g_per_ml);
  setModalError("");
- if(!name||!category||Number.isNaN(quantity)||quantity<0||Number.isNaN(reorder)||reorder<0||Number.isNaN(unitCost)||unitCost<0){setModalError("Please complete all required fields with valid values.");return}
+ if(!name||!category||Number.isNaN(quantity)||quantity<0||Number.isNaN(reorder)||reorder<0||Number.isNaN(unitCost)||unitCost<0||(density!==null&&(Number.isNaN(density)||density<=0))){setModalError("Please complete all required fields with valid values.");return}
  setSaving(true);
  try{
-   const payload={name,category,unit:form.unit.trim()||"piece",quantity,reorder_level:reorder,unit_cost:unitCost,product_id:form.product_id||null};
+   const payload={name,category,unit:form.unit.trim()||"piece",quantity,reorder_level:reorder,unit_cost:unitCost,density_g_per_ml:density,product_id:form.product_id||null};
    const selectedProductIds=Array.from(new Set(form.product_ids||[]));
    if(form.product_id && !selectedProductIds.includes(form.product_id)) selectedProductIds.push(form.product_id);
    const query=editing?supabase.from("inventory_items").update(payload).eq("id",editing).select():supabase.from("inventory_items").insert({...payload,is_active:true}).select();
@@ -53,12 +53,6 @@ export default function InventoryPage(){
      if(deleteMapError){setModalError(`Inventory saved, but product usage could not be updated: ${deleteMapError.message}`);return}
      if(selectedProductIds.length){
        const{error:mapError}=await supabase.from("inventory_item_products").insert(selectedProductIds.map(product_id=>({inventory_item_id:inventoryId,product_id})));
-       if(mapError){setModalError(`Inventory saved, but product usage could not be updated: ${mapError.message}`);return}
-     }
-   } else {
-     const savedId=(data as any)?.[0]?.id;
-     if(savedId && selectedProductIds.length){
-       const{error:mapError}=await supabase.from("inventory_item_products").insert(selectedProductIds.map(product_id=>({inventory_item_id:savedId,product_id})));
        if(mapError){setModalError(`Inventory saved, but product usage could not be updated: ${mapError.message}`);return}
      }
    }
@@ -84,5 +78,5 @@ export default function InventoryPage(){
   </label>)}
  </div>
  <small style={{display:"block",marginTop:8,color:"#667085",lineHeight:1.45}}>Select every POS product that uses this ingredient. Example: <b>SNACKERS NACHOS PLAIN 500G</b> → <b>Regular Nachos</b> + <b>Overload Nachos</b>. Exact quantity per product is still controlled by <b>WISE Kitchen → Recipes</b>.</small>
-</div></div></div><div><label style={labelStyle}>Category <span style={{color:"#ef2b22"}}>*</span></label><input style={fieldStyle} placeholder="e.g. Printing Materials" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/></div><div><label style={labelStyle}>Unit</label><input style={fieldStyle} placeholder="piece, pack, roll..." value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})}/></div><div><label style={labelStyle}>Cost per Unit (₱)</label><input style={fieldStyle} type="number" min="0" step="0.01" value={form.unit_cost} onChange={e=>setForm({...form,unit_cost:e.target.value})}/></div><div><label style={labelStyle}>Current Quantity</label><div className="input-with-icon"><Hash size={17}/><input style={fieldStyle} type="number" min="0" value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})}/></div></div><div><label style={labelStyle}>Reorder Level</label><div className="input-with-icon"><AlertTriangle size={17}/><input style={fieldStyle} type="number" min="0" value={form.reorder_level} onChange={e=>setForm({...form,reorder_level:e.target.value})}/></div></div></div>{modalError&&<div role="alert" className="inventory-modal-error">{modalError}</div>}<div className="inventory-modal-note">The item will be flagged as <b>Low Stock</b> when the quantity reaches the reorder level. <b>Recipe-based restaurant inventory:</b> one ingredient can be used by many POS products and sizes. Set the exact quantity per product in WISE Kitchen recipes. Direct POS linking is only for simple one-to-one inventory deduction.</div><div className="inventory-modal-actions"><button type="button" className="inventory-cancel-btn" onClick={closeModal} disabled={saving}>Cancel</button><button type="button" className="inventory-save-btn" disabled={saving} onClick={save}><Save size={18}/> {saving?"SAVING...":editing?"SAVE CHANGES":"ADD ITEM"}</button></div></div></div></div>, document.body)}</main>;
+</div></div></div><div><label style={labelStyle}>Category <span style={{color:"#ef2b22"}}>*</span></label><input style={fieldStyle} placeholder="e.g. Printing Materials" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/></div><div><label style={labelStyle}>Unit</label><input style={fieldStyle} placeholder="piece, pack, roll..." value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})}/></div><div><label style={labelStyle}>Density (g/ml) <span style={{fontSize:12,fontWeight:500,color:"#98A2B3"}}>(Optional)</span><input style={fieldStyle} type="number" min="0.0001" step="0.0001" value={form.density_g_per_ml} onChange={e=>setForm({...form,density_g_per_ml:e.target.value})} placeholder="e.g. 1.03 for milk" /><small style={{display:"block",marginTop:6,color:"#667085",lineHeight:1.4}}>Only needed when a recipe uses grams ↔ ml/L for this ingredient. Example: milk ≈ 1.03 g/ml.</small></label><label style={labelStyle}>Cost per Unit (₱)</label><input style={fieldStyle} type="number" min="0" step="0.01" value={form.unit_cost} onChange={e=>setForm({...form,unit_cost:e.target.value})}/></div><div><label style={labelStyle}>Current Quantity</label><div className="input-with-icon"><Hash size={17}/><input style={fieldStyle} type="number" min="0" value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})}/></div></div><div><label style={labelStyle}>Reorder Level</label><div className="input-with-icon"><AlertTriangle size={17}/><input style={fieldStyle} type="number" min="0" value={form.reorder_level} onChange={e=>setForm({...form,reorder_level:e.target.value})}/></div></div></div>{modalError&&<div role="alert" className="inventory-modal-error">{modalError}</div>}<div className="inventory-modal-note">The item will be flagged as <b>Low Stock</b> when the quantity reaches the reorder level. <b>Recipe-based restaurant inventory:</b> one ingredient can be used by many POS products and sizes. Set the exact quantity per product in WISE Kitchen recipes. Direct POS linking is only for simple one-to-one inventory deduction.</div><div className="inventory-modal-actions"><button type="button" className="inventory-cancel-btn" onClick={closeModal} disabled={saving}>Cancel</button><button type="button" className="inventory-save-btn" disabled={saving} onClick={save}><Save size={18}/> {saving?"SAVING...":editing?"SAVE CHANGES":"ADD ITEM"}</button></div></div></div></div>, document.body)}</main>;
 }
