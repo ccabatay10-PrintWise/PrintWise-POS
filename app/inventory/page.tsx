@@ -44,9 +44,9 @@ export default function InventoryPage(){
    const selectedProductIds=Array.from(new Set(form.product_ids||[]));
    if(form.product_id && !selectedProductIds.includes(form.product_id)) selectedProductIds.push(form.product_id);
    const query=editing?supabase.from("inventory_items").update(payload).eq("id",editing).select():supabase.from("inventory_items").insert({...payload,is_active:true}).select();
-   const{error}=await query;
+   const{data:savedRows,error}=await query;
    if(error){const text=`Unable to save inventory item: ${error.message}`;setModalError(text);setMessage(text);return}
-   const inventoryId=editing;
+   const inventoryId=editing || (savedRows as any)?.[0]?.id;
    if(inventoryId){
      const{error:deleteMapError}=await supabase.from("inventory_item_products").delete().eq("inventory_item_id",inventoryId);
      if(deleteMapError){setModalError(`Inventory saved, but product usage could not be updated: ${deleteMapError.message}`);return}
