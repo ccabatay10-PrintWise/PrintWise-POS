@@ -51,7 +51,6 @@ export async function GET(req: NextRequest) {
           ingredients: (recipe?.wise_product_recipe_items || []).map((x: any) => {
             const rawQuantity = Number(x.quantity) * Number(i.quantity);
             const rawUnit = String(x.unit || "unit").toLowerCase().replace(/[^a-z]/g, "");
-            const inventoryUnit = String(x.inventory_items?.unit || "").toLowerCase().replace(/[^a-z]/g, "");
             const density = Number(x.inventory_items?.density_g_per_ml || 0);
             let quantity = rawQuantity;
             let unit = x.unit || "unit";
