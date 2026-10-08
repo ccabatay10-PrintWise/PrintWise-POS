@@ -17,9 +17,24 @@ export async function GET(request: NextRequest) {
   const { data: authData, error: authError } = await authClient.auth.getUser(token);
   if (authError || !authData.user) return jsonError("Your session has expired. Please sign in again.", 401);
   const adminClient = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await adminClient.from("products").select("id,name,category,price,unit,icon_key,image_url,item_type").eq("is_active", true).eq("show_in_pos", true).order("category").order("name");
+  const { data, error } = await adminClient.from("products").select("id,name,category,price,unit,icon_key,image_url,item_type,track_inventory").eq("is_active", true).eq("show_in_pos", true).order("category").order("name");
   if (error) return jsonError(`Unable to load products: ${error.message}`, 400);
-  return new NextResponse(JSON.stringify({ products: (data ?? []).map((p: any) => ({ ...p, item_type: p.item_type === "service" ? "service" : "product" })) }), {
+  const productIds = (data ?? []).map((p: any) => p.id);
+  const [{ data: recipes, error: recipeError }, { data: mappings, error: mappingError }] = await Promise.all([
+    productIds.length ? adminClient.from("wise_product_recipes").select("product_id").in("product_id", productIds) : Promise.resolve({ data: [], error: null } as any),
+    productIds.length ? adminClient.from("inventory_items").select("product_id").in("product_id", productIds).eq("is_active", true).not("product_id", "is", null) : Promise.resolve({ data: [], error: null } as any),
+  ]);
+  if (recipeError) return jsonError(`Unable to load product recipe readiness: ${recipeError.message}`, 400);
+  if (mappingError) return jsonError(`Unable to load product inventory readiness: ${mappingError.message}`, 400);
+  const recipeIds = new Set((recipes ?? []).map((r: any) => r.product_id));
+  const mappingIds = new Set((mappings ?? []).map((m: any) => m.product_id));
+  const products = (data ?? []).map((p: any) => ({
+    ...p,
+    item_type: p.item_type === "service" ? "service" : "product",
+    inventory_ready: !p.track_inventory || p.item_type === "service" || recipeIds.has(p.id) || mappingIds.has(p.id),
+    recipe_required: Boolean(p.track_inventory) && p.item_type !== "service" && !recipeIds.has(p.id) && !mappingIds.has(p.id),
+  }));
+  return new NextResponse(JSON.stringify({ products }), {
     headers: { "Content-Type": "application/json", "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
   });
 }
