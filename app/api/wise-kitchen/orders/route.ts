@@ -49,13 +49,15 @@ export async function GET(req: NextRequest) {
           requires_cup_label: Boolean(product?.requires_cup_label),
           recipe_name: recipe?.recipe_name || null,
           ingredients: (recipe?.wise_product_recipe_items || []).map((x: any) => {
-            const rawQuantity = Number(x.quantity) * Number(i.quantity);
+            const rawQuantity = Number(x.quantity);
             const rawUnit = String(x.unit || "unit").toLowerCase().replace(/[^a-z]/g, "");
             const density = Number(x.inventory_items?.density_g_per_ml || 0);
             let quantity = rawQuantity;
             let unit = x.unit || "unit";
 
-            // Kitchen-facing display: prefer grams for weight/volume ingredients.
+            // Kitchen-facing display: show the recipe measurement PER SERVING.
+            // Order quantity remains visible on the product line (e.g. 2x), but ingredient
+            // measurements are not multiplied so the kitchen sees the standard recipe.
             // Inventory deduction/calculation still uses the recipe's original units.
             if (rawUnit === "kg" || rawUnit === "kgs" || rawUnit === "kilogram" || rawUnit === "kilograms") {
               quantity = rawQuantity * 1000;
