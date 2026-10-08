@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     let products: any[] = [];
     if (productIds.length) {
       const [{ data: r }, { data: p }] = await Promise.all([
-        admin.from("wise_product_recipes").select("id,product_id,recipe_name,wise_product_recipe_items(quantity,unit,inventory_item_id,inventory_items(name))").in("product_id", productIds),
+        admin.from("wise_product_recipes").select("id,product_id,recipe_name,wise_product_recipe_items(quantity,unit,inventory_item_id,inventory_items(name,unit,density_g_per_ml))").in("product_id", productIds),
         admin.from("products").select("id,requires_cup_label").in("id", productIds)
       ]);
       recipes = r || [];
@@ -48,11 +48,41 @@ export async function GET(req: NextRequest) {
           ...i,
           requires_cup_label: Boolean(product?.requires_cup_label),
           recipe_name: recipe?.recipe_name || null,
-          ingredients: (recipe?.wise_product_recipe_items || []).map((x: any) => ({
-            name: x.inventory_items?.name || "Ingredient",
-            quantity: Number(x.quantity) * Number(i.quantity),
-            unit: x.unit || "unit"
-          }))
+          ingredients: (recipe?.wise_product_recipe_items || []).map((x: any) => {
+            const rawQuantity = Number(x.quantity) * Number(i.quantity);
+            const rawUnit = String(x.unit || "unit").toLowerCase().replace(/[^a-z]/g, "");
+            const inventoryUnit = String(x.inventory_items?.unit || "").toLowerCase().replace(/[^a-z]/g, "");
+            const density = Number(x.inventory_items?.density_g_per_ml || 0);
+            let quantity = rawQuantity;
+            let unit = x.unit || "unit";
+
+            // Kitchen-facing display: prefer grams for weight/volume ingredients.
+            // Inventory deduction/calculation still uses the recipe's original units.
+            if (rawUnit === "kg" || rawUnit === "kgs" || rawUnit === "kilogram" || rawUnit === "kilograms") {
+              quantity = rawQuantity * 1000;
+              unit = "g";
+            } else if (rawUnit === "g" || rawUnit === "gram" || rawUnit === "grams") {
+              quantity = rawQuantity;
+              unit = "g";
+            } else if ((rawUnit === "l" || rawUnit === "liter" || rawUnit === "liters" || rawUnit === "litre" || rawUnit === "litres") && density > 0) {
+              quantity = rawQuantity * 1000 * density;
+              unit = "g";
+            } else if ((rawUnit === "ml" || rawUnit === "milliliter" || rawUnit === "milliliters" || rawUnit === "millilitre" || rawUnit === "millilitres") && density > 0) {
+              quantity = rawQuantity * density;
+              unit = "g";
+            } else if ((rawUnit === "oz" || rawUnit === "ounce" || rawUnit === "ounces") && density <= 0) {
+              quantity = rawQuantity * 28.349523125;
+              unit = "g";
+            }
+
+            // If the recipe is stored in volume but density is unavailable,
+            // keep ml/L rather than showing an inaccurate gram conversion.
+            return {
+              name: x.inventory_items?.name || "Ingredient",
+              quantity: Number(quantity.toFixed(unit === "g" ? 1 : 3)),
+              unit
+            };
+          })
         };
       })
     }));
