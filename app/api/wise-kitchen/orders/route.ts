@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const { admin } = await auth(req);
     const { data: orders, error } = await admin
       .from("wise_menu_orders")
-      .select("id,order_no,customer_name,notes,status,total,created_at,source_type,wise_menu_order_items(product_name,quantity,unit_price,line_total,product_id,options)")
+      .select("id,order_no,customer_name,notes,status,total,created_at,source_type,wise_menu_order_items(id,product_name,quantity,unit_price,line_total,product_id,options,item_served,item_served_at,item_served_by)")
       .in("status", ["new", "accepted", "preparing", "ready"])
       .order("created_at", { ascending: true });
     if (error) throw error;
@@ -98,6 +98,28 @@ export async function PATCH(req: NextRequest) {
     const { admin } = await auth(req);
     const body = await req.json();
     if (!body.order_id || !body.status) throw new Error("order_id and status are required");
+    if (body.status === "mark_item_served") {
+      if (!body.order_item_id || typeof body.served !== "boolean") throw new Error("Order item and served status are required");
+      const { data: item, error: itemError } = await admin
+        .from("wise_menu_order_items")
+        .select("id,order_id")
+        .eq("id", body.order_item_id)
+        .eq("order_id", body.order_id)
+        .maybeSingle();
+      if (itemError) throw itemError;
+      if (!item) throw new Error("Order item not found for this kitchen order");
+      const { error: updateError } = await admin
+        .from("wise_menu_order_items")
+        .update({
+          item_served: body.served,
+          item_served_at: body.served ? new Date().toISOString() : null,
+          item_served_by: body.served ? (await admin.auth.getUser()).data.user?.id || null : null,
+        })
+        .eq("id", body.order_item_id)
+        .eq("order_id", body.order_id);
+      if (updateError) throw updateError;
+      return NextResponse.json({ ok: true, item_served: body.served });
+    }
     if (body.status === "send_to_pos") {
       const { data, error } = await admin.rpc("convert_wise_menu_order_to_pos", { p_order_id: body.order_id });
       if (error) throw error;
