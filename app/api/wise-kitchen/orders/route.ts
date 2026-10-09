@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { admin } = await auth(req);
+    const { admin, user } = await auth(req);
     const body = await req.json();
     if (!body.order_id || !body.status) throw new Error("order_id and status are required");
     if (body.status === "mark_item_served") {
@@ -113,7 +113,7 @@ export async function PATCH(req: NextRequest) {
         .update({
           item_served: body.served,
           item_served_at: body.served ? new Date().toISOString() : null,
-          item_served_by: body.served ? (await admin.auth.getUser()).data.user?.id || null : null,
+          item_served_by: body.served ? user.id : null,
         })
         .eq("id", body.order_item_id)
         .eq("order_id", body.order_id);
