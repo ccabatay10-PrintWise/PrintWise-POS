@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator,
+  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator, Receipt,
   LogOut, Menu, Package, Plus, ReceiptText, Settings, ShoppingCart,
   UserPlus, Users, Wallet, X, Utensils, ShieldCheck,
 } from "lucide-react";
@@ -21,6 +21,7 @@ const nav = [
   [Package, "Products & Services", "/products"],
   [Users, "Customers", "/customers"],
   [Layers3, "Inventory", "/inventory"],
+  [Receipt, "Daily Expenses", "/daily-expenses"],
   [FileText, "Reports", "/reports"],
 ] as const;
 
