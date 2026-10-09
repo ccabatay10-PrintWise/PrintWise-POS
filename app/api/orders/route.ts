@@ -196,76 +196,77 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await getAuthenticatedAdmin(request);
-  if (auth.error) return auth.error;
+  const baseAuth = await authenticate(request);
+  if (baseAuth.error) return baseAuth.error;
 
   let body: any;
-  try {
-    body = await request.json();
-  } catch {
-    return jsonError("Invalid void request.", 400);
-  }
+  try { body = await request.json(); } catch { return jsonError("Invalid order request.", 400); }
 
   const action = String(body.action || "");
-  if (action !== "void") return jsonError("Unsupported order action.", 400);
-
   const orderId = String(body.orderId || "").trim();
-  const password = String(body.password || "");
-  if (!orderId || !password) {
-    return jsonError("Enter the admin password to void this transaction.", 400);
-  }
+  if (!orderId) return jsonError("Transaction ID is required.", 400);
+  const adminClient = createServiceClient();
 
-  if (!auth.user.email) {
-    return jsonError("The current admin account has no email address.", 400);
-  }
+  if (action === "delete") {
+    const managerEmail = String(body.managerEmail || "").trim().toLowerCase();
+    const managerPassword = String(body.managerPassword || "");
+    if (!managerEmail || !managerPassword) return jsonError("Enter the manager email and password to delete this transaction.", 400);
 
-  const passwordCheckClient = createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data: passwordCheck, error: passwordError } =
-    await passwordCheckClient.auth.signInWithPassword({
-      email: auth.user.email,
-      password,
+    const verifyClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: managerAuth, error: managerAuthError } = await verifyClient.auth.signInWithPassword({ email: managerEmail, password: managerPassword });
+    if (managerAuthError || !managerAuth.user) return jsonError("Incorrect manager credentials. Transaction was not deleted.", 401);
+
+    const { data: managerProfile, error: managerProfileError } = await adminClient.from("profiles").select("id,role,is_active").eq("id", managerAuth.user.id).maybeSingle();
+    const managerRole = String(managerProfile?.role || "").trim().toLowerCase();
+    if (managerProfileError || !managerProfile || managerProfile.is_active === false || !["manager","admin"].includes(managerRole)) {
+      return jsonError("A manager or admin account is required to authorize transaction deletion.", 403);
+    }
+
+    const { data: order, error: orderError } = await adminClient.from("pos_orders").select("id,order_no,customer_name,total,status").eq("id", orderId).maybeSingle();
+    if (orderError) return jsonError("Unable to load transaction before deletion.", 400);
+    if (!order) return jsonError("Transaction not found. It may already have been deleted.", 404);
+
+    const { error: auditError } = await adminClient.from("transaction_deletion_audit").insert({
+      original_order_id: order.id,
+      order_no: order.order_no,
+      customer_name: order.customer_name,
+      total: numberValue(order.total),
+      status: order.status,
+      deleted_by: baseAuth.user.id,
+      manager_user_id: managerAuth.user.id,
+      reason: String(body.reason || "Staff correction / transaction entered in error").slice(0, 500),
     });
+    if (auditError) return jsonError("Could not write the audit record, so the transaction was not deleted.", 500);
 
-  if (passwordError || !passwordCheck.user || passwordCheck.user.id !== auth.user.id) {
-    return jsonError("Incorrect admin password. Transaction was not voided.", 401);
+    const { error: deleteError } = await adminClient.from("pos_orders").delete().eq("id", orderId);
+    if (deleteError) return jsonError("Audit record saved, but transaction deletion failed: " + deleteError.message, 400);
+
+    return NextResponse.json({ ok: true, deleted: true, orderNo: order.order_no, auditPreserved: true });
   }
 
-  const { data: verifiedProfile, error: verifiedProfileError } = await auth.adminClient
-    .from("profiles")
-    .select("id,role,is_active")
-    .eq("id", passwordCheck.user.id)
-    .maybeSingle();
+  if (action !== "void") return jsonError("Unsupported order action.", 400);
+  const adminAuth = await getAuthenticatedAdmin(request);
+  if (adminAuth.error) return adminAuth.error;
 
+  const password = String(body.password || "");
+  if (!password) return jsonError("Enter the admin password to void this transaction.", 400);
+  if (!adminAuth.user.email) return jsonError("The current admin account has no email address.", 400);
+
+  const passwordCheckClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: passwordCheck, error: passwordError } = await passwordCheckClient.auth.signInWithPassword({ email: adminAuth.user.email, password });
+  if (passwordError || !passwordCheck.user || passwordCheck.user.id !== adminAuth.user.id) return jsonError("Incorrect admin password. Transaction was not voided.", 401);
+
+  const { data: verifiedProfile, error: verifiedProfileError } = await adminAuth.adminClient.from("profiles").select("id,role,is_active").eq("id", passwordCheck.user.id).maybeSingle();
   const verifiedRole = String(verifiedProfile?.role || "").trim().toLowerCase();
-  if (
-    verifiedProfileError ||
-    !verifiedProfile ||
-    verifiedProfile.is_active === false ||
-    verifiedRole !== "admin"
-  ) {
-    return jsonError("Admin access is required to void transactions.", 403);
-  }
+  if (verifiedProfileError || !verifiedProfile || verifiedProfile.is_active === false || verifiedRole !== "admin") return jsonError("Admin access is required to void transactions.", 403);
 
-  const { data: rpcData, error: rpcError } = await auth.adminClient.rpc("void_printwise_pos_sale", {
-    p_order_id: orderId,
-    p_user_id: auth.user.id,
-  });
-
+  const { data: rpcData, error: rpcError } = await adminAuth.adminClient.rpc("void_printwise_pos_sale", { p_order_id: orderId, p_user_id: adminAuth.user.id });
   if (rpcError) {
     const message = String(rpcError.message || "Unable to void transaction.");
-    if (message.toLowerCase().includes("does not exist")) {
-      return jsonError("Transaction voiding is temporarily unavailable because the database migration is still pending.", 503);
-    }
-    if (message.toLowerCase().includes("permission denied") || message.toLowerCase().includes("access is required")) {
-      return jsonError("Admin access is required to void transactions.", 403);
-    }
-    if (message.toLowerCase().includes("not found")) {
-      return jsonError("Transaction not found.", 404);
-    }
+    if (message.toLowerCase().includes("does not exist")) return jsonError("Transaction voiding is temporarily unavailable because the database migration is still pending.", 503);
+    if (message.toLowerCase().includes("permission denied") || message.toLowerCase().includes("access is required")) return jsonError("Admin access is required to void transactions.", 403);
+    if (message.toLowerCase().includes("not found")) return jsonError("Transaction not found.", 404);
     return jsonError(`Unable to void transaction: ${message}`, 400);
   }
-
   return NextResponse.json({ ok: true, ...(rpcData || {}) });
 }
