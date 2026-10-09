@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Download, ExternalLink, FileText, Plus, Receipt, Search, Trash2, Wallet, X, Pencil, TrendingUp, ShoppingCart } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import Sidebar from "../components/Sidebar";
+import "./daily-expenses.css";
 
 type Expense={id:string;expense_date:string;category:string;description:string;amount:number;payment_method:string;receipt_url:string|null;notes:string|null;created_by:string|null;created_at:string};
 type Sale={id:string;total:number;status:string;created_at:string};
