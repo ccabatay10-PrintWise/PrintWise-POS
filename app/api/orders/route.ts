@@ -238,6 +238,9 @@ export async function POST(request: NextRequest) {
     });
     if (auditError) return jsonError("Could not write the audit record, so the transaction was not deleted.", 500);
 
+    const { error: kitchenError } = await adminClient.from("wise_menu_orders").update({ status: "cancelled", notes: "TRANSACTION DELETED • Manager authorized • Removed from Kitchen" }).eq("source_pos_order_id", orderId).in("status", ["new", "accepted", "preparing", "ready"]);
+    if (kitchenError) return jsonError("Audit record saved, but the Kitchen order could not be cleared: " + kitchenError.message, 400);
+
     const { error: deleteError } = await adminClient.from("pos_orders").delete().eq("id", orderId);
     if (deleteError) return jsonError("Audit record saved, but transaction deletion failed: " + deleteError.message, 400);
 
