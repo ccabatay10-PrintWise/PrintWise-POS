@@ -260,7 +260,7 @@ export default function POSPage() {
       const response = await fetch("/api/pos/checkout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ orderNo, transactionNo, customerName: customer.trim() || null, orderType, subtotal, discountAmount, discountType: discountAmount > 0 ? "amount" : null, discountValue: discountAmount, total, amountPaid, channel: payment.toLowerCase().replace(/\s+/g, "_"), items: cart.map((item) => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity, lineTotal: item.price * item.quantity })) }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok || !payload.order_id) throw new Error(payload.error || "Unable to save the sale.");
-      setReceipt({ orderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), createdAt, items: [...cart] }); setCheckoutOpen(false); setMoreOpen(false);
+      setReceipt({ orderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), createdAt, items: [...cart] }); const inventoryWarnings = Array.isArray(payload.warnings) ? payload.warnings.filter(Boolean).join(" • ") : ""; setMessage(inventoryWarnings ? "SALE COMPLETED — INVENTORY ATTENTION: " + inventoryWarnings : "Sale completed successfully."); setCheckoutOpen(false); setMoreOpen(false);
     } catch (error: any) { setMessage(error?.message || "Unable to complete checkout."); }
     finally { setSaving(false); }
   };
