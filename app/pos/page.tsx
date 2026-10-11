@@ -269,19 +269,18 @@ export default function POSPage() {
     }
     doc.open(); doc.write(html); doc.close();
     const printWindow = frame.contentWindow;
-    const cleanup = () => window.setTimeout(() => frame.remove(), 1000);
-    frame.onload = () => {
-      window.setTimeout(() => {
-        try { printWindow.focus(); printWindow.print(); } catch { setMessage("Unable to start printing. Please try again."); cleanup(); }
-      }, 150);
-    };
-    // Some browsers fire iframe load before the handler is attached; retain a fallback.
+    doc.open(); doc.write(html); doc.close();
     window.setTimeout(() => {
-      if (document.body.contains(frame)) {
-        try { printWindow.focus(); printWindow.print(); } catch { /* browser may block printing */ }
+      try {
+        printWindow.focus();
+        printWindow.print();
+        // Keep the frame briefly so the browser can finish sending the job to the printer.
+        window.setTimeout(() => frame.remove(), 3000);
+      } catch {
+        frame.remove();
+        setMessage("Unable to start printing. Please try again.");
       }
-    }, 700);
-    window.setTimeout(cleanup, 60000);
+    }, 350);
   };
 
   const finishNewSale = () => { setMoreOpen(false); setReceipt(null); clear(); };
