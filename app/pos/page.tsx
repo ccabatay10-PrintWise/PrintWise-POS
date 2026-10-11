@@ -267,7 +267,6 @@ export default function POSPage() {
       setMessage("Unable to start printing. Please try again.");
       return;
     }
-    doc.open(); doc.write(html); doc.close();
     const printWindow = frame.contentWindow;
     doc.open(); doc.write(html); doc.close();
     window.setTimeout(() => {
