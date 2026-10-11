@@ -45,3 +45,10 @@
 
 .wise-product-disabled{opacity:.62;cursor:not-allowed;filter:saturate(.75)}
 .wise-product-disabled .wise-add{font-weight:800;border-radius:999px;display:grid;place-items:center}
+
+/* POS shortcut to open Kitchen on a second monitor */
+.wise-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.wise-kitchen-open{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 15px;border:1px solid #0c6554;border-radius:10px;background:#075847;color:#fff;font-size:12px;font-weight:850;white-space:nowrap;cursor:pointer;box-shadow:0 4px 10px rgba(7,88,71,.12);transition:background .15s ease,transform .15s ease}
+.wise-kitchen-open:hover{background:#064638;transform:translateY(-1px)}
+.wise-kitchen-open:focus-visible{outline:3px solid #a7f3d0;outline-offset:2px}
+@media(max-width:760px){.wise-header-actions{width:100%;justify-content:flex-start}.wise-kitchen-open{min-height:40px}}
