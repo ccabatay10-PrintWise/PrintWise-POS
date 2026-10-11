@@ -11,3 +11,5 @@
 .wk-recipe-product.wk-item-served{background:#eaf8f1;border-radius:8px;padding:8px}
 .wk-item-served .wk-recipe-product-title b{text-decoration:line-through;text-decoration-color:#73a995;color:#427366}
 @media(max-width:520px){.wk-served-check{width:100%;justify-content:center}.wk-recipe-product{align-items:stretch}}
+
+.wk-kitchen-groups{display:flex;flex-direction:column;gap:10px}.wk-kitchen-group{min-width:0}.wk-kitchen-group>header{display:flex;align-items:center;justify-content:space-between;padding:8px 13px;background:#e8f2ed;border-bottom:1px solid #d9e5df;color:#285545}.wk-kitchen-group>header b{font-size:11px;letter-spacing:1px}.wk-kitchen-group>header span{font-size:10px;font-weight:800;color:#648073}.wk-kitchen-group .wk-recipe-item{background:#f8fbf9}.wk-drinks-group>header{background:#eaf3f8;color:#24536a;border-color:#d7e6ee}.wk-drinks-group .wk-recipe-item{background:#f7fbfd;border-color:#dbe8ee}.wk-group-empty{font-size:11px;color:#8a948f;margin:0;padding:12px 13px;background:#fff}
