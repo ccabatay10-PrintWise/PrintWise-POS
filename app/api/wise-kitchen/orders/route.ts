@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     if (productIds.length) {
       const [{ data: r }, { data: p }] = await Promise.all([
         admin.from("wise_product_recipes").select("id,product_id,recipe_name,wise_product_recipe_items(quantity,unit,inventory_item_id,inventory_items(name,unit,density_g_per_ml))").in("product_id", productIds),
-        admin.from("products").select("id,requires_cup_label").in("id", productIds)
+        admin.from("products").select("id,requires_cup_label,category,item_type").in("id", productIds)
       ]);
       recipes = r || [];
       products = p || [];
@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
         return {
           ...i,
           requires_cup_label: Boolean(product?.requires_cup_label),
+          category: product?.category || product?.item_type || null,
           recipe_name: recipe?.recipe_name || null,
           ingredients: (recipe?.wise_product_recipe_items || []).map((x: any) => {
             const rawQuantity = Number(x.quantity);
