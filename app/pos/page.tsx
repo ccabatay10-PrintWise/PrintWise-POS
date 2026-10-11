@@ -252,11 +252,11 @@ export default function POSPage() {
       .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     const lines = receipt.items.map((item) => `<div class="row"><span>${Number(item.quantity)} ${escapeHtml(item.name)}</span><b>${money(item.price * item.quantity)}</b></div>`).join("");
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title} ${escapeHtml(receipt.orderNo)}</title><style>
-      @page{size:80mm auto;margin:0}
+      @page{size:85mm auto;margin:0}
       *{box-sizing:border-box}
-      html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important}
-      body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;padding:3mm!important;overflow-wrap:anywhere}
-      .receipt{width:100%;margin:0 auto}
+      html{width:85mm!important;min-width:85mm!important;max-width:85mm!important;margin:0!important;padding:0!important}
+      body{width:75mm!important;min-width:75mm!important;max-width:75mm!important;margin:0 auto!important;padding:0!important;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;overflow-wrap:anywhere}
+      .receipt{width:75mm;max-width:75mm;margin:0 auto}
       h2{text-align:center;margin:0 0 4px;font-size:20px}
       .center{text-align:center} .meta{margin:4px 0 14px;line-height:1.45}
       .customer{margin:0 0 10px;overflow-wrap:anywhere}
@@ -265,7 +265,7 @@ export default function POSPage() {
       .row b{white-space:nowrap;text-align:right}
       .total{display:flex;justify-content:space-between;gap:6px;font-size:15px;font-weight:700;margin:8px 0}
       .thanks{text-align:center;margin:14px 0 0}
-      @media print{html,body{width:80mm!important}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+      @media print{@page{size:85mm auto;margin:0}html{width:85mm!important}body{width:75mm!important;margin-left:auto!important;margin-right:auto!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{width:75mm!important;margin-left:auto!important;margin-right:auto!important}}
     </style></head><body><main class="receipt"><h2>Espacio</h2><div class="center meta">${title}<br>${escapeHtml(receipt.orderNo)}<br>${escapeHtml(dateText)}</div>${receipt.customer ? `<div class="customer">Customer: ${escapeHtml(receipt.customer)}</div>` : ""}${lines}<hr><div class="row"><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div><div class="total"><span>Total</span><span>${money(receipt.total)}</span></div>${slip ? "" : `<div class="row"><span>Paid</span><b>${money(receipt.amountPaid)}</b></div><div class="row"><span>Change</span><b>${money(receipt.change)}</b></div>`}<p class="thanks">THANK YOU! COME AGAIN!</p></main></body></html>`;
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
