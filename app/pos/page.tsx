@@ -228,12 +228,60 @@ export default function POSPage() {
 
   const printReceipt = (slip = false) => {
     if (!receipt) return;
-    const popup = window.open("", "wise-print", "width=420,height=720");
-    if (!popup) { setMessage("Please allow pop-ups to print the receipt."); return; }
-    const created = new Date(receipt.createdAt); const dateText = created.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }); const title = slip ? "ORDER SLIP" : "RECEIPT";
-    const lines = receipt.items.map((item) => `<div class="row"><span>${item.quantity} ${item.name}</span><b>${money(item.price * item.quantity)}</b></div>`).join("");
-    popup.document.write(`<html><head><title>${title} ${receipt.orderNo}</title><style>@page{size:80mm auto;margin:0}*{box-sizing:border-box}html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important}body{font-family:Arial,sans-serif;padding:3mm!important;color:#111;font-size:12px;overflow-wrap:anywhere}h2{text-align:center;margin:0 0 4px}p{text-align:center;margin:4px 0 14px}.row{display:flex;justify-content:space-between;gap:8px;margin:8px 0}.row span{max-width:65%;overflow-wrap:anywhere}.row b{white-space:nowrap}.total{display:flex;justify-content:space-between;font-size:15px;font-weight:700} @media screen{body{margin:0 auto!important;box-shadow:0 0 0 1px #ddd}}</style></head><body><h2>Espacio</h2><p>${title}<br>${receipt.orderNo}<br>${dateText}</p>${receipt.customer ? `<div>Customer: ${receipt.customer}</div>` : ""}${lines}<hr><div class="row"><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div><div class="total"><span>Total</span><span>${money(receipt.total)}</span></div>${slip ? "" : `<div class="row"><span>Paid</span><b>${money(receipt.amountPaid)}</b></div><div class="row"><span>Change</span><b>${money(receipt.change)}</b></div>`}<p>THANK YOU! COME AGAIN!</p><script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}</script></body></html>`);
-    popup.document.close();
+    const created = new Date(receipt.createdAt);
+    const dateText = created.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+    const title = slip ? "ORDER SLIP" : "RECEIPT";
+    const escapeHtml = (value: unknown) => String(value ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    const lines = receipt.items.map((item) => `<div class="row"><span>${Number(item.quantity)} ${escapeHtml(item.name)}</span><b>${money(item.price * item.quantity)}</b></div>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title} ${escapeHtml(receipt.orderNo)}</title><style>
+      @page{size:80mm auto;margin:0}
+      *{box-sizing:border-box}
+      html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important}
+      body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;padding:3mm!important;overflow-wrap:anywhere}
+      .receipt{width:100%;margin:0 auto}
+      h2{text-align:center;margin:0 0 4px;font-size:20px}
+      .center{text-align:center} .meta{margin:4px 0 14px;line-height:1.45}
+      .customer{margin:0 0 10px;overflow-wrap:anywhere}
+      .row{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin:8px 0}
+      .row span{flex:1;min-width:0;overflow-wrap:anywhere}
+      .row b{white-space:nowrap;text-align:right}
+      .total{display:flex;justify-content:space-between;gap:6px;font-size:15px;font-weight:700;margin:8px 0}
+      .thanks{text-align:center;margin:14px 0 0}
+      @media print{html,body{width:80mm!important}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+    </style></head><body><main class="receipt"><h2>Espacio</h2><div class="center meta">${title}<br>${escapeHtml(receipt.orderNo)}<br>${escapeHtml(dateText)}</div>${receipt.customer ? `<div class="customer">Customer: ${escapeHtml(receipt.customer)}</div>` : ""}${lines}<hr><div class="row"><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div><div class="total"><span>Total</span><span>${money(receipt.total)}</span></div>${slip ? "" : `<div class="row"><span>Paid</span><b>${money(receipt.amountPaid)}</b></div><div class="row"><span>Change</span><b>${money(receipt.change)}</b></div>`}<p class="thanks">THANK YOU! COME AGAIN!</p></main></body></html>`;
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.position = "fixed";
+    frame.style.right = "0";
+    frame.style.bottom = "0";
+    frame.style.width = "0";
+    frame.style.height = "0";
+    frame.style.border = "0";
+    frame.style.visibility = "hidden";
+    document.body.appendChild(frame);
+    const doc = frame.contentWindow?.document;
+    if (!doc || !frame.contentWindow) {
+      frame.remove();
+      setMessage("Unable to start printing. Please try again.");
+      return;
+    }
+    doc.open(); doc.write(html); doc.close();
+    const printWindow = frame.contentWindow;
+    const cleanup = () => window.setTimeout(() => frame.remove(), 1000);
+    frame.onload = () => {
+      window.setTimeout(() => {
+        try { printWindow.focus(); printWindow.print(); } catch { setMessage("Unable to start printing. Please try again."); cleanup(); }
+      }, 150);
+    };
+    // Some browsers fire iframe load before the handler is attached; retain a fallback.
+    window.setTimeout(() => {
+      if (document.body.contains(frame)) {
+        try { printWindow.focus(); printWindow.print(); } catch { /* browser may block printing */ }
+      }
+    }, 700);
+    window.setTimeout(cleanup, 60000);
   };
 
   const finishNewSale = () => { setMoreOpen(false); setReceipt(null); clear(); };
