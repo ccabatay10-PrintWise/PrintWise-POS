@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
     unit_price: Number(item.unit_price ?? item.unitPrice ?? item.price),
     quantity: Number(item.quantity),
     line_total: Number(item.line_total ?? item.lineTotal ?? item.price * item.quantity),
+    options: { ...(item.options && typeof item.options === "object" ? item.options : {}), order_type: item.orderType === "dine_in" ? "dine_in" : "take_out" },
   }));
 
   if (
