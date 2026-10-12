@@ -313,6 +313,7 @@ export default function OrdersPage() {
           <div className="orders-tools">
             <div className="orders-search"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order, customer, cashier..." />{search && <button onClick={() => setSearch("")} aria-label="Clear search"><X size={15} /></button>}</div>
             <label className="orders-filter"><Filter size={16} /><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter order status"><option value="all">All Status</option><option value="completed">Completed</option><option value="voided">Voided</option></select><span className="orders-filter-chevron">⌄</span></label>
+            <label className="orders-filter"><Filter size={16} /><select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} aria-label="Filter payment method"><option value="all">All Payments</option><option value="gcash">GCash</option><option value="cash">Cash</option><option value="maya">Maya</option><option value="credit_card">Credit Card</option><option value="e_wallet">eWallet</option></select><span className="orders-filter-chevron">⌄</span></label>
           </div>
         </div>
         {error && <div className="message orders-message">{error}</div>}
