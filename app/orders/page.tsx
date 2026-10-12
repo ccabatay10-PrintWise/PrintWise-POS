@@ -100,7 +100,8 @@ export default function OrdersPage() {
     const matchesSearch = String(o.order_no + " " + (o.customer_name || "") + " " + (o.transacted_by || "") + " " + o.status)
       .toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || String(o.status || "").toLowerCase() === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesPayment = paymentFilter === "all" || (o.payment_channels || []).some((channel) => paymentFilter === "gcash" ? channel.includes("gcash") : channel === paymentFilter);
+    return matchesSearch && matchesStatus && matchesPayment;
   });
 
   const completedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "completed");
