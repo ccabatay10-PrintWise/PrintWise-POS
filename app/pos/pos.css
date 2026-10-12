@@ -57,3 +57,5 @@
 
 /* Per-item Dine-In / Take-Out controls */
 .wise-item-order-type{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}.wise-item-order-type button{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:7px;padding:5px 8px;font-size:11px;font-weight:800;cursor:pointer}.wise-item-order-type button.active.dine-in{background:#dcfce7;border-color:#16a34a;color:#166534}.wise-item-order-type button.active.take-out{background:#ffedd5;border-color:#ea580c;color:#9a3412}
+
+.wise-receipt-order-type{display:block;font-size:10px;font-weight:900;letter-spacing:.4px;margin-top:3px}
