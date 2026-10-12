@@ -426,7 +426,7 @@ export default function POSPage() {
             <span>Payment: {receipt.payment}</span>
             <span>Customer: {receipt.customer || "Walk-in Customer"}</span>
           </div>
-          <div className="wise-sale-items">{receipt.items.map((item) => <div key={item.id}><span>{item.quantity} {item.name}</span><b>{money(item.price * item.quantity)}</b></div>)}</div>
+          <div className="wise-sale-items">{receipt.items.map((item) => <div key={item.id}><span>{item.quantity} {item.name}<small className="wise-receipt-order-type">{(item.orderType || "take_out") === "dine_in" ? "DINE-IN" : "TAKE-OUT"}</small></span><b>{money(item.price * item.quantity)}</b></div>)}</div>
           <div className="wise-sale-totals"><div><span>Items:</span><b>{receipt.items.reduce((sum, item) => sum + item.quantity, 0)}</b></div><div><span>Subtotal:</span><b>{money(receipt.subtotal)}</b></div><div className="wise-sale-grand"><strong>Total Amount:</strong><strong>{money(receipt.total)}</strong></div><div><span>Total Paid:</span><b>{money(receipt.amountPaid)}</b></div><div className="wise-sale-balance"><strong>{receipt.amountPaid >= receipt.total ? "Change:" : "Balance:"}</strong><strong>{money(receipt.amountPaid >= receipt.total ? receipt.change : receipt.total - receipt.amountPaid)}</strong></div></div>
           <footer>THANK YOU! COME AGAIN!</footer>
         </article>
