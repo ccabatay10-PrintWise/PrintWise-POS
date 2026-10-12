@@ -7,7 +7,7 @@ import "../pos/pos.css";
 import "./orders.css";
 import Sidebar from "../components/Sidebar";
 
-type Order = { id: string; order_no: string; customer_name: string | null; subtotal: number; discount_amount: number; total: number; amount_paid: number; status: string; created_at: string; transacted_by?: string; };
+type Order = { id: string; order_no: string; customer_name: string | null; subtotal: number; discount_amount: number; total: number; amount_paid: number; status: string; created_at: string; transacted_by?: string; payment_channels?: string[]; };
 type OrderItem = { id: string; product_id?: string | null; item_name: string; unit_price: number; quantity: number; line_total: number; icon?: string; image_url?: string | null; category?: string; };
 type ProductVisualData = { id: string; icon_key?: string | null; image_url?: string | null; category?: string | null; };
 
@@ -66,6 +66,7 @@ export default function OrdersPage() {
   const [voidError, setVoidError] = useState("");
   const [voiding, setVoiding] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [managerEmail, setManagerEmail] = useState("");
   const [managerPassword, setManagerPassword] = useState("");
