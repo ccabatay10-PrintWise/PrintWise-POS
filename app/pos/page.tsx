@@ -38,6 +38,8 @@ export default function POSPage() {
   const [printerOpen, setPrinterOpen] = useState(false), [printerScanning, setPrinterScanning] = useState(false);
   const [printerConnected, setPrinterConnected] = useState(false), [printerName, setPrinterName] = useState("No receipt printer detected");
   const [printerType, setPrinterType] = useState("Browser Print");
+  const [receiptAlignment, setReceiptAlignment] = useState(0);
+  const [receiptContentWidth, setReceiptContentWidth] = useState(72);
   const discountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -244,6 +246,24 @@ export default function POSPage() {
     }
   };
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("wise_pos_receipt_alignment");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Number.isFinite(Number(parsed.offset))) setReceiptAlignment(Math.max(-5, Math.min(5, Number(parsed.offset))));
+        if (Number.isFinite(Number(parsed.width))) setReceiptContentWidth(Math.max(60, Math.min(76, Number(parsed.width))));
+      }
+    } catch {}
+  }, []);
+
+  const saveReceiptAlignment = (offset: number, width: number) => {
+    const safeOffset = Math.max(-5, Math.min(5, offset));
+    const safeWidth = Math.max(60, Math.min(76, width));
+    setReceiptAlignment(safeOffset);
+    setReceiptContentWidth(safeWidth);
+    try { localStorage.setItem("wise_pos_receipt_alignment", JSON.stringify({ offset: safeOffset, width: safeWidth })); } catch {}
+  };
   const printReceipt = (slip = false) => {
     if (!receipt) return;
     const created = new Date(receipt.createdAt);
@@ -259,8 +279,8 @@ export default function POSPage() {
       @page{size:80mm auto;margin:0}
       *{box-sizing:border-box}
       html{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important}
-      body{width:72mm!important;min-width:72mm!important;max-width:72mm!important;margin:0 auto!important;padding:0!important;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;overflow-wrap:anywhere}
-      .receipt{width:72mm;max-width:72mm;margin:0 auto}
+      body{width:${receiptContentWidth}mm!important;min-width:${receiptContentWidth}mm!important;max-width:${receiptContentWidth}mm!important;margin:0 auto!important;padding:0!important;transform:translateX(${receiptAlignment}mm);font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;overflow-wrap:anywhere}
+      .receipt{width:${receiptContentWidth}mm;max-width:${receiptContentWidth}mm;margin:0 auto}
       h2{text-align:center;margin:0 0 4px;font-size:20px}
       .center{text-align:center} .meta{margin:4px 0 14px;line-height:1.45}
       .customer{margin:0 0 10px;overflow-wrap:anywhere}
@@ -270,7 +290,7 @@ export default function POSPage() {
       .total{display:flex;justify-content:space-between;gap:6px;font-size:15px;font-weight:700;margin:8px 0}
       .thanks{text-align:center;margin:14px 0 0}
       .copy-break{height:0;break-before:page;page-break-before:always}
-      @media print{@page{size:80mm auto;margin:0}html{width:80mm!important;min-width:80mm!important;max-width:80mm!important}body{width:72mm!important;min-width:72mm!important;max-width:72mm!important;margin-left:auto!important;margin-right:auto!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{width:72mm!important;max-width:72mm!important;margin-left:auto!important;margin-right:auto!important}}
+      @media print{@page{size:80mm auto;margin:0}html{width:80mm!important;min-width:80mm!important;max-width:80mm!important}body{width:${receiptContentWidth}mm!important;min-width:${receiptContentWidth}mm!important;max-width:${receiptContentWidth}mm!important;margin-left:auto!important;margin-right:auto!important;transform:translateX(${receiptAlignment}mm);print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{width:${receiptContentWidth}mm!important;max-width:${receiptContentWidth}mm!important;margin-left:auto!important;margin-right:auto!important}}
     </style></head><body>${copies}</body></html>`;
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
@@ -374,6 +394,13 @@ export default function POSPage() {
           <div className="wise-printer-guide"><span>Tip: Use Chrome or Edge over HTTPS for USB/Serial detection.</span></div>
           <button className="wise-printer-scan" type="button" onClick={() => void scanReceiptPrinters(true)} disabled={printerScanning}><RefreshCw size={18} className={printerScanning ? "wise-spin" : ""} />{printerScanning ? "DETECTING PRINTER..." : printerConnected ? "SCAN AGAIN" : "DETECT / CONNECT PRINTER"}</button>
           <button className="wise-printer-test" type="button" disabled={!printerConnected} onClick={() => window.print()}><Printer size={17} />TEST PRINT</button>
+          <div className="wise-receipt-alignment-settings">
+            <div className="wise-printer-status-label">RECEIPT ALIGNMENT</div>
+            <p>Adjust the printed content to match your 80mm paper. Changes save automatically on this browser.</p>
+            <label>Horizontal position <strong>{receiptAlignment > 0 ? "+" : ""}{receiptAlignment} mm</strong><input type="range" min={-5} max={5} step={0.5} value={receiptAlignment} onChange={(e) => saveReceiptAlignment(Number(e.target.value), receiptContentWidth)} /><span className="wise-alignment-hint">Move left (−) or right (+)</span></label>
+            <label>Receipt content width <strong>{receiptContentWidth} mm</strong><input type="range" min={60} max={76} step={1} value={receiptContentWidth} onChange={(e) => saveReceiptAlignment(receiptAlignment, Number(e.target.value))} /><span className="wise-alignment-hint">Narrower content gives more side margin</span></label>
+            <button type="button" className="wise-printer-scan" onClick={() => saveReceiptAlignment(0,72)}>RESET ALIGNMENT</button>
+          </div>
         </div>
       </div>
     </div>}
