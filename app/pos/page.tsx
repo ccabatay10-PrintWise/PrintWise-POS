@@ -253,6 +253,8 @@ export default function POSPage() {
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     const lines = receipt.items.map((item) => `<div class="row"><span>${Number(item.quantity)} ${escapeHtml(item.name)}<br><strong style="font-size:11px">${(item.orderType || "take_out") === "dine_in" ? "DINE-IN" : "TAKE-OUT"}</strong></span><b>${money(item.price * item.quantity)}</b></div>`).join("");
+    const receiptMarkup = `<main class="receipt"><h2>Espacio</h2><div class="center meta">${title}<br>${escapeHtml(receipt.orderNo)}<br>${escapeHtml(dateText)}</div>${receipt.customer ? `<div class="customer">Customer: ${escapeHtml(receipt.customer)}</div>` : ""}${lines}<hr><div class="row"><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div><div class="total"><span>Total</span><span>${money(receipt.total)}</span></div>${slip ? "" : `<div class="row"><span>Paid</span><b>${money(receipt.amountPaid)}</b></div><div class="row"><span>Change</span><b>${money(receipt.change)}</b></div>`}<p class="thanks">THANK YOU! COME AGAIN!</p></main>`;
+    const copies = slip ? receiptMarkup : `${receiptMarkup}<div class="copy-break"></div>${receiptMarkup}`;
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title} ${escapeHtml(receipt.orderNo)}</title><style>
       @page{size:80mm auto;margin:0}
       *{box-sizing:border-box}
@@ -267,8 +269,9 @@ export default function POSPage() {
       .row b{white-space:nowrap;text-align:right}
       .total{display:flex;justify-content:space-between;gap:6px;font-size:15px;font-weight:700;margin:8px 0}
       .thanks{text-align:center;margin:14px 0 0}
+      .copy-break{height:0;break-before:page;page-break-before:always}
       @media print{@page{size:80mm auto;margin:0}html{width:80mm!important;min-width:80mm!important;max-width:80mm!important}body{width:72mm!important;min-width:72mm!important;max-width:72mm!important;margin-left:auto!important;margin-right:auto!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{width:72mm!important;max-width:72mm!important;margin-left:auto!important;margin-right:auto!important}}
-    </style></head><body><main class="receipt"><h2>Espacio</h2><div class="center meta">${title}<br>${escapeHtml(receipt.orderNo)}<br>${escapeHtml(dateText)}</div>${receipt.customer ? `<div class="customer">Customer: ${escapeHtml(receipt.customer)}</div>` : ""}${lines}<hr><div class="row"><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div><div class="total"><span>Total</span><span>${money(receipt.total)}</span></div>${slip ? "" : `<div class="row"><span>Paid</span><b>${money(receipt.amountPaid)}</b></div><div class="row"><span>Change</span><b>${money(receipt.change)}</b></div>`}<p class="thanks">THANK YOU! COME AGAIN!</p></main></body></html>`;
+    </style></head><body>${copies}</body></html>`;
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
     frame.style.position = "fixed";
