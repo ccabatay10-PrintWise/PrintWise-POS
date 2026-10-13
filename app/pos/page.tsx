@@ -10,7 +10,7 @@ import "./pos.css";
 type Product = { id: string; name: string; category: string; price: number; unit?: string; image_url: string | null; item_type: "product" | "service"; track_inventory?: boolean; inventory_ready?: boolean; recipe_required?: boolean };
 type CartItem = Product & { quantity: number; orderType?: "dine_in" | "take_out" };
 type PendingSale = { id: string; customer: string; orderType: "dine_in" | "take_out"; discount: number; payment: string; cart: CartItem[]; wiseMenuOrderId: string; wiseMenuOrderNo: string; savedAt: string };
-type Receipt = { orderNo: string; payment: string; amountPaid: number; change: number; total: number; subtotal: number; customer: string; createdAt: string; items: CartItem[] };
+type Receipt = { orderNo: string; payment: string; amountPaid: number; change: number; total: number; subtotal: number; customer: string; cashier: string; createdAt: string; items: CartItem[] };
 type ShiftData = { sales: number; discounts: number; orders: number; cash: number; nonCash: number; voided: number; loading: boolean };
 type DiscountType = "senior" | "pwd" | "athlete" | "solo_parent" | "percentage" | "amount" | null;
 type WiseMenuOrder = { id: string; order_no: string; customer_name: string | null; total: number; amount_paid: number; balance: number; notes: string | null; created_at: string; items: Array<{ product_id: string; product_name: string; quantity: number; unit_price: number; line_total: number }> };
@@ -271,26 +271,30 @@ export default function POSPage() {
     const title = slip ? "ORDER SLIP" : "RECEIPT";
     const escapeHtml = (value: unknown) => String(value ?? "")
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    const lines = receipt.items.map((item) => `<div class="row"><span>${Number(item.quantity)} ${escapeHtml(item.name)}<br><strong style="font-size:11px">${(item.orderType || "take_out") === "dine_in" ? "DINE-IN" : "TAKE-OUT"}</strong></span><b>${money(item.price * item.quantity)}</b></div>`).join("");
-    const receiptMarkup = `<main class="receipt"><h2>Espacio</h2><div class="center meta">${title}<br>${escapeHtml(receipt.orderNo)}<br>${escapeHtml(dateText)}</div>${receipt.customer ? `<div class="customer">Customer: ${escapeHtml(receipt.customer)}</div>` : ""}${lines}<hr><div class="row"><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div><div class="total"><span>Total</span><span>${money(receipt.total)}</span></div>${slip ? "" : `<div class="row"><span>Paid</span><b>${money(receipt.amountPaid)}</b></div><div class="row"><span>Change</span><b>${money(receipt.change)}</b></div>`}<p class="thanks">THANK YOU! COME AGAIN!</p></main>`;
-    const copies = slip ? receiptMarkup : `${receiptMarkup}<div class="copy-break"></div>${receiptMarkup}`;
+      .replace(/"/g, "&quot;").replace(/\'/g, "&#039;");
+    const discountValue = Math.max(0, receipt.subtotal - receipt.total);
+    const itemRows = receipt.items.map((item) => `<tr><td class="item-name">${escapeHtml(item.name)}${item.name.toLowerCase().includes("with fries") ? "" : ""}</td><td class="num">${Number(item.quantity)}</td><td class="num">${money(item.price)}</td><td class="num">${money(item.price * item.quantity)}</td>${slip ? "" : ""}</tr>`).join("");
+    const merchantRows = receipt.items.map((item) => `<tr><td class="item-name">${escapeHtml(item.name)}</td><td class="num">${Number(item.quantity)}</td><td class="num">${money(item.price)}</td><td class="num">${money(item.price * item.quantity)}</td><td class="type"><span>${(item.orderType || "take_out") === "dine_in" ? "DINE-IN" : "TAKEOUT"}</span></td></tr>`).join("");
+    const businessHeader = `<header class="brand"><h1>ESPACIO</h1><h3>CAFÉ &amp; RESTAURANT</h3><div class="tagline">STUDY · WORK · COFFEE</div><p>Cabio Bakal, Balucuc, Apalit, Pampanga</p><p>Tel: 09773330211 / 09289035440</p><p>hello@printwise.com</p><p class="social">● f　◎　@espacio.ph</p></header>`;
+    const details = `<section class="details"><div><span>Receipt No.</span><b>${escapeHtml(receipt.orderNo)}</b></div><div><span>Date &amp; Time</span><b>${escapeHtml(dateText)}</b></div><div><span>Cashier</span><b>${escapeHtml(receipt.cashier || "Cashier")}</b></div>${receipt.customer ? `<div><span>Customer</span><b>${escapeHtml(receipt.customer)}</b></div>` : ""}</section>`;
+    const totals = `<section class="totals"><div><span>Subtotal</span><b>${money(receipt.subtotal)}</b></div>${discountValue > 0 ? `<div><span>Discount</span><b>-${money(discountValue)}</b></div>` : ""}<div class="grand"><span>TOTAL</span><b>${money(receipt.total)}</b></div><div><span>Payment Method</span><b>${escapeHtml(receipt.payment)}</b></div><div><span>Amount Received</span><b>${money(receipt.amountPaid)}</b></div><div><span>Change</span><b>${money(receipt.change)}</b></div></section>`;
+    const customerCopy = `<main class="receipt">${businessHeader}<div class="copy-title"><strong>OFFICIAL RECEIPT</strong><b>CUSTOMER COPY</b></div>${details}<div class="items"><table><thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>AMOUNT</th></tr></thead><tbody>${itemRows}</tbody></table></div>${totals}<footer class="customer-thanks"><strong>Thank you for choosing</strong><b>ESPACIO!</b><span>Study · Work · Coffee.</span><span>Come Again Soon!</span><span class="social">● f　◎　@espacio.ph</span></footer></main>`;
+    const merchantCopy = `<main class="receipt">${businessHeader}<div class="copy-title"><strong>SALES RECEIPT</strong><b>MERCHANT COPY</b></div>${details}<div class="items"><table><thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>AMOUNT</th><th>TYPE</th></tr></thead><tbody>${merchantRows}</tbody></table></div>${totals}<footer class="merchant-thanks"><div class="motto"><span>☕<small>GOOD<br>COFFEE</small></span><span>♧<small>GREAT<br>PEOPLE</small></span><span>▤<small>PRODUCTIVE<br>DAYS</small></span><span>♧<small>A BRIGHTER<br>TOMORROW</small></span></div><p>ESPACIO Café &amp; Restaurant</p></footer></main>`;
+    const copies = slip ? `<main class="receipt"><h2>ESPACIO</h2><h3>ORDER SLIP</h3>${details}<table><thead><tr><th>ITEM</th><th>QTY</th><th>TYPE</th></tr></thead><tbody>${receipt.items.map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${Number(item.quantity)}</td><td>${(item.orderType || "take_out") === "dine_in" ? "DINE-IN" : "TAKEOUT"}</td></tr>`).join("")}</tbody></table></main>` : `${customerCopy}<div class="copy-break"></div>${merchantCopy}`;
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title} ${escapeHtml(receipt.orderNo)}</title><style>
       @page{size:80mm auto;margin:0}
       *{box-sizing:border-box}
-      html{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important}
-      body{width:${receiptContentWidth}mm!important;min-width:${receiptContentWidth}mm!important;max-width:${receiptContentWidth}mm!important;margin:0 auto!important;padding:0!important;transform:translateX(${receiptAlignment}mm);font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;overflow-wrap:anywhere}
-      .receipt{width:${receiptContentWidth}mm;max-width:${receiptContentWidth}mm;margin:0 auto}
-      h2{text-align:center;margin:0 0 4px;font-size:20px}
-      .center{text-align:center} .meta{margin:4px 0 14px;line-height:1.45}
-      .customer{margin:0 0 10px;overflow-wrap:anywhere}
-      .row{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin:8px 0}
-      .row span{flex:1;min-width:0;overflow-wrap:anywhere}
-      .row b{white-space:nowrap;text-align:right}
-      .total{display:flex;justify-content:space-between;gap:6px;font-size:15px;font-weight:700;margin:8px 0}
-      .thanks{text-align:center;margin:14px 0 0}
+      html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important}
+      body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:10px;overflow-wrap:anywhere}
+      .receipt{width:${receiptContentWidth}mm;max-width:${receiptContentWidth}mm;margin:0 auto;transform:translateX(${receiptAlignment}mm);padding:3mm 0}
+      .brand{text-align:center;border-bottom:1px dashed #333;padding-bottom:3mm;margin-bottom:2mm}.brand h1{font-size:27px;letter-spacing:1px;margin:0;font-weight:900}.brand h3{font-size:11px;letter-spacing:3px;margin:0 0 5px}.brand .tagline{border-top:1px solid #333;display:inline-block;padding-top:3px;font-size:9px;font-weight:700;letter-spacing:1px}.brand p{font-size:10px;margin:2px 0}.brand .social{font-weight:700}
+      .copy-title{display:flex;justify-content:space-between;align-items:center;gap:4px;border-bottom:1px dashed #333;padding:2mm 0;font-size:12px}.copy-title b{background:#111;color:#fff;padding:1.5mm;font-size:10px;white-space:nowrap}
+      .details{border-bottom:1px dashed #333;padding:2mm 0;display:grid;gap:1mm}.details div{display:grid;grid-template-columns:24mm 1fr;gap:2mm}.details span{font-size:10px}.details b{font-size:10px;font-weight:500;overflow-wrap:anywhere}
+      table{width:100%;border-collapse:collapse;table-layout:auto;font-size:9px}.items{padding:2mm 0;border-bottom:1px dashed #333}th{text-align:left;font-size:9px;border-bottom:1px dashed #333;padding:1.5mm .5mm}td{padding:1.5mm .5mm;vertical-align:top;border-bottom:0}.num{text-align:right;white-space:nowrap}.item-name{overflow-wrap:anywhere}.type{text-align:center}.type span{border:1px solid #777;border-radius:3px;padding:1px 2px;font-size:7px;font-weight:800;white-space:nowrap}
+      .totals{padding:2mm 0;border-bottom:1px dashed #333;display:grid;gap:1.5mm}.totals div{display:flex;justify-content:space-between;gap:3mm}.totals b{font-weight:500;text-align:right}.totals .grand{border-top:1px dashed #333;border-bottom:1px dashed #333;padding:2mm 0;font-size:17px;font-weight:900}.totals .grand b{font-weight:900}
+      .customer-thanks{text-align:center;padding-top:3mm;display:grid;gap:1mm;font-size:10px}.customer-thanks strong{font-size:11px}.customer-thanks b{font-size:16px}.customer-thanks .social{font-weight:800;margin-top:1mm}.merchant-thanks{padding-top:3mm;text-align:center}.motto{display:grid;grid-template-columns:repeat(4,1fr);gap:1mm}.motto span{font-size:18px;display:flex;flex-direction:column;align-items:center}.motto small{font-size:7px;line-height:1.2;font-weight:700}.merchant-thanks p{font-size:10px;margin:3mm 0 0}
       .copy-break{height:0;break-before:page;page-break-before:always}
-      @media print{@page{size:80mm auto;margin:0}html{width:80mm!important;min-width:80mm!important;max-width:80mm!important}body{width:${receiptContentWidth}mm!important;min-width:${receiptContentWidth}mm!important;max-width:${receiptContentWidth}mm!important;margin-left:auto!important;margin-right:auto!important;transform:translateX(${receiptAlignment}mm);print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{width:${receiptContentWidth}mm!important;max-width:${receiptContentWidth}mm!important;margin-left:auto!important;margin-right:auto!important}}
+      @media print{@page{size:80mm auto;margin:0}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{margin-left:auto!important;margin-right:auto!important}}
     </style></head><body>${copies}</body></html>`;
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
@@ -340,7 +344,7 @@ export default function POSPage() {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.ok) throw new Error(payload.error || "Unable to complete WISE MENU payment.");
         const completedOrderNo = payload.order_no || wiseMenuOrderNo || `WISE-${wiseMenuOrderId.slice(0, 8)}`;
-        setReceipt({ orderNo: completedOrderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), createdAt, items: [...cart] });
+        setReceipt({ orderNo: completedOrderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), cashier: user?.email || "Cashier", createdAt, items: [...cart] });
         setCheckoutOpen(false); setMoreOpen(false); setWiseMenuOrderId(""); setWiseMenuOrderNo(""); window.history.replaceState({}, "", "/pos"); return;
       }
 
@@ -348,7 +352,7 @@ export default function POSPage() {
       const response = await fetch("/api/pos/checkout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ orderNo, transactionNo, customerName: customer.trim() || null, orderType, subtotal, discountAmount, discountType: discountAmount > 0 ? "amount" : null, discountValue: discountAmount, total, amountPaid, channel: payment.toLowerCase().replace(/\s+/g, "_"), items: cart.map((item) => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity, lineTotal: item.price * item.quantity, orderType: item.orderType || orderType, options: { order_type: item.orderType || orderType } })) }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok || !payload.order_id) throw new Error(payload.error || "Unable to save the sale.");
-      setReceipt({ orderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), createdAt, items: [...cart] }); const inventoryWarnings = Array.isArray(payload.warnings) ? payload.warnings.filter(Boolean).join(" • ") : ""; setMessage(inventoryWarnings ? "SALE COMPLETED — INVENTORY ATTENTION: " + inventoryWarnings : "Sale completed successfully."); setCheckoutOpen(false); setMoreOpen(false);
+      setReceipt({ orderNo, payment, amountPaid, change: payment === "Cash" ? change : 0, total, subtotal, customer: customer.trim(), cashier: user?.email || "Cashier", createdAt, items: [...cart] }); const inventoryWarnings = Array.isArray(payload.warnings) ? payload.warnings.filter(Boolean).join(" • ") : ""; setMessage(inventoryWarnings ? "SALE COMPLETED — INVENTORY ATTENTION: " + inventoryWarnings : "Sale completed successfully."); setCheckoutOpen(false); setMoreOpen(false);
     } catch (error: any) { setMessage(error?.message || "Unable to complete checkout."); }
     finally { setSaving(false); }
   };
