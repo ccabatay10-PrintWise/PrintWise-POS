@@ -281,8 +281,8 @@ export default function POSPage() {
     const customerCopy = `<main class="receipt">${businessHeader}<div class="copy-title"><strong>OFFICIAL RECEIPT</strong><b>CUSTOMER COPY</b></div>${details}<div class="items"><table><thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>AMOUNT</th></tr></thead><tbody>${itemRows}</tbody></table></div>${totals}<footer class="customer-thanks"><strong>Thank you for choosing</strong><b>ESPACIO!</b><span>Study · Work · Coffee.</span><span>Come Again Soon!</span><span class="social">● f　◎　@espacio.ph</span></footer></main>`;
     const merchantCopy = `<main class="receipt">${businessHeader}<div class="copy-title"><strong>SALES RECEIPT</strong><b>MERCHANT COPY</b></div>${details}<div class="items"><table class="merchant-items"><thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>AMOUNT</th><th>TYPE</th></tr></thead><tbody>${merchantRows}</tbody></table></div>${totals}<footer class="merchant-thanks"><div class="motto"><span>☕<small>GOOD<br>COFFEE</small></span><span>♧<small>GREAT<br>PEOPLE</small></span><span>▤<small>PRODUCTIVE<br>DAYS</small></span><span>♧<small>A BRIGHTER<br>TOMORROW</small></span></div><p>ESPACIO Café &amp; Restaurant</p></footer></main>`;
     const kitchenCopy = `<main class="receipt kitchen-copy"><header class="brand"><h1>ESPACIO</h1><h3>CAFÉ &amp; RESTAURANT</h3></header><div class="copy-title"><strong>KITCHEN ORDER</strong><b>KITCHEN COPY</b></div><section class="details"><div><span>Order No.</span><b>${escapeHtml(receipt.orderNo)}</b></div><div><span>Date &amp; Time</span><b>${escapeHtml(dateText)}</b></div><div><span>Customer</span><b>${escapeHtml(receipt.customer || "Walk-in Customer")}</b></div></section><div class="kitchen-items">${receipt.items.map((item) => `<article class="kitchen-item"><b class="kitchen-qty">${Number(item.quantity)}×</b><div><strong>${escapeHtml(item.name)}</strong><span>${(item.orderType || "take_out") === "dine_in" ? "DINE-IN" : "TAKEOUT"}</span></div></article>`).join("")}</div><footer class="kitchen-footer">PLEASE PREPARE THIS ORDER</footer></main>`;
-    const copies = slip ? kitchenCopy : `${customerCopy}<div class="copy-break"></div>${kitchenCopy}`;
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title} ${escapeHtml(receipt.orderNo)}</title><style>
+    const printContents = slip ? [kitchenCopy] : [customerCopy, kitchenCopy];
+    const buildHtml = (content: string) => `<!doctype html><html><head><meta charset="utf-8"><title>${title} ${escapeHtml(receipt.orderNo)}</title><style>
       @page{size:80mm auto;margin:0}
       *{box-sizing:border-box}
       html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important}
@@ -306,36 +306,49 @@ export default function POSPage() {
       .customer-thanks{text-align:center;padding-top:3mm;display:grid;gap:1mm;font-size:10px}.customer-thanks strong{font-size:11px}.customer-thanks b{font-size:16px}.customer-thanks .social{font-weight:800;margin-top:1mm}.merchant-thanks{padding-top:3mm;text-align:center}.motto{display:grid;grid-template-columns:repeat(4,1fr);gap:1mm}.motto span{font-size:18px;display:flex;flex-direction:column;align-items:center}.motto small{font-size:7px;line-height:1.2;font-weight:700}.merchant-thanks p{font-size:10px;margin:3mm 0 0}
       .copy-break{height:0;break-before:page;page-break-before:always}.kitchen-copy .brand{padding-bottom:2mm}.kitchen-items{padding-top:2mm}.kitchen-item{display:flex;gap:3mm;align-items:flex-start;padding:3mm 1mm;border-bottom:1px dashed #333;break-inside:avoid}.kitchen-qty{font-size:20px;min-width:12mm}.kitchen-item>div{display:flex;flex-direction:column;gap:2mm;min-width:0}.kitchen-item strong{font-size:15px;overflow-wrap:anywhere}.kitchen-item span{font-size:11px;font-weight:900;border:1px solid #111;padding:1mm 2mm;align-self:flex-start}.kitchen-footer{text-align:center;font-weight:900;font-size:10px;padding-top:4mm}
       @media print{@page{size:80mm auto;margin:0}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{margin-left:auto!important;margin-right:auto!important}}
-    </style></head><body>${copies}</body></html>`;
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.position = "fixed";
-    frame.style.right = "0";
-    frame.style.bottom = "0";
-    frame.style.width = "0";
-    frame.style.height = "0";
-    frame.style.border = "0";
-    frame.style.visibility = "hidden";
-    document.body.appendChild(frame);
-    const doc = frame.contentWindow?.document;
-    if (!doc || !frame.contentWindow) {
-      frame.remove();
-      setMessage("Unable to start printing. Please try again.");
-      return;
-    }
-    const printWindow = frame.contentWindow;
-    doc.open(); doc.write(html); doc.close();
-    window.setTimeout(() => {
-      try {
-        printWindow.focus();
-        printWindow.print();
-        // Keep the frame briefly so the browser can finish sending the job to the printer.
-        window.setTimeout(() => frame.remove(), 3000);
-      } catch {
+    </style></head><body>${content}</body></html>`;
+    const printJob = (index: number) => {
+      const frame = document.createElement("iframe");
+      frame.setAttribute("aria-hidden", "true");
+      frame.style.position = "fixed";
+      frame.style.right = "0";
+      frame.style.bottom = "0";
+      frame.style.width = "0";
+      frame.style.height = "0";
+      frame.style.border = "0";
+      frame.style.visibility = "hidden";
+      document.body.appendChild(frame);
+      const doc = frame.contentWindow?.document;
+      const printWindow = frame.contentWindow;
+      if (!doc || !printWindow) {
         frame.remove();
         setMessage("Unable to start printing. Please try again.");
+        return;
       }
-    }, 350);
+      let advanced = false;
+      const finishJob = () => {
+        if (advanced) return;
+        advanced = true;
+        frame.remove();
+        if (index + 1 < printContents.length) {
+          window.setTimeout(() => printJob(index + 1), 700);
+        }
+      };
+      printWindow.addEventListener("afterprint", finishJob, { once: true });
+      doc.open(); doc.write(buildHtml(printContents[index])); doc.close();
+      window.setTimeout(() => {
+        try {
+          printWindow.focus();
+          printWindow.print();
+          // Some browser/driver combinations do not fire afterprint reliably.
+          window.setTimeout(finishJob, 15000);
+        } catch {
+          frame.remove();
+          setMessage("Unable to start printing. Please try again.");
+        }
+      }, 350);
+    };
+    printJob(0);
   };
 
   const finishNewSale = () => { setMoreOpen(false); setReceipt(null); clear(); };
