@@ -270,7 +270,7 @@ export default function OrdersPage() {
     }, 350);
   };
 
-  const reprintReceipt = () => {
+  const reprintReceipt = async () => {
     if (!selected) return;
     const money = (value: number) => `₱${Number(value || 0).toFixed(2)}`;
     const subtotal = Number(selected.subtotal || items.reduce((sum, item) => sum + Number(item.line_total || 0), 0));
