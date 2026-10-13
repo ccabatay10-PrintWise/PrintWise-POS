@@ -307,48 +307,37 @@ export default function POSPage() {
       .copy-break{height:0;break-before:page;page-break-before:always}.kitchen-copy .brand{padding-bottom:2mm}.kitchen-items{padding-top:2mm}.kitchen-item{display:flex;gap:3mm;align-items:flex-start;padding:3mm 1mm;border-bottom:1px dashed #333;break-inside:avoid}.kitchen-qty{font-size:20px;min-width:12mm}.kitchen-item>div{display:flex;flex-direction:column;gap:2mm;min-width:0}.kitchen-item strong{font-size:15px;overflow-wrap:anywhere}.kitchen-item span{font-size:11px;font-weight:900;border:1px solid #111;padding:1mm 2mm;align-self:flex-start}.kitchen-footer{text-align:center;font-weight:900;font-size:10px;padding-top:4mm}
       @media print{@page{size:80mm auto;margin:0}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{margin-left:auto!important;margin-right:auto!important}}
     </style></head><body>${content}</body></html>`;
-    const printJob = (index: number) => {
-      const frame = document.createElement("iframe");
-      frame.setAttribute("aria-hidden", "true");
-      frame.style.position = "fixed";
-      frame.style.right = "0";
-      frame.style.bottom = "0";
-      frame.style.width = "0";
-      frame.style.height = "0";
-      frame.style.border = "0";
-      frame.style.visibility = "hidden";
-      document.body.appendChild(frame);
-      const doc = frame.contentWindow?.document;
-      const printWindow = frame.contentWindow;
-      if (!doc || !printWindow) {
+    const combinedContent = printContents.map((content, index) => index === 0 ? content : `<div class="copy-break"></div>${content}`).join("");
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.position = "fixed";
+    frame.style.right = "0";
+    frame.style.bottom = "0";
+    frame.style.width = "0";
+    frame.style.height = "0";
+    frame.style.border = "0";
+    frame.style.visibility = "hidden";
+    document.body.appendChild(frame);
+    const doc = frame.contentWindow?.document;
+    const printWindow = frame.contentWindow;
+    if (!doc || !printWindow) {
+      frame.remove();
+      setMessage("Unable to start printing. Please try again.");
+      return;
+    }
+    doc.open(); doc.write(buildHtml(combinedContent)); doc.close();
+    window.setTimeout(() => {
+      try {
+        printWindow.focus();
+        // One user-initiated print dialog contains both copies. Browsers block
+        // a second print dialog launched asynchronously after the first closes.
+        printWindow.print();
+        window.setTimeout(() => frame.remove(), 5000);
+      } catch {
         frame.remove();
         setMessage("Unable to start printing. Please try again.");
-        return;
       }
-      let advanced = false;
-      const finishJob = () => {
-        if (advanced) return;
-        advanced = true;
-        frame.remove();
-        if (index + 1 < printContents.length) {
-          window.setTimeout(() => printJob(index + 1), 700);
-        }
-      };
-      printWindow.addEventListener("afterprint", finishJob, { once: true });
-      doc.open(); doc.write(buildHtml(printContents[index])); doc.close();
-      window.setTimeout(() => {
-        try {
-          printWindow.focus();
-          printWindow.print();
-          // Some browser/driver combinations do not fire afterprint reliably.
-          window.setTimeout(finishJob, 15000);
-        } catch {
-          frame.remove();
-          setMessage("Unable to start printing. Please try again.");
-        }
-      }, 350);
-    };
-    printJob(0);
+    }, 350);
   };
 
   const finishNewSale = () => { setMoreOpen(false); setReceipt(null); clear(); };
