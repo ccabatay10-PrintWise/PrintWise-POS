@@ -28,7 +28,7 @@ export default function POSPage() {
   const [search, setSearch] = useState(""), [category, setCategory] = useState("All"), [productPage, setProductPage] = useState(1), [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState(""), [orderType, setOrderType] = useState<"dine_in"|"take_out">("take_out"), [discount, setDiscount] = useState(0), [payment, setPayment] = useState("Cash"), [tendered, setTendered] = useState(0);
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]), [pendingOpen, setPendingOpen] = useState(false);
-  const [checkoutOpen, setCheckoutOpen] = useState(false), [saving, setSaving] = useState(false), [message, setMessage] = useState(""), [receipt, setReceipt] = useState<Receipt | null>(null), [moreOpen, setMoreOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false), [saving, setSaving] = useState(false), [message, setMessage] = useState(""), [receipt, setReceipt] = useState<Receipt | null>(null), [moreOpen, setMoreOpen] = useState(false), [kitchenPromptOpen, setKitchenPromptOpen] = useState(false);
   const [wiseMenuOrderId, setWiseMenuOrderId] = useState(""), [wiseMenuOrderNo, setWiseMenuOrderNo] = useState("");
   const [shiftOpen, setShiftOpen] = useState(false), [shiftData, setShiftData] = useState<ShiftData>({ sales: 0, discounts: 0, orders: 0, cash: 0, nonCash: 0, voided: 0, loading: false });
   const [discountOpen, setDiscountOpen] = useState(false), [discountType, setDiscountType] = useState<DiscountType>(null), [discountRate, setDiscountRate] = useState(20);
@@ -281,7 +281,7 @@ export default function POSPage() {
     const customerCopy = `<main class="receipt">${businessHeader}<div class="copy-title"><strong>OFFICIAL RECEIPT</strong><b>CUSTOMER COPY</b></div>${details}<div class="items"><table><thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>AMOUNT</th></tr></thead><tbody>${itemRows}</tbody></table></div>${totals}<footer class="customer-thanks"><strong>Thank you for choosing</strong><b>ESPACIO!</b><span>Study · Work · Coffee.</span><span>Come Again Soon!</span><span class="social">● f　◎　@espacio.ph</span></footer></main>`;
     const merchantCopy = `<main class="receipt">${businessHeader}<div class="copy-title"><strong>SALES RECEIPT</strong><b>MERCHANT COPY</b></div>${details}<div class="items"><table class="merchant-items"><thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>AMOUNT</th><th>TYPE</th></tr></thead><tbody>${merchantRows}</tbody></table></div>${totals}<footer class="merchant-thanks"><div class="motto"><span>☕<small>GOOD<br>COFFEE</small></span><span>♧<small>GREAT<br>PEOPLE</small></span><span>▤<small>PRODUCTIVE<br>DAYS</small></span><span>♧<small>A BRIGHTER<br>TOMORROW</small></span></div><p>ESPACIO Café &amp; Restaurant</p></footer></main>`;
     const kitchenCopy = `<main class="receipt kitchen-copy"><header class="brand"><h1>ESPACIO</h1><h3>CAFÉ &amp; RESTAURANT</h3></header><div class="copy-title"><strong>KITCHEN ORDER</strong><b>KITCHEN COPY</b></div><section class="details"><div><span>Order No.</span><b>${escapeHtml(receipt.orderNo)}</b></div><div><span>Date &amp; Time</span><b>${escapeHtml(dateText)}</b></div><div><span>Customer</span><b>${escapeHtml(receipt.customer || "Walk-in Customer")}</b></div></section><div class="kitchen-items">${receipt.items.map((item) => `<article class="kitchen-item"><b class="kitchen-qty">${Number(item.quantity)}×</b><div><strong>${escapeHtml(item.name)}</strong><span>${(item.orderType || "take_out") === "dine_in" ? "DINE-IN" : "TAKEOUT"}</span></div></article>`).join("")}</div><footer class="kitchen-footer">PLEASE PREPARE THIS ORDER</footer></main>`;
-    const printContents = slip ? [kitchenCopy] : [customerCopy, kitchenCopy];
+    const printContents = slip ? [kitchenCopy] : [customerCopy];
     const buildHtml = (content: string) => `<!doctype html><html><head><meta charset="utf-8"><title>${title} ${escapeHtml(receipt.orderNo)}</title><style>
       @page{size:80mm auto;margin:0}
       *{box-sizing:border-box}
@@ -307,7 +307,7 @@ export default function POSPage() {
       .copy-break{height:0;break-before:page;page-break-before:always}.kitchen-copy .brand{padding-bottom:2mm}.kitchen-items{padding-top:2mm}.kitchen-item{display:flex;gap:3mm;align-items:flex-start;padding:3mm 1mm;border-bottom:1px dashed #333;break-inside:avoid}.kitchen-qty{font-size:20px;min-width:12mm}.kitchen-item>div{display:flex;flex-direction:column;gap:2mm;min-width:0}.kitchen-item strong{font-size:15px;overflow-wrap:anywhere}.kitchen-item span{font-size:11px;font-weight:900;border:1px solid #111;padding:1mm 2mm;align-self:flex-start}.kitchen-footer{text-align:center;font-weight:900;font-size:10px;padding-top:4mm}
       @media print{@page{size:80mm auto;margin:0}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{margin-left:auto!important;margin-right:auto!important}}
     </style></head><body>${content}</body></html>`;
-    const combinedContent = printContents.map((content, index) => index === 0 ? content : `<div class="copy-break"></div>${content}`).join("");
+    const combinedContent = printContents.join("");
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
     frame.style.position = "fixed";
@@ -329,9 +329,8 @@ export default function POSPage() {
     window.setTimeout(() => {
       try {
         printWindow.focus();
-        // One user-initiated print dialog contains both copies. Browsers block
-        // a second print dialog launched asynchronously after the first closes.
         printWindow.print();
+        if (!slip) setKitchenPromptOpen(true);
         window.setTimeout(() => frame.remove(), 5000);
       } catch {
         frame.remove();
@@ -340,7 +339,7 @@ export default function POSPage() {
     }, 350);
   };
 
-  const finishNewSale = () => { setMoreOpen(false); setReceipt(null); clear(); };
+  const finishNewSale = () => { setMoreOpen(false); setKitchenPromptOpen(false); setReceipt(null); clear(); };
 
   const checkout = async () => {
     if (!customer.trim()) { setMessage("Customer name is required. Please enter the customer’s name."); return; }
@@ -456,6 +455,14 @@ export default function POSPage() {
 
     {checkoutOpen && <div className="wise-modal-backdrop"><div className="wise-modal"><div className="wise-modal-head"><div><strong>{wiseMenuOrderId ? "Complete WISE MENU Sale" : "Complete Sale"}</strong><span>{wiseMenuOrderId ? `POS payment for ${wiseMenuOrderNo}` : "WISE POS"}</span></div><button onClick={() => !saving && setCheckoutOpen(false)}><X size={20} /></button></div><div className="wise-modal-content"><div className="wise-total-card"><span>Total to collect</span><strong>{money(total)}</strong></div><label htmlFor="wise-checkout-customer">Customer name <em>(required)</em></label><input id="wise-checkout-customer" className="wise-tendered" type="text" autoComplete="name" value={customer} onChange={(e) => { setCustomer(e.target.value); setMessage(""); }} placeholder="Enter customer’s full name" required aria-required="true" />{message && <div className="wise-checkout-error" role="alert">{message}</div>}<label>Payment method</label><div className="wise-payment-grid">{payments.map(({ key, icon: Icon }) => <button key={key} className={payment === key ? "active" : ""} onClick={() => { setPayment(key); if (key !== "Cash") setTendered(total); }}><Icon size={18} />{key}</button>)}</div>{payment === "Cash" && <><label>Amount received</label><input className="wise-tendered" type="number" min={total} value={tendered || ""} onChange={(e) => { setTendered(Number(e.target.value) || 0); setMessage(""); }} placeholder={money(total)} /><div className="wise-change"><span>Change</span><strong>{money(change)}</strong></div></>}</div><div className="wise-modal-actions"><button className="wise-secondary" onClick={() => setCheckoutOpen(false)} disabled={saving}>Cancel</button><button className="wise-primary" onClick={checkout} disabled={saving || !customer.trim() || (payment === "Cash" && Math.round(Number(tendered) * 100) < Math.round(Number(total) * 100))}>{saving ? "PROCESSING..." : `COMPLETE SALE · ${money(total)}`}</button></div></div></div>}
 
+    {kitchenPromptOpen && receipt && <div role="dialog" aria-modal="true" aria-labelledby="wise-kitchen-prompt-title" style={{position:"fixed",right:24,bottom:24,zIndex:10000,width:"min(360px,calc(100vw - 32px))",background:"#fff",color:"#111",borderRadius:18,boxShadow:"0 18px 60px rgba(0,0,0,.28)",border:"1px solid #e5e7eb",padding:22}}>
+      <button type="button" aria-label="Close kitchen receipt prompt" onClick={() => setKitchenPromptOpen(false)} style={{position:"absolute",right:12,top:12,border:0,background:"transparent",fontSize:22,cursor:"pointer",color:"#6b7280"}}>×</button>
+      <div style={{width:46,height:46,borderRadius:14,background:"#fff7ed",color:"#c2410c",display:"grid",placeItems:"center",marginBottom:12}}><ChefHat size={25}/></div>
+      <h2 id="wise-kitchen-prompt-title" style={{fontSize:18,fontWeight:800,margin:"0 24px 6px 0"}}>Customer receipt printed?</h2>
+      <p style={{fontSize:13,lineHeight:1.5,color:"#4b5563",margin:"0 0 16px"}}>Print the kitchen order for <strong>Order #{receipt.orderNo.replace(/^WISE-/, "S")}</strong> when you are ready.</p>
+      <button type="button" onClick={() => { setKitchenPromptOpen(false); printReceipt(true); }} style={{width:"100%",minHeight:46,border:0,borderRadius:11,background:"#111827",color:"#fff",fontWeight:800,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:9,cursor:"pointer"}}><Printer size={18}/> PRINT KITCHEN RECEIPT</button>
+      <button type="button" onClick={() => setKitchenPromptOpen(false)} style={{width:"100%",marginTop:8,minHeight:38,border:0,borderRadius:10,background:"#f3f4f6",color:"#374151",fontWeight:700,cursor:"pointer"}}>Not now</button>
+    </div>}
     {receipt && <div className="wise-sale-complete-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setMoreOpen(false); }}>
       <div className="wise-sale-complete-page">
         <button className="wise-sale-back" type="button" onClick={() => setMoreOpen(false)} aria-label="Back"><ArrowLeft size={25} /></button>
