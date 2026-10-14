@@ -308,53 +308,66 @@ export default function POSPage() {
       @media print{@page{size:80mm auto;margin:0}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{margin-left:auto!important;margin-right:auto!important}}
     </style></head><body>${content}</body></html>`;
     const combinedContent = printContents.join("");
-    // Print from the current tab rather than an iframe/window, which avoids
-    // Edge opening a separate about:blank window for the receipt.
-    const printRoot = document.createElement("div");
-    printRoot.id = "wise-pos-print-root";
-    const fullPrintHtml = buildHtml(combinedContent);
-    const bodyStart = fullPrintHtml.indexOf("<body>");
-    const bodyEnd = fullPrintHtml.lastIndexOf("</body>");
-    printRoot.innerHTML = bodyStart >= 0 && bodyEnd > bodyStart ? fullPrintHtml.slice(bodyStart + 6, bodyEnd) : combinedContent;
-    const embeddedStyleStart = fullPrintHtml.indexOf("<style>");
-    const embeddedStyleEnd = fullPrintHtml.indexOf("</style>", embeddedStyleStart);
-    const embeddedPrintCss = embeddedStyleStart >= 0 && embeddedStyleEnd > embeddedStyleStart ? fullPrintHtml.slice(embeddedStyleStart + 7, embeddedStyleEnd) : "";
-    const printStyle = document.createElement("style");
-    printStyle.id = "wise-pos-print-style";
-    printStyle.textContent = embeddedPrintCss + `
-      #wise-pos-print-root{display:none}
-      @media print{
-        @page{size:80mm auto;margin:0}
-        html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;background:#fff!important}
-        body>*:not(#wise-pos-print-root){display:none!important}
-        #wise-pos-print-root{display:block!important;visibility:visible!important;position:static!important;float:none!important;clear:both!important;width:80mm!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;break-inside:auto!important;page-break-inside:auto!important}
-        #wise-pos-print-root *{visibility:visible!important}
-        #wise-pos-print-root .receipt{display:block!important;visibility:visible!important;width:100%!important;max-width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;position:static!important;transform:none!important;margin:0 auto!important}
-        #wise-pos-print-root .brand,#wise-pos-print-root .copy-title,#wise-pos-print-root .details,#wise-pos-print-root .items,#wise-pos-print-root .totals,#wise-pos-print-root footer{visibility:visible!important;overflow:visible!important}
-      }`;
-    document.head.appendChild(printStyle);
-    document.body.appendChild(printRoot);
+    // Print the receipt from a temporary hidden iframe. This keeps the receipt
+    // document isolated from POS page styles and avoids an extra about:blank window.
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.title = "Receipt print";
+    frame.style.position = "fixed";
+    frame.style.right = "0";
+    frame.style.bottom = "0";
+    frame.style.width = "0";
+    frame.style.height = "0";
+    frame.style.border = "0";
+    frame.style.visibility = "hidden";
+    frame.style.pointerEvents = "none";
+    document.body.appendChild(frame);
+    const frameWindow = frame.contentWindow;
+    const frameDocument = frame.contentDocument;
+    if (!frameWindow || !frameDocument) {
+      frame.remove();
+      setMessage("Unable to prepare receipt printing. Please try again.");
+      return;
+    }
+    frameDocument.open();
+    frameDocument.write(buildHtml(combinedContent));
+    frameDocument.close();
+    let cleaned = false;
     const cleanupPrint = () => {
-      printRoot.remove();
-      printStyle.remove();
-      window.removeEventListener("afterprint", cleanupPrint);
+      if (cleaned) return;
+      cleaned = true;
+      frame.remove();
     };
-    window.addEventListener("afterprint", cleanupPrint, { once: true });
+    frameWindow.addEventListener("afterprint", cleanupPrint, { once: true });
     try {
-      // Give the browser a paint cycle to apply the temporary print stylesheet
-      // before opening the native print dialog.
-      window.requestAnimationFrame(() => {
+      frame.onload = () => {
         window.setTimeout(() => {
           try {
-            window.print();
+            frameWindow.focus();
+            frameWindow.print();
             if (!slip) setKitchenPromptOpen(true);
             window.setTimeout(cleanupPrint, 15000);
           } catch {
             cleanupPrint();
             setMessage("Unable to start printing. Please try again.");
           }
-        }, 100);
-      });
+        }, 150);
+      };
+      // Some browsers fire load before the handler is attached; use a guarded fallback.
+      if (frameDocument.readyState === "complete") {
+        window.setTimeout(() => {
+          if (cleaned) return;
+          try {
+            frameWindow.focus();
+            frameWindow.print();
+            if (!slip) setKitchenPromptOpen(true);
+            window.setTimeout(cleanupPrint, 15000);
+          } catch {
+            cleanupPrint();
+            setMessage("Unable to start printing. Please try again.");
+          }
+        }, 250);
+      }
     } catch {
       cleanupPrint();
       setMessage("Unable to start printing. Please try again.");
