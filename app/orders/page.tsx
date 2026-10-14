@@ -67,6 +67,8 @@ export default function OrdersPage() {
   const [voiding, setVoiding] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [managerEmail, setManagerEmail] = useState("");
   const [managerPassword, setManagerPassword] = useState("");
@@ -120,7 +122,10 @@ export default function OrdersPage() {
       .toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || String(o.status || "").toLowerCase() === statusFilter;
     const matchesPayment = paymentFilter === "all" || (o.payment_channels || []).some((channel) => paymentFilter === "gcash" ? channel.includes("gcash") : channel === paymentFilter);
-    return matchesSearch && matchesStatus && matchesPayment;
+    const orderDate = new Date(o.created_at);
+    const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom + "T00:00:00");
+    const matchesTo = !dateTo || orderDate < new Date(dateTo + "T00:00:00").getTime() + 86400000;
+    return matchesSearch && matchesStatus && matchesPayment && matchesFrom && matchesTo;
   });
 
   const completedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "completed");
@@ -354,6 +359,9 @@ export default function OrdersPage() {
             <div className="orders-search"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order, customer, cashier..." />{search && <button onClick={() => setSearch("")} aria-label="Clear search"><X size={15} /></button>}</div>
             <label className="orders-filter"><Filter size={16} /><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter order status"><option value="all">All Status</option><option value="completed">Completed</option><option value="voided">Voided</option></select><span className="orders-filter-chevron">⌄</span></label>
             <label className="orders-filter"><Filter size={16} /><select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} aria-label="Filter payment method"><option value="all">All Payments</option><option value="gcash">GCash</option><option value="cash">Cash</option><option value="maya">Maya</option><option value="credit_card">Credit Card</option><option value="e_wallet">eWallet</option></select><span className="orders-filter-chevron">⌄</span></label>
+            <label className="orders-date-filter"><CalendarDays size={15} /><span>From</span><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} aria-label="From date" /></label>
+            <label className="orders-date-filter"><CalendarDays size={15} /><span>To</span><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} aria-label="To date" /></label>
+            {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}>Clear dates</button>}
           </div>
         </div>
         {error && <div className="message orders-message">{error}</div>}
