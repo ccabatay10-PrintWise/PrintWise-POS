@@ -124,3 +124,6 @@
  .order-details-actions{gap:8px!important;padding-top:10px!important}
  .order-action{min-height:44px!important;padding:0 12px!important;font-size:11px!important}
 }
+/* Center delete/void authorization dialogs in the viewport */
+.void-modal-backdrop,.delete-modal-backdrop,.delete-confirm-backdrop{position:fixed!important;inset:0!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;overflow-y:auto!important;box-sizing:border-box!important;z-index:2000!important}
+.void-modal-backdrop .void-modal,.delete-modal-backdrop .delete-modal,.delete-confirm-backdrop .delete-modal{position:relative!important;margin:auto!important;max-height:calc(100dvh - 32px)!important;overflow-y:auto!important;box-sizing:border-box!important}
