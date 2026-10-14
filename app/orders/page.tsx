@@ -247,27 +247,40 @@ export default function OrdersPage() {
     .replace(/'/g, "&#039;");
 
   const printInFrame = (html: string) => {
-    const frame = document.createElement("iframe");
-    frame.style.position = "fixed";
-    frame.style.width = "1px";
-    frame.style.height = "1px";
-    frame.style.opacity = "0";
-    frame.style.pointerEvents = "none";
-    document.body.appendChild(frame);
-    const doc = frame.contentWindow?.document;
-    if (!doc || !frame.contentWindow) {
-      document.body.removeChild(frame);
-      alert("Unable to open the print window.");
-      return;
+    // Print from the current Orders tab. An iframe can cause Edge to open
+    // a separate about:blank window during reprints.
+    const parsed = new DOMParser().parseFromString(html, "text/html");
+    const printRoot = document.createElement("div");
+    printRoot.id = "wise-orders-print-root";
+    printRoot.innerHTML = parsed.body.innerHTML;
+    const printStyle = document.createElement("style");
+    printStyle.id = "wise-orders-print-style";
+    const pageStyles = Array.from(parsed.head.querySelectorAll("style"))
+      .map((style) => style.textContent || "")
+      .join("\n");
+    printStyle.textContent = pageStyles + `
+      #wise-orders-print-root{display:none}
+      @media print{
+        @page{size:80mm auto;margin:0}
+        html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important;background:#fff!important}
+        body>*:not(#wise-orders-print-root){display:none!important}
+        #wise-orders-print-root{display:block!important;position:static!important;width:80mm!important;margin:0!important;padding:0!important;overflow:visible!important}
+      }`;
+    document.head.appendChild(printStyle);
+    document.body.appendChild(printRoot);
+    const cleanup = () => {
+      printRoot.remove();
+      printStyle.remove();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup, { once: true });
+    try {
+      window.print();
+      window.setTimeout(cleanup, 15000);
+    } catch {
+      cleanup();
+      alert("Unable to start printing. Please try again.");
     }
-    doc.open();
-    doc.write(html);
-    doc.close();
-    setTimeout(() => {
-      frame.contentWindow?.focus();
-      frame.contentWindow?.print();
-      setTimeout(() => { if (document.body.contains(frame)) document.body.removeChild(frame); }, 1800);
-    }, 350);
   };
 
   const reprintReceipt = async () => {
