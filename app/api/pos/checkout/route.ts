@@ -142,5 +142,15 @@ export async function POST(request: NextRequest) {
     return errorResponse(message, status);
   }
 
+  const notes = String(body.notes ?? "").trim().slice(0, 500);
+  if (notes) {
+    const { error: notesError } = await userClient
+      .from("wise_menu_orders")
+      .update({ notes })
+      .eq("order_no", orderNo)
+      .eq("source_type", "pos");
+    if (notesError) console.error("Unable to save POS kitchen instructions:", notesError.message);
+  }
+
   return NextResponse.json(data || { ok: true });
 }
