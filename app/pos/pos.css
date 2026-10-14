@@ -61,3 +61,5 @@
 .wise-receipt-order-type{display:block;font-size:10px;font-weight:900;letter-spacing:.4px;margin-top:3px}
 
 .wise-checkout-error{margin:8px 0;padding:9px 11px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700}
+
+.wise-customer-instructions{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:54px;margin-top:8px;padding:9px 11px;border:1px solid #d8e1ec;border-radius:9px;background:#fff;color:#15243a;font:inherit;font-size:12px;line-height:1.4;outline:none}.wise-customer-instructions:focus{border-color:#0d7564;box-shadow:0 0 0 3px rgba(13,117,100,.10)}.wise-customer-instructions::placeholder{color:#8b98a9}
