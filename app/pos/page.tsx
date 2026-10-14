@@ -308,40 +308,38 @@ export default function POSPage() {
       @media print{@page{size:80mm auto;margin:0}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt{margin-left:auto!important;margin-right:auto!important}}
     </style></head><body>${content}</body></html>`;
     const combinedContent = printContents.join("");
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.position = "fixed";
-    frame.style.left = "-10000px";
-    frame.style.top = "0";
-    frame.style.width = "1px";
-    frame.style.height = "1px";
-    frame.style.border = "0";
-    frame.style.opacity = "0";
-    frame.style.pointerEvents = "none";
-    frame.style.visibility = "visible";
-    document.body.appendChild(frame);
-    const doc = frame.contentWindow?.document;
-    const printWindow = frame.contentWindow;
-    if (!doc || !printWindow) {
-      frame.remove();
+    // Print from the current tab rather than an iframe/window, which avoids
+    // Edge opening a separate about:blank window for the receipt.
+    const printRoot = document.createElement("div");
+    printRoot.id = "wise-pos-print-root";
+    printRoot.innerHTML = buildHtml(combinedContent).match(/<body>([\\s\\S]*)<\\/body>/i)?.[1] || combinedContent;
+    const printStyle = document.createElement("style");
+    printStyle.id = "wise-pos-print-style";
+    printStyle.textContent = `
+      #wise-pos-print-root{display:none}
+      @media print{
+        @page{size:80mm auto;margin:0}
+        html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important;background:#fff!important}
+        body>*:not(#wise-pos-print-root){display:none!important}
+        #wise-pos-print-root{display:block!important;position:static!important;width:80mm!important;margin:0!important;padding:0!important;overflow:visible!important}
+        #wise-pos-print-root .receipt{display:block!important}
+      }`;
+    document.head.appendChild(printStyle);
+    document.body.appendChild(printRoot);
+    const cleanupPrint = () => {
+      printRoot.remove();
+      printStyle.remove();
+      window.removeEventListener("afterprint", cleanupPrint);
+    };
+    window.addEventListener("afterprint", cleanupPrint, { once: true });
+    try {
+      window.print();
+      if (!slip) setKitchenPromptOpen(true);
+      window.setTimeout(cleanupPrint, 15000);
+    } catch {
+      cleanupPrint();
       setMessage("Unable to start printing. Please try again.");
-      return;
     }
-    doc.open(); doc.write(buildHtml(combinedContent)); doc.close();
-    window.setTimeout(() => {
-      try {
-        // Print from the off-screen iframe without focusing it; focusing the
-        // about:blank frame can make Edge display a separate blank window.
-        printWindow.print();
-        if (!slip) setKitchenPromptOpen(true);
-        const cleanup = () => { frame.remove(); };
-        printWindow.addEventListener("afterprint", cleanup, { once: true });
-        window.setTimeout(cleanup, 15000);
-      } catch {
-        frame.remove();
-        setMessage("Unable to start printing. Please try again.");
-      }
-    }, 350);
   };
 
   const finishNewSale = () => { setMoreOpen(false); setKitchenPromptOpen(false); setReceipt(null); clear(); };
