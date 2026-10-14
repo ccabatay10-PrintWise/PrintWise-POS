@@ -339,9 +339,20 @@ export default function POSPage() {
     };
     window.addEventListener("afterprint", cleanupPrint, { once: true });
     try {
-      window.print();
-      if (!slip) setKitchenPromptOpen(true);
-      window.setTimeout(cleanupPrint, 15000);
+      // Give the browser a paint cycle to apply the temporary print stylesheet
+      // before opening the native print dialog.
+      window.requestAnimationFrame(() => {
+        window.setTimeout(() => {
+          try {
+            window.print();
+            if (!slip) setKitchenPromptOpen(true);
+            window.setTimeout(cleanupPrint, 15000);
+          } catch {
+            cleanupPrint();
+            setMessage("Unable to start printing. Please try again.");
+          }
+        }, 100);
+      });
     } catch {
       cleanupPrint();
       setMessage("Unable to start printing. Please try again.");
