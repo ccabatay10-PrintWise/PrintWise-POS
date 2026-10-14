@@ -351,7 +351,7 @@ export default function POSPage() {
   useEffect(() => {
     if (!receipt) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "k" || event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
+      if (event.code !== "KeyK" || event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
       event.preventDefault();
