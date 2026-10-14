@@ -312,10 +312,16 @@ export default function POSPage() {
     // Edge opening a separate about:blank window for the receipt.
     const printRoot = document.createElement("div");
     printRoot.id = "wise-pos-print-root";
-    printRoot.innerHTML = buildHtml(combinedContent).match(/<body>([\\s\\S]*)<\\/body>/i)?.[1] || combinedContent;
+    const fullPrintHtml = buildHtml(combinedContent);
+    const bodyStart = fullPrintHtml.indexOf("<body>");
+    const bodyEnd = fullPrintHtml.lastIndexOf("</body>");
+    printRoot.innerHTML = bodyStart >= 0 && bodyEnd > bodyStart ? fullPrintHtml.slice(bodyStart + 6, bodyEnd) : combinedContent;
+    const embeddedStyleStart = fullPrintHtml.indexOf("<style>");
+    const embeddedStyleEnd = fullPrintHtml.indexOf("</style>", embeddedStyleStart);
+    const embeddedPrintCss = embeddedStyleStart >= 0 && embeddedStyleEnd > embeddedStyleStart ? fullPrintHtml.slice(embeddedStyleStart + 7, embeddedStyleEnd) : "";
     const printStyle = document.createElement("style");
     printStyle.id = "wise-pos-print-style";
-    printStyle.textContent = `
+    printStyle.textContent = embeddedPrintCss + `
       #wise-pos-print-root{display:none}
       @media print{
         @page{size:80mm auto;margin:0}
