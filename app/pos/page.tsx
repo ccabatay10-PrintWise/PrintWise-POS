@@ -311,12 +311,14 @@ export default function POSPage() {
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
     frame.style.position = "fixed";
-    frame.style.right = "0";
-    frame.style.bottom = "0";
-    frame.style.width = "0";
-    frame.style.height = "0";
+    frame.style.left = "-10000px";
+    frame.style.top = "0";
+    frame.style.width = "1px";
+    frame.style.height = "1px";
     frame.style.border = "0";
-    frame.style.visibility = "hidden";
+    frame.style.opacity = "0";
+    frame.style.pointerEvents = "none";
+    frame.style.visibility = "visible";
     document.body.appendChild(frame);
     const doc = frame.contentWindow?.document;
     const printWindow = frame.contentWindow;
@@ -328,10 +330,13 @@ export default function POSPage() {
     doc.open(); doc.write(buildHtml(combinedContent)); doc.close();
     window.setTimeout(() => {
       try {
-        printWindow.focus();
+        // Print from the off-screen iframe without focusing it; focusing the
+        // about:blank frame can make Edge display a separate blank window.
         printWindow.print();
         if (!slip) setKitchenPromptOpen(true);
-        window.setTimeout(() => frame.remove(), 5000);
+        const cleanup = () => { frame.remove(); };
+        printWindow.addEventListener("afterprint", cleanup, { once: true });
+        window.setTimeout(cleanup, 15000);
       } catch {
         frame.remove();
         setMessage("Unable to start printing. Please try again.");
