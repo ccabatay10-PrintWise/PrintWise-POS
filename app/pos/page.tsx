@@ -327,8 +327,10 @@ export default function POSPage() {
         @page{size:80mm auto;margin:0}
         html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;background:#fff!important}
         body>*:not(#wise-pos-print-root){display:none!important}
-        #wise-pos-print-root{display:block!important;position:static!important;width:80mm!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;break-inside:auto!important;page-break-inside:auto!important}
-        #wise-pos-print-root .receipt{display:block!important}
+        #wise-pos-print-root{display:block!important;visibility:visible!important;position:static!important;float:none!important;clear:both!important;width:80mm!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;break-inside:auto!important;page-break-inside:auto!important}
+        #wise-pos-print-root *{visibility:visible!important}
+        #wise-pos-print-root .receipt{display:block!important;visibility:visible!important;width:100%!important;max-width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;position:static!important;transform:none!important;margin:0 auto!important}
+        #wise-pos-print-root .brand,#wise-pos-print-root .copy-title,#wise-pos-print-root .details,#wise-pos-print-root .items,#wise-pos-print-root .totals,#wise-pos-print-root footer{visibility:visible!important;overflow:visible!important}
       }`;
     document.head.appendChild(printStyle);
     document.body.appendChild(printRoot);
