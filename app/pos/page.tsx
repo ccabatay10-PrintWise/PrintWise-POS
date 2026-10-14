@@ -291,8 +291,8 @@ export default function POSPage() {
       .brand{display:block;width:100%;max-width:100%;margin:0 auto 2mm;text-align:center!important;border-bottom:1px dashed #333;padding-bottom:3mm;overflow-wrap:anywhere}.brand h1{font-size:27px;letter-spacing:1px;margin:0;font-weight:900}.brand h3{font-size:11px;letter-spacing:3px;margin:0 0 5px}.brand .tagline{border-top:1px solid #333;display:inline-block;padding-top:3px;font-size:9px;font-weight:700;letter-spacing:1px}.brand p{font-size:10px;margin:2px 0}.brand .social{font-weight:700}
       .copy-title{display:flex;justify-content:space-between;align-items:center;gap:4px;border-bottom:1px dashed #333;padding:2mm 0;font-size:12px}.copy-title b{background:#111;color:#fff;padding:1.5mm;font-size:10px;white-space:nowrap}
       .details{border-bottom:1px dashed #333;padding:2mm 0;display:grid;gap:1mm}.details div{display:grid;grid-template-columns:minmax(21mm,24mm) minmax(0,1fr);gap:1.5mm;min-width:0}.details b{min-width:0}.details span{font-size:10px}.details b{font-size:10px;font-weight:500;overflow-wrap:anywhere}
-      table{width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
-      .items{width:100%;max-width:100%;min-width:0;overflow:hidden}
+      table{width:100%;max-width:100%;border-collapse:collapse;table-layout:auto;font-size:9px;overflow:visible}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}td,th{overflow:visible;word-break:normal;overflow-wrap:anywhere}
+      .items{width:100%;max-width:100%;min-width:0;overflow:visible;break-inside:auto;page-break-inside:auto}
       .items table:not(.merchant-items) th:nth-child(1),.items table:not(.merchant-items) td:nth-child(1){width:42%;text-align:left}
       .items table:not(.merchant-items) th:nth-child(2),.items table:not(.merchant-items) td:nth-child(2){width:12%;text-align:center}
       .items table:not(.merchant-items) th:nth-child(3),.items table:not(.merchant-items) td:nth-child(3){width:20%;text-align:right}
@@ -325,9 +325,9 @@ export default function POSPage() {
       #wise-pos-print-root{display:none}
       @media print{
         @page{size:80mm auto;margin:0}
-        html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;margin:0!important;padding:0!important;background:#fff!important}
+        html,body{width:80mm!important;min-width:80mm!important;max-width:80mm!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;background:#fff!important}
         body>*:not(#wise-pos-print-root){display:none!important}
-        #wise-pos-print-root{display:block!important;position:static!important;width:80mm!important;margin:0!important;padding:0!important;overflow:visible!important}
+        #wise-pos-print-root{display:block!important;position:static!important;width:80mm!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;break-inside:auto!important;page-break-inside:auto!important}
         #wise-pos-print-root .receipt{display:block!important}
       }`;
     document.head.appendChild(printStyle);
