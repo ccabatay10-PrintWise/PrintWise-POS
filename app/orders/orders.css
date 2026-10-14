@@ -86,3 +86,19 @@
 @media(max-width:640px){.orders-summary-grid{grid-template-columns:1fr}.orders-topbar{flex-direction:column}.orders-refresh-btn{width:100%;justify-content:center}.orders-tools{flex-direction:column}.orders-search,.orders-filter{width:100%}.orders-content-head{padding:17px}.orders-content-footer{flex-direction:column}.orders-summary-card{min-height:94px}}
 
 .order-action.delete{background:#fff5f5!important;border:1px solid #fecaca!important;color:#b91c1c!important}.order-action.delete:hover{background:#fee2e2!important}.delete-icon{background:#fee2e2!important;color:#b91c1c!important}.delete-warning{background:#fff5f5!important;border-color:#fecaca!important;color:#991b1b!important}.delete-confirm-btn{background:#b91c1c!important;color:#fff!important;border:1px solid #b91c1c!important;border-radius:9px;padding:11px 14px;font-weight:800;display:inline-flex;align-items:center;gap:7px;cursor:pointer}.delete-confirm-btn:disabled{opacity:.55;cursor:not-allowed}.delete-modal .void-password-label{display:block;margin-top:12px}.delete-modal .void-password-label input{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;border:1px solid #d6dce5;border-radius:9px;font:inherit}
+
+/* Keep transaction management actions visible while scrolling order details */
+.order-details-modal{display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain}
+.order-details-actions{position:sticky;bottom:-28px;z-index:5;background:#fff;padding:14px 0 4px;margin-top:16px;border-top:1px solid #e5e7eb;box-shadow:0 -8px 14px rgba(255,255,255,.96)}
+@media(max-height:760px){
+  .order-details-backdrop{padding:10px}
+  .order-details-modal{max-height:calc(100vh - 20px);padding:18px}
+  .order-details-rule{margin:12px 0}
+  .order-meta-card{min-height:82px;padding:14px}
+  .order-item-row{padding:12px 16px}
+  .order-total-card{margin-top:12px}
+  .order-summary-intro{padding:16px}
+  .order-summary-icon{width:58px;height:58px;flex-basis:58px}
+  .order-summary-values{padding:12px 18px}
+  .order-details-actions{bottom:-18px;padding:10px 0 2px}
+}
