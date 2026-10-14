@@ -54,3 +54,15 @@
 .wk-card footer button{padding:8px 9px;font-size:10px;border-radius:8px}
 @media(max-width:900px){.wk-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));}.wk-card{max-width:none}}
 @media(max-width:720px){.wk-main{padding:68px 12px 28px}.wk-grid{grid-template-columns:1fr}.wk-card{max-width:none}}
+
+
+/* Fixed-height order cards with internal scrolling so long orders never stretch the page. */
+.wk-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(320px,380px))!important;align-items:start!important;justify-content:start!important;gap:14px!important}
+.wk-card{height:590px!important;min-height:590px!important;max-height:590px!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;align-self:start!important}
+.wk-card>header,.wk-customer,.wk-notes,.wk-card>footer{flex:0 0 auto!important}
+.wk-recipe-board{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain}
+.wk-kitchen-groups{align-items:start!important}
+.wk-kitchen-group{align-self:start!important}
+.wk-card>footer{padding-top:2px!important}
+@media(max-width:900px){.wk-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr))!important}.wk-card{height:590px!important;min-height:590px!important;max-height:590px!important}}
+@media(max-width:720px){.wk-grid{grid-template-columns:minmax(0,1fr)!important}.wk-card{height:590px!important;min-height:590px!important;max-height:590px!important}}
