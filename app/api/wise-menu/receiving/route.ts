@@ -22,7 +22,7 @@ async function auth(req:NextRequest):Promise<AuthContext>{
 export async function GET(req:NextRequest){
  try{
   const {admin}=await auth(req);
-  const {data,error}=await admin.from("wise_menu_orders").select("id,order_no,customer_name,customer_email,notes,status,order_type,total,subtotal,created_at,updated_at,wise_menu_order_items(product_id,product_name,quantity,unit_price,line_total,options)").in("status",["new","pending"]).order("created_at",{ascending:false});
+  const {data,error}=await admin.from("wise_menu_orders").select("id,order_no,customer_name,customer_email,notes,status,order_type,total,subtotal,created_at,updated_at,wise_menu_order_items(product_id,product_name,quantity,unit_price,line_total,options)").in("status",["new","pending"]).like("order_no","WM-%").order("created_at",{ascending:false});
   if(error)throw error;
   return NextResponse.json({orders:data||[]});
  }catch(e:any){const message=e.message||"Unable to load WISE MENU orders";return NextResponse.json({error:message},{status:message==="Authentication required"?401:403});}
