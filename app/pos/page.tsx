@@ -147,10 +147,12 @@ export default function POSPage() {
       const updated: CartItem = found
         ? { ...found, quantity: found.quantity + 1 }
         : { ...product, quantity: 1, orderType };
-      return [updated, ...current.filter((item) => item.id !== product.id)];
+      return [...current.filter((item) => item.id !== product.id), updated];
     });
     requestAnimationFrame(() => {
-      if (cartBodyRef.current) cartBodyRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      if (cartBodyRef.current) {
+        cartBodyRef.current.scrollTo({ top: cartBodyRef.current.scrollHeight, behavior: "smooth" });
+      }
     });
   };
   const setAllItemOrderTypes = (type: "dine_in" | "take_out") => { setOrderType(type); setCart((current) => current.map((item) => ({ ...item, orderType: type }))); };
