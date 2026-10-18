@@ -407,6 +407,25 @@ export default function POSPage() {
 
   const finishNewSale = () => { setMoreOpen(false); setKitchenPromptOpen(false); setReceipt(null); clear(); };
 
+  useEffect(() => {
+    if (!receipt) return;
+    const onShortcut = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      const key = event.key.toLowerCase();
+      if (key === "p") {
+        event.preventDefault();
+        printReceipt(false);
+      } else if (key === "n") {
+        event.preventDefault();
+        finishNewSale();
+      }
+    };
+    window.addEventListener("keydown", onShortcut);
+    return () => window.removeEventListener("keydown", onShortcut);
+  }, [receipt]);
+
   const checkout = async () => {
     if (!customer.trim()) { setMessage("Customer name is required. Please enter the customer’s name."); return; }
     if (!user) { setMessage("Please sign in before completing a sale."); return; }
@@ -536,9 +555,9 @@ export default function POSPage() {
         <h2>Order Created!</h2>
         <p className="wise-sale-success-text">Order #{receipt.orderNo.replace(/^WISE-/, "S") } has been successfully created.</p>
         <div className="wise-sale-actions">
-          <button type="button" onClick={() => printReceipt(false)}><Printer size={18} />Print Receipt</button>
+          <button type="button" onClick={() => printReceipt(false)}><Printer size={18} />Print Receipt <kbd className="wise-shortcut-key">P</kbd></button>
           <button type="button" onClick={() => printReceipt(true)}><ReceiptText size={18} />Print Slip</button>
-          <div className="wise-sale-more-wrap"><button type="button" onClick={() => setMoreOpen((open) => !open)}>More <ChevronDown size={17} className={moreOpen ? "wise-more-open" : ""} /></button>{moreOpen && <div className="wise-sale-more-menu"><button type="button" onClick={finishNewSale}>New Sale</button><button type="button" onClick={() => printReceipt(false)}>Print Receipt Again</button></div>}</div>
+          <div className="wise-sale-more-wrap"><button type="button" onClick={() => setMoreOpen((open) => !open)}>More <ChevronDown size={17} className={moreOpen ? "wise-more-open" : ""} /></button>{moreOpen && <div className="wise-sale-more-menu"><button type="button" onClick={finishNewSale}>New Sale <kbd className="wise-shortcut-key">N</kbd></button><button type="button" onClick={() => printReceipt(false)}>Print Receipt Again</button></div>}</div>
         </div>
         <article className="wise-sale-receipt">
           <h3>Espacio</h3>
