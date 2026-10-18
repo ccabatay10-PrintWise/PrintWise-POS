@@ -152,6 +152,65 @@ app.whenReady().then(async () => {
     return true;
   });
 
+  ipcMain.handle("printwise:open-cash-drawer", async () => {
+    if (process.platform !== "win32") {
+      throw new Error("Automatic cash drawer opening is currently supported only on Windows.");
+    }
+
+    const script = String.raw`
+$ErrorActionPreference = 'Stop'
+$printer = Get-Printer | Where-Object { $_.Name -match 'GLPrinter80|R80A' } | Select-Object -First 1
+if (-not $printer) { throw 'Cannot find a Windows printer named GLPrinter80 or R80A.' }
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class RawDrawerPrinter {
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+  public class DOC_INFO_1 {
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+  }
+  [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)] public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool ClosePrinter(IntPtr hPrinter);
+  [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)] public static extern int StartDocPrinter(IntPtr hPrinter, int level, [In] DOC_INFO_1 docInfo);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool EndDocPrinter(IntPtr hPrinter);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool StartPagePrinter(IntPtr hPrinter);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool EndPagePrinter(IntPtr hPrinter);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBytes, int dwCount, out int dwWritten);
+}
+"@
+$handle = [IntPtr]::Zero
+if (-not [RawDrawerPrinter]::OpenPrinter($printer.Name, [ref]$handle, [IntPtr]::Zero)) { throw 'Unable to open receipt printer queue.' }
+try {
+  $doc = New-Object RawDrawerPrinter+DOC_INFO_1
+  $doc.pDocName = 'WISE POS Cash Drawer'
+  $doc.pDataType = 'RAW'
+  $job = [RawDrawerPrinter]::StartDocPrinter($handle, 1, $doc)
+  if ($job -eq 0) { throw 'Unable to start cash drawer command job.' }
+  try {
+    if (-not [RawDrawerPrinter]::StartPagePrinter($handle)) { throw 'Unable to start printer page.' }
+    try {
+      $bytes = [byte[]](0x1B,0x70,0x00,0x19,0xFA)
+      $written = 0
+      if (-not [RawDrawerPrinter]::WritePrinter($handle, $bytes, $bytes.Length, [ref]$written) -or $written -ne $bytes.Length) { throw 'Cash drawer command was not fully sent.' }
+    } finally { [void][RawDrawerPrinter]::EndPagePrinter($handle) }
+  } finally { [void][RawDrawerPrinter]::EndDocPrinter($handle) }
+} finally { [void][RawDrawerPrinter]::ClosePrinter($handle) }
+Write-Output ('Cash drawer command sent to ' + $printer.Name)
+`;
+    const { stdout } = await new Promise((resolve, reject) => {
+      const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { windowsHide: true });
+      let out = "";
+      let err = "";
+      child.stdout.on("data", (chunk) => { out += chunk.toString(); });
+      child.stderr.on("data", (chunk) => { err += chunk.toString(); });
+      child.once("error", reject);
+      child.once("close", (code) => code === 0 ? resolve({ stdout: out }) : reject(new Error((err || out || "Cash drawer command failed").trim())));
+    });
+    return { ok: true, message: String(stdout || "").trim() };
+  });
+
   ipcMain.handle("printwise:close-customer-display", () => {
     if (customerDisplayWindow && !customerDisplayWindow.isDestroyed()) {
       customerDisplayWindow.close();
