@@ -355,7 +355,19 @@ export default function POSPage() {
       cleaned = true;
       frame.remove();
     };
-    frameWindow.addEventListener("afterprint", cleanupPrint, { once: true });
+    frameWindow.addEventListener("afterprint", () => {
+      cleanupPrint();
+      if (!slip) {
+        const desktop = (window as any).printwiseDesktop;
+        if (desktop?.openCashDrawer) {
+          desktop.openCashDrawer().catch((error: unknown) => {
+            setMessage(error instanceof Error ? `Receipt printed, but cash drawer did not open: ${error.message}` : "Receipt printed, but cash drawer did not open.");
+          });
+        } else {
+          setMessage("Receipt print dialog closed. Automatic cash drawer opening requires the updated PrintWise Desktop app; a regular browser cannot send the drawer command.");
+        }
+      }
+    }, { once: true });
     try {
       frame.onload = () => {
         window.setTimeout(() => {
