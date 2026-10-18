@@ -279,6 +279,38 @@ export default function POSPage() {
     setReceiptContentWidth(safeWidth);
     try { localStorage.setItem("wise_pos_receipt_alignment", JSON.stringify({ offset: safeOffset, width: safeWidth })); } catch {}
   };
+  const openCashDrawerViaQZ = async () => {
+    const w = window as any;
+    const loadQZ = () => new Promise<void>((resolve, reject) => {
+      if (w.qz) { resolve(); return; }
+      const existing = document.querySelector<HTMLScriptElement>('script[data-qz-tray="true"]');
+      if (existing) {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Unable to load QZ Tray browser library.")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js";
+      script.async = true;
+      script.dataset.qzTray = "true";
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Unable to load QZ Tray browser library. Check your internet connection."));
+      document.head.appendChild(script);
+    });
+    await loadQZ();
+    const qz = w.qz;
+    if (!qz) throw new Error("QZ Tray library is unavailable.");
+    if (!qz.websocket.isActive()) await qz.websocket.connect();
+    const printers: string[] = await qz.printers.find();
+    const printerName = printers.find((name) => /GL\s*Printer\s*80|R80A/i.test(name));
+    if (!printerName) {
+      throw new Error(`QZ Tray is connected, but GL Printer 80/R80A was not found. Detected printers: ${printers.length ? printers.join(", ") : "none"}`);
+    }
+    const config = qz.configs.create(printerName, { forceRaw: true });
+    await qz.print(config, [{ type: "raw", format: "command", data: "\\x1B\\x70\\x00\\x19\\xFA" }]);
+    setMessage(`Receipt print dialog closed. Cash drawer command sent to ${printerName}.`);
+  };
+
   const printReceipt = (slip = false) => {
     if (!receipt) return;
     const created = new Date(receipt.createdAt);
@@ -360,11 +392,17 @@ export default function POSPage() {
       if (!slip) {
         const desktop = (window as any).printwiseDesktop;
         if (desktop?.openCashDrawer) {
-          desktop.openCashDrawer().catch((error: unknown) => {
-            setMessage(error instanceof Error ? `Receipt printed, but cash drawer did not open: ${error.message}` : "Receipt printed, but cash drawer did not open.");
+          desktop.openCashDrawer().catch(async (error: unknown) => {
+            try { await openCashDrawerViaQZ(); }
+            catch (qzError: unknown) {
+              const detail = qzError instanceof Error ? qzError.message : error instanceof Error ? error.message : "Unknown error";
+              setMessage(`Receipt printed, but cash drawer did not open: ${detail}`);
+            }
           });
         } else {
-          setMessage("Receipt print dialog closed. Automatic cash drawer opening requires the updated PrintWise Desktop app; a regular browser cannot send the drawer command.");
+          openCashDrawerViaQZ().catch((error: unknown) => {
+            setMessage(error instanceof Error ? `Receipt printed, but cash drawer did not open: ${error.message}` : "Receipt printed, but cash drawer did not open. Make sure QZ Tray is running.");
+          });
         }
       }
     }, { once: true });
