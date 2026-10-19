@@ -25,6 +25,7 @@ export default function PayrollPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<Record<string, Attendance>>({});
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [completedSales, setCompletedSales] = useState(0);
   const [date, setDate] = useState(todayLocal());
   const [form, setForm] = useState(emptyEmployee);
   const [showAdd, setShowAdd] = useState(false);
@@ -45,17 +46,22 @@ export default function PayrollPage() {
         router.replace("/dashboard"); return;
       }
       setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "Administrator");
-      const [employeeResult, attendanceResult, settingsResult] = await Promise.all([
+      const start = new Date(`${date}T00:00:00+08:00`);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      const [employeeResult, attendanceResult, settingsResult, salesResult] = await Promise.all([
         supabase.from("payroll_employees").select("*").order("full_name"),
         supabase.from("payroll_attendance").select("*").eq("work_date", date),
         supabase.from("payroll_settings").select("*").limit(1).maybeSingle(),
+        supabase.from("pos_orders").select("total").eq("status", "completed").gte("created_at", start.toISOString()).lt("created_at", end.toISOString()),
       ]);
       if (employeeResult.error) throw employeeResult.error;
       if (attendanceResult.error) throw attendanceResult.error;
       if (settingsResult.error) throw settingsResult.error;
+      if (salesResult.error) throw salesResult.error;
       setEmployees((employeeResult.data || []) as Employee[]);
       setAttendance(Object.fromEntries((attendanceResult.data || []).map((a: Attendance) => [a.employee_id, a])));
       setSettings(settingsResult.data as Settings | null);
+      setCompletedSales((salesResult.data || []).reduce((sum: number, order: { total: number | string }) => sum + Number(order.total || 0), 0));
     } catch (e: any) { setError(e.message || "Could not load payroll data."); }
     finally { setLoading(false); }
   }, [date, router]);
@@ -165,7 +171,7 @@ export default function PayrollPage() {
         {!settings ? <p className="payroll-note">Settings will appear after the payroll database migration is applied.</p> : <div className="payroll-settings-grid">
           <label>Completed sales threshold (₱)<input type="number" min="1" step="100" value={settings.sales_threshold} onChange={e => setSettings({ ...settings, sales_threshold: Number(e.target.value) })}/></label>
           <label>Incentive per threshold (₱)<input type="number" min="0" step="10" value={settings.incentive_per_threshold} onChange={e => setSettings({ ...settings, incentive_per_threshold: Number(e.target.value) })}/></label>
-          <div className="payroll-rule-preview"><small>Example at ₱25,453 sales</small><strong>{money(Math.floor(25453 / Number(settings.sales_threshold || 3000)) * Number(settings.incentive_per_threshold || 0))} incentive pool</strong><span>Equal split among eligible employees. Example only; live POS sales sync is a separate integration step.</span></div>
+          <div className="payroll-rule-preview"><small>Example at ₱25,453 sales</small><strong>{money(Math.floor(25453 / Number(settings.sales_threshold || 3000)) * Number(settings.incentive_per_threshold || 0))} incentive pool</strong><span>Equal split among eligible employees. Example only; live sales above are read directly from completed POS orders.</span></div>
           <div className="payroll-settings-actions"><button className="payroll-btn secondary" onClick={() => setSettings({ ...settings, sales_threshold: 3000, incentive_per_threshold: 100 })}>Reset defaults</button><button className="payroll-btn primary" onClick={() => void saveSettings()} disabled={saving}><Save size={16}/> Save settings</button></div>
         </div>}
       </section>
