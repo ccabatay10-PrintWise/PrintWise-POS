@@ -98,25 +98,6 @@ export default function OrdersPage() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    if (!orders.length) return;
-    let active = true;
-    (async () => {
-      const ids = orders.map((o) => o.id).filter(Boolean);
-      const { data } = await supabase.from("payment_transactions").select("pos_order_id,channel,status").in("pos_order_id", ids);
-      if (!active) return;
-      const map = new Map<string, string[]>();
-      for (const p of data || []) {
-        if (["voided", "failed", "cancelled", "canceled"].includes(String(p.status || "").toLowerCase())) continue;
-        const id = String(p.pos_order_id || "");
-        const channel = String(p.channel || "").toLowerCase().replace(/\\s+/g, "_");
-        map.set(id, [...(map.get(id) || []), channel]);
-      }
-      setOrders((current) => current.map((o) => ({ ...o, payment_channels: [...new Set(map.get(o.id) || [])] })));
-    })();
-    return () => { active = false; };
-  }, [orders.length]);
-
   const filtered = orders.filter((o) => {
     const matchesSearch = String(o.order_no + " " + (o.customer_name || "") + " " + (o.transacted_by || "") + " " + o.status)
       .toLowerCase().includes(search.toLowerCase());
