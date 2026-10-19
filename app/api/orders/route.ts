@@ -119,13 +119,14 @@ export async function GET(request: NextRequest) {
 
   const orderIds = (data ?? []).map((order: any) => String(order.id)).filter(Boolean);
   const paymentTotals = new Map<string, number>();
+  const paymentChannels = new Map<string, string[]>();
   const itemTotals = new Map<string, number>();
 
   if (orderIds.length) {
     const [{ data: payments }, { data: items }] = await Promise.all([
       adminClient
         .from("payment_transactions")
-        .select("pos_order_id,amount,status")
+        .select("pos_order_id,amount,status,channel")
         .in("pos_order_id", orderIds),
       adminClient
         .from("pos_order_items")
@@ -138,6 +139,8 @@ export async function GET(request: NextRequest) {
       if (status === "voided" || status === "failed" || status === "cancelled" || status === "canceled") continue;
       const id = String((payment as any).pos_order_id || "");
       paymentTotals.set(id, (paymentTotals.get(id) || 0) + numberValue((payment as any).amount));
+      const channel = String((payment as any).channel || "").trim().toLowerCase().replace(/\\s+/g, "_");
+      if (channel) paymentChannels.set(id, [...(paymentChannels.get(id) || []), channel]);
     }
 
     for (const item of items ?? []) {
@@ -188,6 +191,7 @@ export async function GET(request: NextRequest) {
       total: resolvedTotal,
       amount_paid: resolvedPaid,
       balance: resolvedBalance,
+      payment_channels: [...new Set(paymentChannels.get(id) || [])],
       transacted_by: transactedBy,
     };
   }));
