@@ -9,7 +9,7 @@ import "./payroll.css";
 
 type Employee = { id: string; employee_code: string | null; full_name: string; position_title: string; daily_rate: number; is_active: boolean; notes: string | null };
 type Attendance = { id?: string; employee_id: string; work_date: string; attendance_status: "present" | "absent" | "rest_day" | "leave" | "half_day" | ""; time_in: string | null; time_out: string | null; notes: string | null };
-type Settings = { id: string; business_name: string; sales_threshold: number; incentive_per_threshold: number; incentive_distribution: "equal" };
+type Settings = { id: string; business_name: string; sales_threshold: number; incentive_per_threshold: number; incentive_distribution: "equal"; standard_hours_per_day: number; overtime_multiplier: number; payroll_frequency: "weekly" | "semi_monthly" | "monthly"; paid_leave_enabled: boolean };
 const roles = [
   { title: "Team Leader", rate: 400 },
   { title: "Barista", rate: 300 },
@@ -138,7 +138,9 @@ export default function PayrollPage() {
     try {
       const { error: saveError } = await supabase.from("payroll_settings").update({
         sales_threshold: Number(settings.sales_threshold), incentive_per_threshold: Number(settings.incentive_per_threshold),
-        incentive_distribution: "equal", updated_at: new Date().toISOString(),
+        incentive_distribution: "equal", standard_hours_per_day: Number(settings.standard_hours_per_day),
+        overtime_multiplier: Number(settings.overtime_multiplier), payroll_frequency: settings.payroll_frequency,
+        paid_leave_enabled: Boolean(settings.paid_leave_enabled), updated_at: new Date().toISOString(),
       }).eq("id", settings.id);
       if (saveError) throw saveError;
       setMessage("Incentive settings saved."); await load();
@@ -181,13 +183,27 @@ export default function PayrollPage() {
         </>}
       </section>
       <section className="payroll-card incentive-card">
-        <div className="payroll-card-head"><div><span>INCENTIVE SETTINGS</span><h2>Equal-sharing rule</h2><p>Only complete sales thresholds are counted. The final pool is divided equally among eligible employees.</p></div></div>
+        <div className="payroll-card-head"><div><span>PAYROLL CONFIGURATION</span><h2>Payroll & computation settings</h2><p>Set the standard payroll rules used when preparing employee payroll. Changes apply to future payroll calculations.</p></div></div>
         {!settings ? <p className="payroll-note">Settings will appear after the payroll database migration is applied.</p> : <div className="payroll-settings-grid">
+          <label>Payroll frequency<select value={settings.payroll_frequency || "semi_monthly"} onChange={e => setSettings({ ...settings, payroll_frequency: e.target.value as Settings["payroll_frequency"] })}><option value="weekly">Weekly</option><option value="semi_monthly">Semi-monthly (1–15 / 16–end)</option><option value="monthly">Monthly</option></select></label>
+          <label>Standard hours per workday<input type="number" min="1" max="24" step="0.5" value={settings.standard_hours_per_day ?? 8} onChange={e => setSettings({ ...settings, standard_hours_per_day: Number(e.target.value) })}/></label>
+          <label>Overtime multiplier<input type="number" min="1" max="3" step="0.05" value={settings.overtime_multiplier ?? 1.25} onChange={e => setSettings({ ...settings, overtime_multiplier: Number(e.target.value) })}/><small>Example: 1.25 = 125% of hourly rate</small></label>
+          <label>Paid leave treatment<select value={settings.paid_leave_enabled ? "paid" : "unpaid"} onChange={e => setSettings({ ...settings, paid_leave_enabled: e.target.value === "paid" })}><option value="paid">Paid leave counts as a paid day</option><option value="unpaid">Leave is unpaid</option></select></label>
+          <div className="payroll-settings-divider"><span>SALES INCENTIVE RULE</span></div>
           <label>Completed sales threshold (₱)<input type="number" min="1" step="100" value={settings.sales_threshold} onChange={e => setSettings({ ...settings, sales_threshold: Number(e.target.value) })}/></label>
           <label>Incentive per threshold (₱)<input type="number" min="0" step="10" value={settings.incentive_per_threshold} onChange={e => setSettings({ ...settings, incentive_per_threshold: Number(e.target.value) })}/></label>
-          <div className="payroll-rule-preview"><small>Example at ₱25,453 sales</small><strong>{money(Math.floor(25453 / Number(settings.sales_threshold || 3000)) * Number(settings.incentive_per_threshold || 0))} incentive pool</strong><span>Equal split among eligible employees. Example only; live sales above are read directly from completed POS orders.</span></div>
-          <div className="payroll-settings-actions"><button className="payroll-btn secondary" onClick={() => setSettings({ ...settings, sales_threshold: 3000, incentive_per_threshold: 100 })}>Reset defaults</button><button className="payroll-btn primary" onClick={() => void saveSettings()} disabled={saving}><Save size={16}/> Save settings</button></div>
+          <div className="payroll-rule-preview"><small>Example at ₱25,453 completed sales</small><strong>{money(Math.floor(25453 / Number(settings.sales_threshold || 3000)) * Number(settings.incentive_per_threshold || 0))} incentive pool</strong><span>Only complete thresholds count. The pool is shared equally among eligible employees marked Present for the selected workday.</span></div>
+          <div className="payroll-settings-actions"><button className="payroll-btn secondary" onClick={() => setSettings({ ...settings, sales_threshold: 3000, incentive_per_threshold: 100, standard_hours_per_day: 8, overtime_multiplier: 1.25, payroll_frequency: "semi_monthly", paid_leave_enabled: true })}>Reset defaults</button><button className="payroll-btn primary" onClick={() => void saveSettings()} disabled={saving}><Save size={16}/>{saving ? "Saving…" : "Save settings"}</button></div>
         </div>}
+      </section>
+      <section className="payroll-card">
+        <div className="payroll-card-head"><div><span>PAYROLL WORKFLOW</span><h2>Payroll preparation checklist</h2><p>Use this workflow before approving a payroll period.</p></div></div>
+        <div className="payroll-workflow-grid">
+          <article><strong>1. Employees</strong><span>Confirm employee ID, role, active status, and daily rate.</span></article>
+          <article><strong>2. Attendance</strong><span>Record present, half day, paid leave, absent, rest day, and time in/out.</span></article>
+          <article><strong>3. Adjustments</strong><span>Capture overtime, cash advances, and other additions or deductions in the payroll run.</span></article>
+          <article><strong>4. Review & pay</strong><span>Review totals, approve the payroll, mark payment, and print payslips.</span></article>
+        </div>
       </section>
       <section className="payroll-note"><strong>Next integration step</strong><p>This first module establishes employee records, attendance, and live daily incentive estimates from completed POS orders. Payroll-period generation, approval controls, deductions, and payslip printing remain the next implementation phase.</p></section>
     </main>
