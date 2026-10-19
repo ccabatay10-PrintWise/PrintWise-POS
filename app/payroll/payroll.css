@@ -11,3 +11,15 @@
   .payroll-shell { display: block; }
   .payroll-shell > .payroll-main { width: 100%; margin: 0; padding: 68px 13px 30px; }
 }
+
+.payroll-settings-grid>label small{color:#8b735e;font-size:10px;font-weight:500;line-height:1.45}
+.payroll-settings-grid select{box-sizing:border-box;width:100%;min-height:40px;border:1px solid #dce2e8;border-radius:9px;padding:9px 11px;background:#fff;color:#344054;font:inherit;font-weight:500;outline:none}
+.payroll-settings-grid select:focus{border-color:#9a6a42;box-shadow:0 0 0 3px rgba(154,106,66,.1)}
+.payroll-settings-divider{grid-column:1/-1;border-top:1px solid #edf0f4;padding-top:15px;margin-top:2px}
+.payroll-settings-divider span{color:#9a6a42;font-size:9px;font-weight:900;letter-spacing:1.1px}
+.payroll-workflow-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px 22px}
+.payroll-workflow-grid article{border:1px solid #e8e1da;background:#fcfaf8;border-radius:11px;padding:15px;min-width:0}
+.payroll-workflow-grid strong{display:block;color:#573a28;font-size:12px}
+.payroll-workflow-grid span{display:block;margin-top:7px;color:#667085;font-size:11px;line-height:1.55}
+@media(max-width:900px){.payroll-workflow-grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:15px}}
+@media(max-width:520px){.payroll-workflow-grid{grid-template-columns:1fr}.payroll-settings-divider{grid-column:auto}}
