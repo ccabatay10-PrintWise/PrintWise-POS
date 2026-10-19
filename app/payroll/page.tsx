@@ -8,7 +8,7 @@ import Sidebar from "../components/Sidebar";
 import "./payroll.css";
 
 type Employee = { id: string; employee_code: string | null; full_name: string; position_title: string; daily_rate: number; is_active: boolean; notes: string | null };
-type Attendance = { id?: string; employee_id: string; work_date: string; attendance_status: "present" | "absent" | "rest_day" | "leave" | "half_day"; time_in: string | null; time_out: string | null; notes: string | null };
+type Attendance = { id?: string; employee_id: string; work_date: string; attendance_status: "present" | "absent" | "rest_day" | "leave" | "half_day" | ""; time_in: string | null; time_out: string | null; notes: string | null };
 type Settings = { id: string; business_name: string; sales_threshold: number; incentive_per_threshold: number; incentive_distribution: "equal" };
 const roles = [
   { title: "Team Leader", rate: 400 },
@@ -95,7 +95,7 @@ export default function PayrollPage() {
     setAttendance(current => ({
       ...current,
       [employee.id]: {
-        ...(current[employee.id] || { employee_id: employee.id, work_date: date, attendance_status: "present", time_in: null, time_out: null, notes: null }),
+        ...(current[employee.id] || { employee_id: employee.id, work_date: date, attendance_status: "", time_in: null, time_out: null, notes: null }),
         employee_id: employee.id, work_date: date, [field]: value || null,
       } as Attendance,
     }));
@@ -156,14 +156,14 @@ export default function PayrollPage() {
         <div className="payroll-card-head"><div><span>DAILY RECORD</span><h2>Attendance register</h2><p>Set attendance status for each active employee and save the selected date.</p></div><label className="payroll-date"><CalendarDays size={16}/><input type="date" value={date} onChange={e => setDate(e.target.value)}/></label></div>
         {loading ? <div className="payroll-loading"><Loader2 className="spin" size={22}/> Loading payroll data…</div> : employees.filter(e => e.is_active).length === 0 ? <div className="payroll-empty"><Users size={30}/><strong>No employee records yet</strong><p>Add your ESPACIO team members to begin recording attendance.</p><button className="payroll-btn primary" onClick={() => setShowAdd(true)}><Plus size={16}/> Add first employee</button></div> : <>
           <div className="payroll-table-wrap"><table className="payroll-table"><thead><tr><th>EMPLOYEE</th><th>POSITION</th><th>DAILY RATE</th><th>ATTENDANCE</th><th>TIME IN</th><th>TIME OUT</th></tr></thead><tbody>
-          {employees.filter(e => e.is_active).map(employee => { const a = attendance[employee.id] || { attendance_status: "present", time_in: "", time_out: "" }; return <tr key={employee.id}>
+          {employees.filter(e => e.is_active).map(employee => { const a = attendance[employee.id] || { attendance_status: "", time_in: "", time_out: "" }; return <tr key={employee.id}>
             <td><strong>{employee.full_name}</strong><small>{employee.employee_code || "No employee code"}</small></td><td>{employee.position_title}</td><td className="payroll-money">{money(Number(employee.daily_rate))}</td>
-            <td><select value={a.attendance_status} onChange={e => updateAttendance(employee, "attendance_status", e.target.value)}><option value="present">Present</option><option value="half_day">Half day</option><option value="absent">Absent</option><option value="rest_day">Rest day</option><option value="leave">Leave</option></select></td>
+            <td><select value={a.attendance_status} onChange={e => updateAttendance(employee, "attendance_status", e.target.value)}><option value="">Select status…</option><option value="present">Present</option><option value="half_day">Half day</option><option value="absent">Absent</option><option value="rest_day">Rest day</option><option value="leave">Leave</option></select></td>
             <td><input aria-label={employee.full_name + " time in"} type="time" value={a.time_in || ""} onChange={e => updateAttendance(employee, "time_in", e.target.value)}/></td>
             <td><input aria-label={employee.full_name + " time out"} type="time" value={a.time_out || ""} onChange={e => updateAttendance(employee, "time_out", e.target.value)}/></td>
           </tr>; })}
           </tbody></table></div>
-          <div className="payroll-card-footer"><span><Clock3 size={15}/> Attendance changes are saved only when you click Save Attendance.</span><button className="payroll-btn primary" onClick={() => void saveAttendance()} disabled={saving}><Save size={16}/>{saving ? "Saving…" : "Save Attendance"}</button></div>
+          <div className="payroll-card-footer"><span><Clock3 size={15}/> Only employees with a selected status are saved; unmarked rows are skipped.</span><button className="payroll-btn primary" onClick={() => void saveAttendance()} disabled={saving}><Save size={16}/>{saving ? "Saving…" : "Save Attendance"}</button></div>
         </>}
       </section>
       <section className="payroll-card incentive-card">
