@@ -175,7 +175,7 @@ export default function PayrollPage() {
           <div className="payroll-settings-actions"><button className="payroll-btn secondary" onClick={() => setSettings({ ...settings, sales_threshold: 3000, incentive_per_threshold: 100 })}>Reset defaults</button><button className="payroll-btn primary" onClick={() => void saveSettings()} disabled={saving}><Save size={16}/> Save settings</button></div>
         </div>}
       </section>
-      <section className="payroll-note"><strong>Next integration step</strong><p>This first module establishes employee records, attendance, and incentive rules. POS sales synchronization, payroll-period generation, approval controls, deductions, and payslip printing should be enabled only after the database migration is reviewed and tested in preview.</p></section>
+      <section className="payroll-note"><strong>Next integration step</strong><p>This first module establishes employee records, attendance, and live daily incentive estimates from completed POS orders. Payroll-period generation, approval controls, deductions, and payslip printing remain the next implementation phase.</p></section>
     </main>
     {showAdd && <div className="payroll-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setShowAdd(false); }}><section className="payroll-modal" role="dialog" aria-modal="true" aria-labelledby="payroll-add-title">
       <header><div><span>TEAM RECORD</span><h2 id="payroll-add-title">Add ESPACIO employee</h2><p>Daily rates are editable before saving.</p></div><button className="payroll-icon-btn" onClick={() => setShowAdd(false)} aria-label="Close"><X size={18}/></button></header>
