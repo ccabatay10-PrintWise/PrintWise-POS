@@ -104,15 +104,29 @@ export default function PayrollPage() {
   const saveAttendance = async () => {
     setSaving(true); setError(""); setMessage("");
     try {
-      const rows = employees.filter(e => e.is_active).map(e => {
-        const a = attendance[e.id] || { employee_id: e.id, work_date: date, attendance_status: "present", time_in: null, time_out: null, notes: null };
-        return { employee_id: e.id, work_date: date, attendance_status: a.attendance_status, time_in: a.time_in || null, time_out: a.time_out || null, notes: a.notes || null, updated_at: new Date().toISOString() };
-      });
-      if (rows.length) {
-        const { error: saveError } = await supabase.from("payroll_attendance").upsert(rows, { onConflict: "employee_id,work_date" });
-        if (saveError) throw saveError;
+      // Only save attendance explicitly selected by the administrator.
+      // Unmarked employees must never be silently recorded as present or paid.
+      const rows = employees
+        .filter(e => e.is_active && Boolean(attendance[e.id]?.attendance_status))
+        .map(e => {
+          const a = attendance[e.id]!;
+          return {
+            employee_id: e.id,
+            work_date: date,
+            attendance_status: a.attendance_status,
+            time_in: a.time_in || null,
+            time_out: a.time_out || null,
+            notes: a.notes || null,
+            updated_at: new Date().toISOString(),
+          };
+        });
+      if (!rows.length) {
+        setMessage("No attendance statuses selected. Nothing was saved.");
+        return;
       }
-      setMessage("Attendance saved for " + date + ".");
+      const { error: saveError } = await supabase.from("payroll_attendance").upsert(rows, { onConflict: "employee_id,work_date" });
+      if (saveError) throw saveError;
+      setMessage("Attendance saved for " + date + " (" + rows.length + " employee records).");
       await load();
     } catch (e: any) { setError(e.message || "Unable to save attendance."); }
     finally { setSaving(false); }
