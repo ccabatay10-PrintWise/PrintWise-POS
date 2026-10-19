@@ -116,11 +116,18 @@ export default function Sidebar() {
               );
             })}
             {userRole === "admin" && (
-              <a href="/staff-management" className={`nav-item ${pathname === "/staff-management" ? "active" : ""}`}>
-                <span className="nav-icon"><ShieldCheck size={18} /></span>
-                <span className="nav-text">Staff Management</span>
-                <ChevronRight className="nav-arrow" size={15} />
-              </a>
+              <>
+                <a href="/payroll" className={`nav-item ${pathname === "/payroll" || pathname.startsWith("/payroll/") ? "active" : ""}`}>
+                  <span className="nav-icon"><Wallet size={18} /></span>
+                  <span className="nav-text">Payroll & Attendance</span>
+                  <ChevronRight className="nav-arrow" size={15} />
+                </a>
+                <a href="/staff-management" className={`nav-item ${pathname === "/staff-management" ? "active" : ""}`}>
+                  <span className="nav-icon"><ShieldCheck size={18} /></span>
+                  <span className="nav-text">Staff Management</span>
+                  <ChevronRight className="nav-arrow" size={15} />
+                </a>
+              </>
             )}
           </nav>
         </div>
