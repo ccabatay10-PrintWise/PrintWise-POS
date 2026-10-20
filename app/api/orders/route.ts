@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
         .in("pos_order_id", orderIds),
       adminClient
         .from("pos_order_items")
-        .select("pos_order_id,line_total,item_name,quantity,product_id")
+        .select("pos_order_id,line_total,item_name,quantity")
         .in("pos_order_id", orderIds),
     ]);
 
@@ -144,17 +144,10 @@ export async function GET(request: NextRequest) {
       if (channel) paymentChannels.set(id, [...(paymentChannels.get(id) || []), channel]);
     }
 
-    const productIds = [...new Set((items ?? []).map((item: any) => String(item.product_id || "")).filter(Boolean))];
-    const categoryByProduct = new Map<string, string>();
-    if (productIds.length) {
-      const { data: products } = await adminClient.from("products").select("id,category").in("id", productIds);
-      for (const product of products ?? []) categoryByProduct.set(String((product as any).id), String((product as any).category || ""));
-    }
     for (const item of items ?? []) {
       const id = String((item as any).pos_order_id || "");
       itemTotals.set(id, (itemTotals.get(id) || 0) + numberValue((item as any).line_total));
-      const productId = String((item as any).product_id || "");
-      const summaryItem = { name: String((item as any).item_name || ""), category: categoryByProduct.get(productId) || "", quantity: numberValue((item as any).quantity) };
+      const summaryItem = { name: String((item as any).item_name || ""), category: "", quantity: numberValue((item as any).quantity) };
       itemSummary.set(id, [...(itemSummary.get(id) || []), summaryItem]);
     }
   }
