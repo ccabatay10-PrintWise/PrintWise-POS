@@ -7,7 +7,7 @@ import "../pos/pos.css";
 import "./orders.css";
 import Sidebar from "../components/Sidebar";
 
-type Order = { id: string; order_no: string; customer_name: string | null; subtotal: number; discount_amount: number; total: number; amount_paid: number; status: string; created_at: string; transacted_by?: string; payment_channels?: string[]; };
+type Order = { id: string; order_no: string; customer_name: string | null; subtotal: number; discount_amount: number; total: number; amount_paid: number; status: string; created_at: string; transacted_by?: string; payment_channels?: string[]; item_summary?: Array<{ name: string; category: string; quantity: number }>; };
 type OrderItem = { id: string; product_id?: string | null; item_name: string; unit_price: number; quantity: number; line_total: number; icon?: string; image_url?: string | null; category?: string; };
 type ProductVisualData = { id: string; icon_key?: string | null; image_url?: string | null; category?: string | null; };
 
@@ -67,6 +67,7 @@ export default function OrdersPage() {
   const [voiding, setVoiding] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [itemCategoryFilter, setItemCategoryFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -98,6 +99,21 @@ export default function OrdersPage() {
     return () => { active = false; };
   }, []);
 
+  const classifyItem = (item: { name: string; category: string }) => {
+    const text = `${item.name} ${item.category}`.toLowerCase();
+    if (/pasta|spaghetti|carbonara|alfredo|penne|lasagna/.test(text)) return "pasta";
+    if (/fries/.test(text) && /platter|sharing/.test(text)) return "fries_platter";
+    if (/fries/.test(text)) return "fries_regular";
+    if (/cup/.test(text) && /large|\\bl\\b/.test(text)) return "cups_large";
+    if (/cup/.test(text) && /medium|\\bm\\b/.test(text)) return "cups_medium";
+    if (/cup/.test(text)) return "cups_other";
+    if (/coffee|latte|americano|mocha|matcha|milk|soda|refresh|juice|tea|drink|oreo|chocolate|strawberry/.test(text)) return "drinks";
+    return "others";
+  };
+  const itemCategoryLabels: Record<string, string> = {
+    pasta: "Pasta", drinks: "Drinks", cups_medium: "Cups – Medium", cups_large: "Cups – Large",
+    cups_other: "Cups – Other", fries_platter: "Fries – Platter", fries_regular: "Fries – Regular", others: "Others",
+  };
   const filtered = orders.filter((o) => {
     const matchesSearch = String(o.order_no + " " + (o.customer_name || "") + " " + (o.transacted_by || "") + " " + o.status)
       .toLowerCase().includes(search.toLowerCase());
@@ -106,9 +122,23 @@ export default function OrdersPage() {
     const orderDate = new Date(o.created_at);
     const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom + "T00:00:00");
     const matchesTo = !dateTo || orderDate < new Date(dateTo + "T00:00:00").getTime() + 86400000;
-    return matchesSearch && matchesStatus && matchesPayment && matchesFrom && matchesTo;
+    const matchesItemCategory = itemCategoryFilter === "all" || (o.item_summary || []).some((item) => classifyItem(item) === itemCategoryFilter);
+    return matchesSearch && matchesStatus && matchesPayment && matchesFrom && matchesTo && matchesItemCategory;
   });
 
+  const baseFiltered = orders.filter((o) => {
+    const matchesSearch = String(o.order_no + " " + (o.customer_name || "") + " " + (o.transacted_by || "") + " " + o.status).toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || String(o.status || "").toLowerCase() === statusFilter;
+    const matchesPayment = paymentFilter === "all" || (o.payment_channels || []).some((channel) => paymentFilter === "gcash" ? channel.includes("gcash") : channel === paymentFilter);
+    const orderDate = new Date(o.created_at);
+    const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom + "T00:00:00");
+    const matchesTo = !dateTo || orderDate < new Date(dateTo + "T00:00:00").getTime() + 86400000;
+    return matchesSearch && matchesStatus && matchesPayment && matchesFrom && matchesTo;
+  });
+  const itemCounts = Object.keys(itemCategoryLabels).map((key) => ({
+    key, label: itemCategoryLabels[key],
+    quantity: baseFiltered.reduce((sum, order) => sum + (order.item_summary || []).filter((item) => classifyItem(item) === key).reduce((qty, item) => qty + Number(item.quantity || 0), 0), 0),
+  }));
   const completedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "completed");
   const voidedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "voided");
   const completedSales = completedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
@@ -334,11 +364,18 @@ export default function OrdersPage() {
         <div className="orders-summary-card"><div className="orders-summary-icon red"><Ban size={21} /></div><div><span>Voided</span><strong>{voidedOrders.length}</strong><small>Transactions kept for audit</small></div></div>
         <div className="orders-summary-card"><div className="orders-summary-icon gold"><TrendingUp size={21} /></div><div><span>Completed Sales</span><strong>₱{completedSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>Based on completed orders</small></div></div>
       </div>
+      <section className="orders-item-counts" aria-label="Item quantity summary">
+        <div className="orders-item-counts-head"><div><h2>Item Quantity Summary</h2><p>Quantities follow the current search, status, payment, and date filters.</p></div></div>
+        <div className="orders-item-counts-grid">
+          {itemCounts.map((item) => <div className="orders-item-count-card" key={item.key}><span>{item.label}</span><strong>{item.quantity.toLocaleString()}</strong></div>)}
+        </div>
+      </section>
       <section className="orders-content-card">
         <div className="orders-content-head"><div><h2>Transaction History</h2><p>{filtered.length} {filtered.length === 1 ? "transaction" : "transactions"} displayed</p></div>
           <div className="orders-tools">
             <div className="orders-search"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order, customer, cashier..." />{search && <button onClick={() => setSearch("")} aria-label="Clear search"><X size={15} /></button>}</div>
             <label className="orders-filter"><Filter size={16} /><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter order status"><option value="all">All Status</option><option value="completed">Completed</option><option value="voided">Voided</option></select><span className="orders-filter-chevron">⌄</span></label>
+            <label className="orders-filter"><Filter size={16} /><select value={itemCategoryFilter} onChange={(e) => setItemCategoryFilter(e.target.value)} aria-label="Filter item category"><option value="all">All Items</option>{Object.entries(itemCategoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><span className="orders-filter-chevron">⌄</span></label>
             <label className="orders-filter"><Filter size={16} /><select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} aria-label="Filter payment method"><option value="all">All Payments</option><option value="gcash">GCash</option><option value="cash">Cash</option><option value="maya">Maya</option><option value="credit_card">Credit Card</option><option value="e_wallet">eWallet</option></select><span className="orders-filter-chevron">⌄</span></label>
             <label className="orders-date-filter"><CalendarDays size={15} /><span>From</span><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} aria-label="From date" /></label>
             <label className="orders-date-filter"><CalendarDays size={15} /><span>To</span><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} aria-label="To date" /></label>
