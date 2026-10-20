@@ -102,7 +102,7 @@ export default function OrdersPage() {
   const classifyItem = (item: { name: string; category: string }) => {
     const text = `${item.name} ${item.category}`.toLowerCase();
     if (/pasta|spaghetti|carbonara|alfredo|penne|lasagna/.test(text)) return "pasta";
-    if (/fries/.test(text) && /platter|sharing/.test(text)) return "fries_platter";
+    if (/fries/.test(text) && /platter|flat|sharing/.test(text)) return "fries_platter";
     if (/fries/.test(text)) return "fries_regular";
     if (/cup/.test(text) && /large|\\bl\\b/.test(text)) return "cups_large";
     if (/cup/.test(text) && /medium|\\bm\\b/.test(text)) return "cups_medium";
