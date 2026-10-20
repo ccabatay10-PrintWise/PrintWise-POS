@@ -100,13 +100,13 @@ export default function OrdersPage() {
   }, []);
 
   const classifyItem = (item: { name: string; category: string }) => {
-    const text = `${item.name} ${item.category}`.toLowerCase();
+    const text = `${item.name} ${item.category}`.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
     if (/pasta|spaghetti|carbonara|alfredo|penne|lasagna/.test(text)) return "pasta";
-    if (/fries/.test(text) && /platter|flat|sharing/.test(text)) return "fries_platter";
-    if (/fries/.test(text)) return "fries_regular";
-    if (/cup/.test(text) && /large|\\bl\\b/.test(text)) return "cups_large";
-    if (/cup/.test(text) && /medium|\\bm\\b/.test(text)) return "cups_medium";
-    if (/cup/.test(text)) return "cups_other";
+    if (/flatter french fries|fries platter|french fries platter|fries flat|flat fries|fries sharing/.test(text)) return "fries_platter";
+    if (/regular french fries|regular fries|french fries regular/.test(text)) return "fries_regular";
+    if (/\bcup\b/.test(text) && (/large/.test(text) || /\bl\b/.test(text))) return "cups_large";
+    if (/\bcup\b/.test(text) && (/medium/.test(text) || /\bm\b/.test(text))) return "cups_medium";
+    if (/\bcup\b/.test(text)) return "cups_other";
     if (/coffee|latte|americano|mocha|matcha|milk|soda|refresh|juice|tea|drink|oreo|chocolate|strawberry/.test(text)) return "drinks";
     return "others";
   };
