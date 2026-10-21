@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Download, ExternalLink, FileText, Plus, Receipt, Search, Trash2, Wallet, X, Pencil, TrendingUp, ShoppingCart, Save, Printer, Pencil } from "lucide-react";
+import { CalendarDays, Download, ExternalLink, FileText, Plus, Receipt, Search, Trash2, Wallet, X, Pencil, TrendingUp, ShoppingCart, Save, Printer } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import Sidebar from "../components/Sidebar";
 import "./daily-expenses.css";
