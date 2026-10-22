@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator, Receipt,
@@ -108,11 +109,11 @@ export default function Sidebar() {
             {nav.map(([Icon, label, href]) => {
               const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
               return (
-                <a href={href} className={`nav-item ${active ? "active" : ""}`} key={href}>
+                <Link href={href} className={`nav-item ${active ? "active" : ""}`} key={href}>
                   <span className="nav-icon"><Icon size={18} /></span>
                   <span className="nav-text">{label}</span>
                   <ChevronRight className="nav-arrow" size={15} />
-                </a>
+                </Link>
               );
             })}
             {userRole === "admin" && (
@@ -130,11 +131,11 @@ export default function Sidebar() {
           <div className="nav-label">QUICK ACTIONS</div>
           <div className="quick-actions-grid">
             {quickActions.map(([Icon, title, subtitle, href]) => (
-              <a className="quick-action" href={href} key={title}>
+              <Link className="quick-action" href={href} key={title}>
                 <span className="quick-action-icon"><Icon size={18} /></span>
                 <b>{title}</b>
                 <small>{subtitle}</small>
-              </a>
+              </Link>
             ))}
           </div>
 
