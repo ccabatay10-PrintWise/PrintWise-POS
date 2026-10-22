@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator, Receipt,
+  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator, Receipt, BadgeDollarSign,
   LogOut, Menu, Package, Plus, ReceiptText, Settings, ShoppingCart,
   UserPlus, Users, Wallet, X, Utensils, ShieldCheck,
 } from "lucide-react";
@@ -23,6 +23,7 @@ const nav = [
   [Users, "Customers", "/customers"],
   [Layers3, "Inventory", "/inventory"],
   [Receipt, "Daily Expenses", "/daily-expenses"],
+  [BadgeDollarSign, "Payroll", "/payroll"],
   [FileText, "Reports", "/reports"],
 ] as const;
 
@@ -106,7 +107,7 @@ export default function Sidebar() {
         <div className="sidebar-main-scroll">
           <div className="nav-label">MAIN MENU</div>
           <nav className="sidebar-nav">
-            {nav.map(([Icon, label, href]) => {
+            {nav.filter(([, , href]) => href !== "/payroll" || userRole === "admin").map(([Icon, label, href]) => {
               const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
               return (
                 <Link href={href} className={`nav-item ${active ? "active" : ""}`} key={href}>
