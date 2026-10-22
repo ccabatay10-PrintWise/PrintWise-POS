@@ -44,6 +44,18 @@ export default function POSPage() {
   const cartBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem("wise_pos_pending_sales");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setPendingSales(parsed.filter((item: any) => item && typeof item.id === "string" && Array.isArray(item.cart)));
+      }
+    } catch (error) {
+      console.error("Unable to restore pending sales:", error);
+    }
+  }, []);
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setUser(data.session?.user ?? null); setAuthLoading(false); });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => { setUser(session?.user ?? null); setAuthLoading(false); });
     return () => listener.subscription.unsubscribe();
