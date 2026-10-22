@@ -46,7 +46,7 @@ export default function DailyExpensesPage(){
  useEffect(()=>{void load()},[load]);
  const selectedExpenses=useMemo(()=>expenses.filter(e=>e.expense_date===dateFilter&&`${e.description} ${e.category} ${e.payment_method} ${e.notes||""}`.toLowerCase().includes(search.toLowerCase())),[expenses,dateFilter,search]);
  const totalExpenses=selectedExpenses.reduce((a,e)=>a+e.amount,0),totalSales=sales.reduce((a,s)=>a+s.total,0),net=totalSales-totalExpenses;
- const canEdit=["admin","manager"].includes(role),canDelete=role==="admin";
+ const canEdit=["admin","manager","staff"].includes(role),canDelete=role==="admin",showSalesMetrics=role!=="staff";
  const openNew=()=>{setEditing(null);setForm({...emptyForm(),expense_date:dateFilter});setMessage("");setShowForm(true)};
  const openEdit=(e:Expense)=>{setEditing(e.id);setForm({expense_date:e.expense_date,category:e.category,description:e.description,amount:String(e.amount),payment_method:e.payment_method,receipt_url:e.receipt_url||"",notes:e.notes||""});setMessage("");setShowForm(true)};
  const save=async()=>{
