@@ -67,3 +67,16 @@
 
 .wise-shortcut-key{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;margin-left:6px;padding:0 5px;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:5px;background:#f8fafc;color:#475569;font:700 11px/1 ui-sans-serif,system-ui,sans-serif}
 .wise-sale-actions kbd{pointer-events:none}
+
+
+/* Compact Current Sale rows: quantity and dine-in/take-out beside product */
+.wise-cart-item{padding:9px 0}
+.wise-cart-item-main{min-width:0;gap:2px}
+.wise-cart-item-main strong{line-height:1.3;overflow-wrap:anywhere}
+.wise-cart-item-actions{display:flex;align-items:center;gap:6px;margin-top:6px;min-width:0}
+.wise-cart-item-actions .wise-cart-controls{margin-top:0;gap:4px;flex:0 0 auto}
+.wise-cart-item-actions .wise-cart-controls button{width:24px;height:26px;flex:0 0 24px}
+.wise-item-order-type{display:flex;align-items:center;gap:4px;margin-top:0;flex:0 0 auto}
+.wise-item-order-type button{padding:5px 6px;font-size:10px;white-space:nowrap}
+.wise-cart-line-total{margin-left:auto;white-space:nowrap;font-size:11px;color:#283850}
+@media(max-width:1250px){.wise-cart-item-actions{gap:4px}.wise-item-order-type button{padding:5px 5px;font-size:9px}.wise-cart-item-actions .wise-cart-controls{gap:3px}}
