@@ -58,7 +58,7 @@ export default function DashboardPage() {
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("inventory_items").select("id,name,category,quantity,reorder_level,unit").eq("is_active", true).order("quantity", { ascending: true }),
-      supabase.from("payment_transactions").select("amount,created_at,status,transaction_type").eq("transaction_type", "expense").eq("status", "successful"),
+      supabase.from("daily_expenses").select("amount,expense_date"),
       supabase.from("company_settings").select("business_name").limit(1).maybeSingle(),
     ]);
 
@@ -71,7 +71,9 @@ export default function DashboardPage() {
     const periodSales = inPeriod.reduce((s, o) => s + o.total, 0);
     const paymentsReceived = inPeriod.reduce((s, o) => s + o.amount_paid, 0);
     const discounts = inPeriod.reduce((s, o) => s + Math.max(0, o.subtotal - o.total), 0);
-    const expenses = (expensesRes.data || []).filter((e: any) => new Date(e.created_at) >= range.start && new Date(e.created_at) <= range.end).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const rangeStartDate = `${range.start.getFullYear()}-${String(range.start.getMonth() + 1).padStart(2, "0")}-${String(range.start.getDate()).padStart(2, "0")}`;
+    const rangeEndDate = `${range.end.getFullYear()}-${String(range.end.getMonth() + 1).padStart(2, "0")}-${String(range.end.getDate()).padStart(2, "0")}`;
+    const expenses = (expensesRes.data || []).filter((e: any) => e.expense_date >= rangeStartDate && e.expense_date <= rangeEndDate).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
     const productMap = new Map<string, { name: string; amount: number; qty: number }>();
     const completedIds = new Set(completed.map(o => o.id));
