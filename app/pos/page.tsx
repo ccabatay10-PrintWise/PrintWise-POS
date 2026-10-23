@@ -312,6 +312,33 @@ export default function POSPage() {
     await loadQZ();
     const qz = w.qz;
     if (!qz) throw new Error("QZ Tray library is unavailable.");
+    if (!w.qzSigningConfigured) {
+      qz.security.setCertificatePromise((resolve: (value: string) => void, reject: (reason: any) => void) => {
+        fetch("/api/qz/certificate", { cache: "no-store" })
+          .then(async (response) => response.ok ? resolve(await response.text()) : reject(await response.text()))
+          .catch(reject);
+      });
+      qz.security.setSignatureAlgorithm("SHA512");
+      qz.security.setSignaturePromise((toSign: string) => (resolve: (value: string) => void, reject: (reason: any) => void) => {
+        void (async () => {
+          try {
+            const { data } = await supabase.auth.getSession();
+            const token = data.session?.access_token;
+            if (!token) throw new Error("Please sign in again before using QZ Tray.");
+            const response = await fetch("/api/qz/sign", {
+              method: "POST",
+              cache: "no-store",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ request: toSign }),
+            });
+            const signature = await response.text();
+            if (!response.ok) throw new Error(signature || "QZ Tray signing failed.");
+            resolve(signature);
+          } catch (error) { reject(error); }
+        })();
+      });
+      w.qzSigningConfigured = true;
+    }
     if (!qz.websocket.isActive()) await qz.websocket.connect();
     const printers: string[] = await qz.printers.find();
     const printerName = printers.find((name) => /GL\s*Printer\s*80|R80A/i.test(name));
