@@ -114,11 +114,24 @@ export default function OrdersPage() {
     pasta: "Pasta", drinks: "Drinks", cups_medium: "Cups – Medium", cups_large: "Cups – Large",
     cups_other: "Cups – Other", fries_platter: "Fries – Platter", fries_regular: "Fries – Regular", others: "Others",
   };
+  const normalizePaymentChannel = (value: unknown) => {
+    const channel = String(value ?? "").toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!channel) return "";
+    if (channel.includes("gcash") || channel.includes("g cash")) return "gcash";
+    if (channel.includes("maya") || channel.includes("paymaya")) return "maya";
+    if (channel === "cash" || channel.includes("cash payment")) return "cash";
+    if (channel.includes("credit") || channel.includes("card")) return "credit_card";
+    if (channel.includes("ewallet") || channel.includes("e wallet") || channel.includes("wallet")) return "e_wallet";
+    return channel.replace(/\s+/g, "_");
+  };
+  const matchesSelectedPayment = (o: Order) => paymentFilter === "all"
+    || (o.payment_channels || []).some((channel) => normalizePaymentChannel(channel) === paymentFilter);
+
   const filtered = orders.filter((o) => {
     const matchesSearch = String(o.order_no + " " + (o.customer_name || "") + " " + (o.transacted_by || "") + " " + o.status)
       .toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || String(o.status || "").toLowerCase() === statusFilter;
-    const matchesPayment = paymentFilter === "all" || (o.payment_channels || []).some((channel) => paymentFilter === "gcash" ? channel.includes("gcash") : channel === paymentFilter);
+    const matchesPayment = matchesSelectedPayment(o);
     const orderDate = new Date(o.created_at);
     const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom + "T00:00:00");
     const matchesTo = !dateTo || orderDate < new Date(dateTo + "T00:00:00").getTime() + 86400000;
@@ -129,7 +142,7 @@ export default function OrdersPage() {
   const baseFiltered = orders.filter((o) => {
     const matchesSearch = String(o.order_no + " " + (o.customer_name || "") + " " + (o.transacted_by || "") + " " + o.status).toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || String(o.status || "").toLowerCase() === statusFilter;
-    const matchesPayment = paymentFilter === "all" || (o.payment_channels || []).some((channel) => paymentFilter === "gcash" ? channel.includes("gcash") : channel === paymentFilter);
+    const matchesPayment = matchesSelectedPayment(o);
     const orderDate = new Date(o.created_at);
     const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom + "T00:00:00");
     const matchesTo = !dateTo || orderDate < new Date(dateTo + "T00:00:00").getTime() + 86400000;
