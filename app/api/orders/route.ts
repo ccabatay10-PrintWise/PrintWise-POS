@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
       if (status === "voided" || status === "failed" || status === "cancelled" || status === "canceled") continue;
       const id = String((payment as any).pos_order_id || "");
       paymentTotals.set(id, (paymentTotals.get(id) || 0) + numberValue((payment as any).amount));
-      const channel = String((payment as any).channel || "").trim().toLowerCase().replace(/\\s+/g, "_");
+      const channel = String((payment as any).channel || "").trim().toLowerCase().replace(/\s+/g, "_");
       if (channel) paymentChannels.set(id, [...(paymentChannels.get(id) || []), channel]);
     }
 
