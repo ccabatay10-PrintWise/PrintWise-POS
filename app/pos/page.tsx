@@ -319,11 +319,11 @@ export default function POSPage() {
       throw new Error(`QZ Tray is connected, but GL Printer 80/R80A was not found. Detected printers: ${printers.length ? printers.join(", ") : "none"}`);
     }
     const config = qz.configs.create(printerName, { forceRaw: true });
-    await qz.print(config, [{ type: "raw", format: "command", data: "\\x1B\\x70\\x00\\x19\\xFA" }]);
+    await qz.print(config, [{ type: "raw", format: "command", data: "\x1B\x70\x00\x19\xFA" }]);
     setMessage(`Receipt print dialog closed. Cash drawer command sent to ${printerName}.`);
   };
 
-  const printReceipt = (slip = false) => {
+  const printReceipt = (slip = false, openDrawerAfterPrint = false) => {
     if (!receipt) return;
     const created = new Date(receipt.createdAt);
     const dateText = created.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
@@ -401,7 +401,7 @@ export default function POSPage() {
     };
     frameWindow.addEventListener("afterprint", () => {
       cleanupPrint();
-      if (!slip) {
+      if (!slip && openDrawerAfterPrint && receipt.payment === "Cash") {
         const desktop = (window as any).printwiseDesktop;
         if (desktop?.openCashDrawer) {
           desktop.openCashDrawer().catch(async (error: unknown) => {
@@ -617,9 +617,9 @@ export default function POSPage() {
         <h2>Order Created!</h2>
         <p className="wise-sale-success-text">Order #{receipt.orderNo.replace(/^WISE-/, "S") } has been successfully created.</p>
         <div className="wise-sale-actions">
-          <button type="button" onClick={() => printReceipt(false)}><Printer size={18} />Print Receipt <kbd className="wise-shortcut-key">P</kbd></button>
+          <button type="button" onClick={() => printReceipt(false, true)}><Printer size={18} />Print Receipt <kbd className="wise-shortcut-key">P</kbd></button>
           <button type="button" onClick={() => printReceipt(true)}><ReceiptText size={18} />Print Slip</button>
-          <div className="wise-sale-more-wrap"><button type="button" onClick={() => setMoreOpen((open) => !open)}>More <ChevronDown size={17} className={moreOpen ? "wise-more-open" : ""} /></button>{moreOpen && <div className="wise-sale-more-menu"><button type="button" onClick={finishNewSale}>New Sale <kbd className="wise-shortcut-key">N</kbd></button><button type="button" onClick={() => printReceipt(false)}>Print Receipt Again</button></div>}</div>
+          <div className="wise-sale-more-wrap"><button type="button" onClick={() => setMoreOpen((open) => !open)}>More <ChevronDown size={17} className={moreOpen ? "wise-more-open" : ""} /></button>{moreOpen && <div className="wise-sale-more-menu"><button type="button" onClick={finishNewSale}>New Sale <kbd className="wise-shortcut-key">N</kbd></button><button type="button" onClick={() => printReceipt(false, false)}>Print Receipt Again</button></div>}</div>
         </div>
         <article className="wise-sale-receipt">
           <h3>Espacio</h3>
