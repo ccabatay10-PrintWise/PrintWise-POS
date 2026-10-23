@@ -319,7 +319,7 @@ export default function POSPage() {
       throw new Error(`QZ Tray is connected, but GL Printer 80/R80A was not found. Detected printers: ${printers.length ? printers.join(", ") : "none"}`);
     }
     const config = qz.configs.create(printerName, { forceRaw: true });
-    await qz.print(config, [{ type: "raw", format: "command", data: "\x1B\x70\x00\x19\xFA" }]);
+    await qz.print(config, [{ type: "raw", format: "command", data: "\x1B\x70\x00\x19\xFA\x1B\x70\x01\x19\xFA" }]);
     setMessage(`Receipt print dialog closed. Cash drawer command sent to ${printerName}.`);
   };
 
