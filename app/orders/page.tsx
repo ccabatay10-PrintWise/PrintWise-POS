@@ -392,7 +392,7 @@ export default function OrdersPage() {
             <label className="orders-filter"><Filter size={16} /><select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} aria-label="Filter payment method"><option value="all">All Payments</option><option value="gcash">GCash</option><option value="cash">Cash</option><option value="maya">Maya</option><option value="credit_card">Credit Card</option><option value="e_wallet">eWallet</option></select><span className="orders-filter-chevron">⌄</span></label>
             <label className="orders-date-filter"><CalendarDays size={15} /><span>From</span><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} aria-label="From date" /></label>
             <label className="orders-date-filter"><CalendarDays size={15} /><span>To</span><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} aria-label="To date" /></label>
-            {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}>Clear dates</button>}
+            {(dateFrom || dateTo || search || statusFilter !== "all" || paymentFilter !== "all" || itemCategoryFilter !== "all") && <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setPaymentFilter("all"); setItemCategoryFilter("all"); setDateFrom(""); setDateTo(""); }}>Clear all filters</button>}
           </div>
         </div>
         {error && <div className="message orders-message">{error}</div>}
