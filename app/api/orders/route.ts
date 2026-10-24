@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
   const itemSummary = new Map<string, Array<{ name: string; category: string; quantity: number }>>();
 
   if (orderIds.length) {
-    const [{ data: payments }, { data: items }] = await Promise.all([
+    const [{ data: payments, error: paymentsError }, { data: items, error: itemsError }] = await Promise.all([
       adminClient
         .from("payment_transactions")
         .select("pos_order_id,amount,status,channel")
@@ -134,6 +134,11 @@ export async function GET(request: NextRequest) {
         .select("pos_order_id,line_total,item_name,quantity")
         .in("pos_order_id", orderIds),
     ]);
+
+    // Do not silently return empty payment/item metadata: report schema or query
+    // errors so the Transactions page can be corrected based on the real cause.
+    if (paymentsError) return jsonError(`Unable to load transaction payment methods: ${paymentsError.message}`, 400);
+    if (itemsError) return jsonError(`Unable to load transaction item details: ${itemsError.message}`, 400);
 
     for (const payment of payments ?? []) {
       const status = String((payment as any).status || "").toLowerCase();
