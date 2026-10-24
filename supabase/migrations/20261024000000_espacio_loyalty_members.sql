@@ -7,7 +7,7 @@ create table if not exists public.loyalty_members (
   created_at timestamptz not null default now(),
   created_by uuid references auth.users(id),
   is_active boolean not null default true,
-  stamps integer not null default 0 check (stamps >= 0 and stamps <= 8),
+  stamps integer not null default 0 check (stamps >= 0 and stamps <= 9),
   free_drinks_redeemed integer not null default 0 check (free_drinks_redeemed >= 0)
 );
 
@@ -37,7 +37,6 @@ declare
   v_order public.pos_orders%rowtype;
   v_member public.loyalty_members%rowtype;
   v_stamps integer;
-  v_redeemed boolean := false;
 begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
   select * into v_order from public.pos_orders where id = p_order_id;
@@ -52,15 +51,9 @@ begin
   end if;
   insert into public.loyalty_stamps(member_id,pos_order_id,order_no,created_by)
   values(p_member_id,p_order_id,v_order.order_no,auth.uid());
-  v_stamps := v_member.stamps + 1;
-  if v_stamps >= 9 then
-    v_stamps := 0;
-    v_redeemed := true;
-    update public.loyalty_members set stamps = 0, free_drinks_redeemed = free_drinks_redeemed + 1 where id = p_member_id;
-  else
-    update public.loyalty_members set stamps = v_stamps where id = p_member_id;
-  end if;
-  return jsonb_build_object('ok',true,'stamps',v_stamps,'free_drink_earned',v_redeemed);
+  v_stamps := least(9, v_member.stamps + 1);
+  update public.loyalty_members set stamps = v_stamps where id = p_member_id;
+  return jsonb_build_object('ok',true,'stamps',v_stamps,'free_drink_earned',(v_stamps = 9));
 end;
 $$;
 
