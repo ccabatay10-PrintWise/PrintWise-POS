@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator, Receipt, BadgeDollarSign,
+  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator, Receipt, BadgeDollarSign, Award,
   LogOut, Menu, Package, Plus, ReceiptText, Settings, ShoppingCart,
   UserPlus, Users, Wallet, X, Utensils, ShieldCheck,
 } from "lucide-react";
@@ -21,6 +21,7 @@ const nav = [
   [Wallet, "Payments", "/gcash-bayad"],
   [Package, "Products & Services", "/products"],
   [Users, "Customers", "/customers"],
+  [Award, "Loyalty Members", "/loyalty"],
   [Layers3, "Inventory", "/inventory"],
   [Receipt, "Daily Expenses", "/daily-expenses"],
   [BadgeDollarSign, "Payroll", "/payroll"],
