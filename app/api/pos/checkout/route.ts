@@ -142,6 +142,21 @@ export async function POST(request: NextRequest) {
     return errorResponse(message, status);
   }
 
+  let loyaltyResult: any = null;
+  const loyaltyMemberId = String(body.loyaltyMemberId || "").trim();
+  if (loyaltyMemberId && data?.order_id) {
+    const { data: stampData, error: stampError } = await userClient.rpc("award_loyalty_stamp", {
+      p_order_id: data.order_id,
+      p_member_id: loyaltyMemberId,
+    });
+    if (stampError) {
+      console.error("Loyalty stamp could not be recorded:", stampError.message);
+      loyaltyResult = { warning: "Sale completed, but the loyalty stamp was not recorded. Please record it from Loyalty Members after checking the order." };
+    } else {
+      loyaltyResult = stampData;
+    }
+  }
+
   const notes = String(body.notes ?? "").trim().slice(0, 500);
   if (notes) {
     const { error: notesError } = await userClient
@@ -152,5 +167,5 @@ export async function POST(request: NextRequest) {
     if (notesError) console.error("Unable to save POS kitchen instructions:", notesError.message);
   }
 
-  return NextResponse.json(data || { ok: true });
+  return NextResponse.json({ ...(data || { ok: true }), loyalty: loyaltyResult });
 }
