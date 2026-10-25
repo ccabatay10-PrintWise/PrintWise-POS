@@ -29,33 +29,56 @@
 }
 
 
-/* 80mm thermal payroll receipt */
-@page{size:80mm auto;margin:3mm}
-@media print{
- @page{size:80mm auto;margin:3mm}
- html,body{width:74mm!important;min-width:74mm!important;margin:0!important;padding:0!important;background:#fff!important}
- body *{visibility:hidden!important}
- .payroll-shell,.payroll-workspace,.payslip-preview,.payslip-preview *{visibility:visible!important}
- .payroll-shell{display:block!important;width:74mm!important;min-height:0!important;margin:0!important;padding:0!important}
- .payroll-shell>.sidebar,.payroll-header,.payroll-tabs,.payroll-message,.payroll-header-actions,.payroll-btn,.payroll-icon-btn,.payroll-footer,.payroll-panel:not(.payslip-preview){display:none!important}
- .payroll-workspace{display:block!important;width:74mm!important;min-width:74mm!important;margin:0!important;padding:0!important;overflow:visible!important}
- .payslip-preview{display:block!important;position:absolute!important;left:0!important;top:0!important;width:74mm!important;min-width:74mm!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#fff!important;box-shadow:none!important}
- .payslip-preview>.payroll-panel-head{display:none!important}
- .payslip-paper{display:block!important;width:74mm!important;max-width:74mm!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;font-family:Arial,Helvetica,sans-serif!important;color:#111!important;font-size:10px!important;overflow:visible!important}
- .payslip-paper header{text-align:center!important}
- .payslip-paper header h2{font-size:15px!important;line-height:1.2!important;letter-spacing:.3px!important;margin:0 0 3px!important}
- .payslip-paper header p{font-size:9px!important;letter-spacing:.8px!important;margin:0!important}
- .payslip-paper hr{margin:7px 0!important;border:0!important;border-top:1px dashed #555!important}
- .payslip-meta{display:block!important;font-size:9px!important;line-height:1.5!important;margin:0 0 8px!important;padding:6px 0!important;border-top:1px dashed #555!important;border-bottom:1px dashed #555!important}
- .payslip-meta span{display:block!important;overflow-wrap:anywhere!important;margin:1px 0!important}
- .payslip-paper table{width:100%!important;border-collapse:collapse!important;table-layout:fixed!important}
- .payslip-paper table td{font-size:10px!important;line-height:1.25!important;padding:5px 1px!important;border-bottom:1px dotted #bbb!important;overflow-wrap:anywhere!important}
- .payslip-paper table td:first-child{width:62%!important;text-align:left!important}
- .payslip-paper table td:last-child{width:38%!important;text-align:right!important;white-space:nowrap!important}
- .simple-payslip-table .payslip-section td{background:#eee!important;font-size:9px!important;font-weight:800!important;letter-spacing:.5px!important;padding:5px 2px!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
- .simple-payslip-table .payslip-subtotal td{background:#f8f8f8!important;font-weight:700!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
- .payslip-paper .payslip-net td{font-size:12px!important;font-weight:900!important;background:#eee!important;border-top:2px solid #111!important;padding:8px 2px!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
- .payslip-signatures{display:block!important;margin:22px 0 8px!important;font-size:9px!important;line-height:1.4!important}
- .payslip-signatures span{display:block!important;margin:0 0 18px!important}
- .payslip-receipt-note{font-size:8px!important;line-height:1.4!important;margin:8px 0 0!important}
+/* 75mm thermal payroll receipt: centered, consistent printable width */
+@media print {
+ @page { size: 75mm auto; margin: 2mm; }
+ html, body {
+  width: 71mm !important; min-width: 71mm !important; max-width: 71mm !important;
+  margin: 0 !important; padding: 0 !important; background: #fff !important;
+ }
+ *, *::before, *::after { box-sizing: border-box !important; }
+ body * { visibility: hidden !important; }
+ .payroll-shell, .payroll-workspace, .payslip-preview, .payslip-preview * { visibility: visible !important; }
+ .payroll-shell {
+  display: block !important; width: 71mm !important; min-width: 71mm !important;
+  max-width: 71mm !important; min-height: 0 !important; margin: 0 auto !important; padding: 0 !important;
+ }
+ .payroll-shell > .sidebar, .payroll-header, .payroll-tabs, .payroll-message,
+ .payroll-header-actions, .payroll-btn, .payroll-icon-btn, .payroll-footer,
+ .payroll-panel:not(.payslip-preview) { display: none !important; }
+ .payroll-workspace {
+  display: block !important; width: 71mm !important; min-width: 71mm !important;
+  max-width: 71mm !important; margin: 0 auto !important; padding: 0 !important; overflow: visible !important;
+ }
+ .payslip-preview {
+  display: block !important; position: static !important; width: 71mm !important;
+  min-width: 71mm !important; max-width: 71mm !important; margin: 0 auto !important;
+  padding: 0 !important; border: 0 !important; border-radius: 0 !important;
+  background: #fff !important; box-shadow: none !important; overflow: visible !important;
+ }
+ .payslip-preview > .payroll-panel-head { display: none !important; }
+ .payslip-paper {
+  display: block !important; width: 71mm !important; min-width: 0 !important;
+  max-width: 71mm !important; margin: 0 auto !important; padding: 0 1mm !important;
+  border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+  font-family: Arial, Helvetica, sans-serif !important; color: #111 !important;
+  font-size: 9px !important; overflow: visible !important;
+ }
+ .payslip-paper header { text-align: center !important; }
+ .payslip-paper header h2 { font-size: 14px !important; line-height: 1.2 !important; letter-spacing: .2px !important; margin: 0 0 3px !important; overflow-wrap: anywhere !important; }
+ .payslip-paper header p { font-size: 8px !important; letter-spacing: .6px !important; margin: 0 !important; }
+ .payslip-paper hr { margin: 7px 0 !important; border: 0 !important; border-top: 1px dashed #555 !important; }
+ .payslip-meta { display: block !important; width: 100% !important; font-size: 8px !important; line-height: 1.45 !important; margin: 0 0 7px !important; padding: 6px 0 !important; border-top: 1px dashed #555 !important; border-bottom: 1px dashed #555 !important; }
+ .payslip-meta span { display: block !important; max-width: 100% !important; overflow-wrap: anywhere !important; margin: 1px 0 !important; }
+ .payslip-paper table { display: table !important; width: 100% !important; max-width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; }
+ .payslip-paper table td { min-width: 0 !important; font-size: 9px !important; line-height: 1.25 !important; padding: 5px 1px !important; border-bottom: 1px dotted #bbb !important; overflow-wrap: anywhere !important; }
+ .payslip-paper table td:first-child { width: 64% !important; text-align: left !important; }
+ .payslip-paper table td:last-child { width: 36% !important; text-align: right !important; white-space: nowrap !important; font-variant-numeric: tabular-nums !important; }
+ .simple-payslip-table .payslip-section td { background: #eee !important; font-size: 8px !important; font-weight: 800 !important; letter-spacing: .4px !important; padding: 5px 2px !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+ .simple-payslip-table .payslip-subtotal td { background: #f8f8f8 !important; font-weight: 700 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+ .payslip-paper .payslip-net td { font-size: 11px !important; font-weight: 900 !important; background: #eee !important; border-top: 2px solid #111 !important; padding: 7px 2px !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+ .payslip-signatures { display: block !important; width: 100% !important; margin: 20px 0 8px !important; font-size: 8px !important; line-height: 1.4 !important; }
+ .payslip-signatures span { display: block !important; margin: 0 0 17px !important; overflow-wrap: anywhere !important; }
+ .payslip-receipt-note { font-size: 8px !important; line-height: 1.4 !important; margin: 8px 0 0 !important; }
+ .no-print { display: none !important; }
 }
