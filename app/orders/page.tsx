@@ -70,6 +70,7 @@ export default function OrdersPage() {
   const [itemCategoryFilter, setItemCategoryFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [productReportDate, setProductReportDate] = useState(new Date().getFullYear()+"-"+String(new Date().getMonth()+1).padStart(2,"0")+"-"+String(new Date().getDate()).padStart(2,"0"));
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [managerEmail, setManagerEmail] = useState("");
   const [managerPassword, setManagerPassword] = useState("");
@@ -152,6 +153,48 @@ export default function OrdersPage() {
     key, label: itemCategoryLabels[key],
     quantity: baseFiltered.reduce((sum, order) => sum + (order.item_summary || []).filter((item) => classifyItem(item) === key).reduce((qty, item) => qty + Number(item.quantity || 0), 0), 0),
   }));
+  const productReportOrders = orders.filter((o) => {
+    const d = new Date(o.created_at);
+    const localDate = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    return localDate === productReportDate && String(o.status || "").toLowerCase() !== "voided";
+  });
+  const productReports = (kind:"drinks"|"meals") => {
+    const totals = new Map<string,{name:string;quantity:number;orders:number}>();
+    for (const order of productReportOrders) {
+      const seen = new Set<string>();
+      for (const item of order.item_summary || []) {
+        const t=(item.name+" "+item.category).toLowerCase().replace(/[_-]+/g," ");
+        const drink=/coffee|latte|americano|mocha|matcha|milk tea|milk|soda|refreshment|juice|tea|frappe|smoothie|beverage|drink|oreo|chocolate|strawberry/.test(t);
+        const meal=/silog|rice meal|meal|burger|sandwich|pasta|spaghetti|carbonara|alfredo|nachos|fries|french fries|nugget|hotdog|sisig|hungarian|club house|snack|rice/.test(t);
+        if (!(kind==="drinks" ? drink : meal)) continue;
+        const key=item.name.trim().toLowerCase();
+        const row=totals.get(key)||{name:item.name.trim(),quantity:0,orders:0};
+        row.quantity+=Number(item.quantity||0);
+        if(!seen.has(key)){row.orders+=1;seen.add(key)}
+        totals.set(key,row);
+      }
+    }
+    return [...totals.values()].sort((a,b)=>b.quantity-a.quantity||a.name.localeCompare(b.name));
+  };
+  const printProductReport = (kind:"drinks"|"meals") => {
+    const rows=productReports(kind), win=window.open("","_blank","width=900,height=700");
+    if(!win){setError("Allow pop-ups to print the daily product report.");return}
+    const esc=(v:string)=>v.replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m] as string));
+    const title=kind==="drinks"?"DAILY DRINKS REPORT":"DAILY MEALS REPORT", total=rows.reduce((n,r)=>n+r.quantity,0);
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title} - ${productReportDate}</title><style>
+      @page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{margin:0;font:12px Arial,sans-serif;color:#171717}
+      header{text-align:center;border-bottom:2px solid #222;padding-bottom:12px;margin-bottom:16px}h1{font-size:20px;margin:0 0 6px}
+      .meta{display:flex;justify-content:space-between;margin-bottom:12px;font-size:11px}
+      table{width:100%;border-collapse:collapse}th,td{padding:9px 10px;border:1px solid #ccc;text-align:left}th{background:#eee}
+      td:first-child{text-align:center;width:12%}td:nth-child(3),td:nth-child(4),th:nth-child(3),th:nth-child(4){text-align:right}
+      .total{font-weight:bold;background:#f2f2f2}.foot{margin-top:14px;font-size:10px;color:#555}
+    </style></head><body><header><h1>ESPACIO Café &amp; Restaurant</h1><b>${title}</b></header>
+    <div class="meta"><span><b>Business Date:</b> ${productReportDate}</span><span><b>Unique Products:</b> ${rows.length}</span><span><b>Total Units:</b> ${total}</span></div>
+    <table><thead><tr><th>Rank</th><th>Product</th><th>Qty Sold</th><th>Orders</th></tr></thead><tbody>${rows.length?rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.quantity}</td><td>${r.orders}</td></tr>`).join(""):'<tr><td colspan="4">No products sold for this date.</td></tr>'}
+    <tr class="total"><td colspan="2">TOTAL UNITS SOLD</td><td>${total}</td><td></td></tr></tbody></table><p class="foot">Sorted from highest quantity sold to lowest. Voided transactions are excluded.</p>
+    <script>window.onload=()=>{window.focus();window.print();};<\\/script></body></html>`);
+    win.document.close();
+  };
   const completedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "completed");
   const voidedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "voided");
   const completedSales = completedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
@@ -381,6 +424,15 @@ export default function OrdersPage() {
         <div className="orders-item-counts-head"><div><h2>Item Quantity Summary</h2><p>Quantities follow the current search, status, payment, and date filters.</p></div></div>
         <div className="orders-item-counts-grid">
           {itemCounts.map((item) => <div className="orders-item-count-card" key={item.key}><span>{item.label}</span><strong>{item.quantity.toLocaleString()}</strong></div>)}
+        </div>
+      </section>
+      <section className="orders-content-card daily-product-report">
+        <div className="orders-content-head"><div><h2>Daily Product Sales Reports</h2><p>Separate Drinks and Meals reports, sorted from highest quantity sold to lowest.</p></div><label className="orders-date-filter"><CalendarDays size={15}/><span>Report Date</span><input type="date" value={productReportDate} onChange={e=>setProductReportDate(e.target.value)}/></label></div>
+        <div className="orders-summary-grid">
+          {(["drinks","meals"] as const).map(kind=>{const rows=productReports(kind);const qty=rows.reduce((n,r)=>n+r.quantity,0);return <div className="orders-summary-card" key={kind}><div className={"orders-summary-icon "+(kind==="drinks"?"blue":"green")}><ClipboardList size={21}/></div><div><span>{kind==="drinks"?"Drinks Report":"Meals Report"}</span><strong>{qty} units</strong><small>{rows.length} different products</small><button className="orders-refresh-btn" onClick={()=>printProductReport(kind)}><Printer size={15}/> Print {kind==="drinks"?"Drinks":"Meals"} Report</button></div></div>})}
+        </div>
+        <div className="orders-summary-grid">
+          {(["drinks","meals"] as const).map(kind=>{const rows=productReports(kind);return <div className="orders-content-card" key={kind} style={{minWidth:0,flex:"1 1 360px"}}><div className="orders-content-head"><div><h2>{kind==="drinks"?"Drinks — Highest to Lowest":"Meals — Highest to Lowest"}</h2><p>{rows.length} products for {productReportDate}</p></div></div><div className="orders-table-wrap"><table className="orders-table"><thead><tr><th>Rank</th><th>Product</th><th className="num">Qty Sold</th><th className="num">Orders</th></tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.name}><td>{i+1}</td><td>{r.name}</td><td className="num"><b>{r.quantity}</b></td><td className="num">{r.orders}</td></tr>):<tr><td colSpan={4}>No sales in this category for this date.</td></tr>}</tbody></table></div></div>})}
         </div>
       </section>
       <section className="orders-content-card">
