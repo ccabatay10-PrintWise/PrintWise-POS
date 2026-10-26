@@ -139,3 +139,34 @@
 .orders-item-count-card strong{font-size:25px;line-height:1.1;font-weight:850;color:#172b4d;font-variant-numeric:tabular-nums}
 @media(max-width:1100px){.orders-item-counts-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.orders-item-counts{padding:14px}.orders-item-counts-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.orders-item-count-card{padding:11px}.orders-item-count-card strong{font-size:22px}}
+
+
+/* Daily product reports: balanced, full-width dashboard layout */
+.daily-product-report{margin:18px 0 22px}
+.daily-product-report>.orders-content-head{align-items:center;background:linear-gradient(110deg,#fff 0%,#fffafa 100%);padding:22px 24px}
+.daily-product-report>.orders-content-head h2{font-size:19px;font-weight:850;letter-spacing:-.25px}
+.daily-product-report>.orders-content-head p{font-size:13px;color:#778292}
+.daily-product-report .orders-date-filter{display:flex;align-items:center;gap:8px;white-space:nowrap;color:#5b6472;font-size:12px;font-weight:800}
+.daily-product-report .orders-date-filter input{min-height:42px;border:1px solid #d8dee7;border-radius:10px;padding:8px 11px;background:#fff;color:#18212b;font:inherit}
+.daily-report-actions-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:18px 20px 8px}
+.daily-report-action-card{min-width:0;display:flex;align-items:center;gap:16px;padding:20px 22px;border:1px solid #e1e7ef;border-radius:16px;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.035)}
+.daily-report-action-card.drinks{background:linear-gradient(135deg,#f7faff,#fff 72%);border-color:#dbe7ff}
+.daily-report-action-card.meals{background:linear-gradient(135deg,#f5fcf8,#fff 72%);border-color:#d9f0e3}
+.daily-report-action-card .orders-summary-icon{width:48px;height:48px;flex-basis:48px}
+.daily-report-action-card>div:last-child{min-width:0;display:grid;justify-items:start;gap:5px}
+.daily-report-action-card span{font-size:11px;letter-spacing:.8px}
+.daily-report-action-card strong{font-size:26px;line-height:1.15;color:#111827}
+.daily-report-action-card small{font-size:12px;color:#7a8493}
+.daily-report-action-card .orders-refresh-btn{margin-top:5px;min-height:42px;padding:10px 14px;border-radius:10px;font-size:13px}
+.daily-report-tables-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:8px 20px 20px}
+.daily-report-table-card{min-width:0;border-radius:14px;box-shadow:none;border-color:#e2e8f0}
+.daily-report-table-card .orders-content-head{padding:17px 18px;background:#fbfcfe}
+.daily-report-table-card .orders-content-head h2{font-size:16px}
+.daily-report-table-card .orders-table th,.daily-report-table-card .orders-table td{padding:13px 14px}
+.daily-report-table-card .orders-table tbody tr:nth-child(even){background:#fafbfd}
+.daily-report-table-card .orders-table tbody tr:hover{background:#f4f7fb}
+.daily-report-table-card .orders-table td.num,.daily-report-table-card .orders-table th.num{text-align:right}
+.daily-report-table-card .orders-table td:first-child{color:#778292;font-weight:800}
+.daily-product-report .orders-content-head .orders-date-filter span{color:#5b6472}
+@media(max-width:900px){.daily-report-actions-grid,.daily-report-tables-grid{grid-template-columns:1fr}.daily-product-report>.orders-content-head{align-items:flex-start;flex-direction:column}.daily-product-report .orders-date-filter{width:100%}.daily-product-report .orders-date-filter input{flex:1;min-width:0}}
+@media(max-width:560px){.daily-report-actions-grid,.daily-report-tables-grid{padding:12px;gap:12px}.daily-report-action-card{padding:15px;gap:12px}.daily-report-action-card strong{font-size:23px}.daily-report-action-card .orders-refresh-btn{font-size:12px;padding:9px 11px}.daily-report-table-card .orders-table th,.daily-report-table-card .orders-table td{padding:10px 8px;font-size:11px}}
