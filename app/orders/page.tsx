@@ -177,22 +177,34 @@ export default function OrdersPage() {
     return [...totals.values()].sort((a,b)=>b.quantity-a.quantity||a.name.localeCompare(b.name));
   };
   const printProductReport = (kind:"drinks"|"meals") => {
-    const rows=productReports(kind), win=window.open("","_blank","width=900,height=700");
+    const rows=productReports(kind), win=window.open("","_blank","width=420,height=720");
     if(!win){setError("Allow pop-ups to print the daily product report.");return}
     const esc=(v:string)=>v.replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m] as string));
     const title=kind==="drinks"?"DAILY DRINKS REPORT":"DAILY MEALS REPORT", total=rows.reduce((n,r)=>n+r.quantity,0);
+    win.document.open();
     win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title} - ${productReportDate}</title><style>
-      @page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{margin:0;font:12px Arial,sans-serif;color:#171717}
-      header{text-align:center;border-bottom:2px solid #222;padding-bottom:12px;margin-bottom:16px}h1{font-size:20px;margin:0 0 6px}
-      .meta{display:flex;justify-content:space-between;margin-bottom:12px;font-size:11px}
-      table{width:100%;border-collapse:collapse}th,td{padding:9px 10px;border:1px solid #ccc;text-align:left}th{background:#eee}
-      td:first-child{text-align:center;width:12%}td:nth-child(3),td:nth-child(4),th:nth-child(3),th:nth-child(4){text-align:right}
-      .total{font-weight:bold;background:#f2f2f2}.foot{margin-top:14px;font-size:10px;color:#555}
-    </style></head><body><header><h1>ESPACIO Café &amp; Restaurant</h1><b>${title}</b></header>
+      @page{size:75mm auto;margin:2mm}*{box-sizing:border-box}
+      html,body{margin:0!important;padding:0!important;width:71mm!important;min-width:71mm!important;max-width:71mm!important;background:#fff;color:#111;font:9px Arial,Helvetica,sans-serif}
+      body{padding:0!important}.receipt{display:block;width:71mm;min-width:71mm;max-width:71mm;margin:0;padding:0 1mm;overflow-wrap:anywhere}
+      header{text-align:center;padding-bottom:6px;margin-bottom:6px;border-bottom:1px dashed #555}
+      h1{font-size:13px;line-height:1.2;margin:0 0 3px;letter-spacing:.1px;overflow-wrap:anywhere}
+      .subtitle{font-size:8px;letter-spacing:.5px;font-weight:700}
+      .meta{display:block;font-size:8px;line-height:1.45;margin:0 0 6px;padding:5px 0;border-bottom:1px dashed #555}
+      .meta span{display:block;overflow-wrap:anywhere}
+      table{width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed}
+      th,td{padding:4px 1px;border-bottom:1px dotted #bbb;text-align:left;font-size:8px;line-height:1.2;overflow-wrap:anywhere}
+      th{font-size:7px;font-weight:800;background:#eee;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+      th:first-child,td:first-child{width:10%;text-align:left}
+      th:nth-child(2),td:nth-child(2){width:48%;text-align:left;overflow-wrap:anywhere;word-break:break-word}
+      th:nth-child(3),td:nth-child(3){width:21%;text-align:right}
+      th:nth-child(4),td:nth-child(4){width:21%;text-align:right}
+      .total td{font-weight:900;background:#eee;border-top:1px solid #111;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+      .foot{font-size:7px;line-height:1.35;margin:7px 0 0;color:#444}
+      @media print{html,body{width:71mm!important;max-width:71mm!important;margin:0!important;padding:0!important}.receipt{width:71mm!important;max-width:71mm!important}}
+    </style></head><body><main class="receipt"><header><h1>ESPACIO Café &amp; Restaurant</h1><div class="subtitle">${title}</div></header>
     <div class="meta"><span><b>Business Date:</b> ${productReportDate}</span><span><b>Unique Products:</b> ${rows.length}</span><span><b>Total Units:</b> ${total}</span></div>
-    <table><thead><tr><th>Rank</th><th>Product</th><th>Qty Sold</th><th>Orders</th></tr></thead><tbody>${rows.length?rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.quantity}</td><td>${r.orders}</td></tr>`).join(""):'<tr><td colspan="4">No products sold for this date.</td></tr>'}
-    <tr class="total"><td colspan="2">TOTAL UNITS SOLD</td><td>${total}</td><td></td></tr></tbody></table><p class="foot">Sorted from highest quantity sold to lowest. Voided transactions are excluded.</p>
-    <script>window.onload=()=>{window.focus();window.print();};<\\/script></body></html>`);
+    <table><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Orders</th></tr></thead><tbody>${rows.length?rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.quantity}</td><td>${r.orders}</td></tr>`).join(""):'<tr><td colspan="4">No products sold for this date.</td></tr>'}
+    <tr class="total"><td colspan="2">TOTAL UNITS</td><td>${total}</td><td></td></tr></tbody></table><p class="foot">Sorted highest to lowest. Voided transactions excluded.</p></main><script>window.onload=()=>{window.focus();window.print();};<\\/script></body></html>`);
     win.document.close();
   };
   const completedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "completed");
