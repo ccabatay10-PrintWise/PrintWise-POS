@@ -110,37 +110,44 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ items: items ?? [], payments: payments ?? [] });
   }
 
-  const { data, error } = await adminClient
-    .from("pos_orders")
-    .select("id,order_no,customer_name,subtotal,discount_amount,total,amount_paid,balance,status,created_at,created_by")
-    .order("created_at", { ascending: false });
+  // Fetch every saved POS order in pages. Supabase/PostgREST applies a row
+  // limit to a single select; relying on one request can silently omit history.
+  const data: any[] = [];
+  const pageSize = 500;
+  for (let from = 0; ; from += pageSize) {
+    const { data: page, error } = await adminClient
+      .from("pos_orders")
+      .select("id,order_no,customer_name,subtotal,discount_amount,total,amount_paid,balance,status,created_at,created_by")
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) return jsonError(`Unable to load orders: ${error.message}`, 400);
+    data.push(...(page ?? []));
+    if (!page || page.length < pageSize) break;
+  }
 
-  if (error) return jsonError(`Unable to load orders: ${error.message}`, 400);
-
-  const orderIds = (data ?? []).map((order: any) => String(order.id)).filter(Boolean);
+  const orderIds = data.map((order: any) => String(order.id)).filter(Boolean);
   const paymentTotals = new Map<string, number>();
   const paymentChannels = new Map<string, string[]>();
   const itemTotals = new Map<string, number>();
   const itemSummary = new Map<string, Array<{ name: string; category: string; quantity: number }>>();
 
   if (orderIds.length) {
-    const [{ data: payments, error: paymentsError }, { data: items, error: itemsError }] = await Promise.all([
-      adminClient
-        .from("payment_transactions")
-        .select("pos_order_id,amount,status,channel")
-        .in("pos_order_id", orderIds),
-      adminClient
-        .from("pos_order_items")
-        .select("pos_order_id,line_total,item_name,quantity")
-        .in("pos_order_id", orderIds),
-    ]);
+    const payments: any[] = [];
+    const items: any[] = [];
+    // Chunk ID filters to avoid URL/query-size limits for a full history.
+    for (let from = 0; from < orderIds.length; from += 200) {
+      const ids = orderIds.slice(from, from + 200);
+      const [{ data: paymentPage, error: paymentsError }, { data: itemPage, error: itemsError }] = await Promise.all([
+        adminClient.from("payment_transactions").select("pos_order_id,amount,status,channel").in("pos_order_id", ids),
+        adminClient.from("pos_order_items").select("pos_order_id,line_total,item_name,quantity").in("pos_order_id", ids),
+      ]);
+      if (paymentsError) return jsonError(`Unable to load transaction payment methods: ${paymentsError.message}`, 400);
+      if (itemsError) return jsonError(`Unable to load transaction item details: ${itemsError.message}`, 400);
+      payments.push(...(paymentPage ?? []));
+      items.push(...(itemPage ?? []));
+    }
 
-    // Do not silently return empty payment/item metadata: report schema or query
-    // errors so the Transactions page can be corrected based on the real cause.
-    if (paymentsError) return jsonError(`Unable to load transaction payment methods: ${paymentsError.message}`, 400);
-    if (itemsError) return jsonError(`Unable to load transaction item details: ${itemsError.message}`, 400);
-
-    for (const payment of payments ?? []) {
+    for (const payment of payments) {
       const status = String((payment as any).status || "").toLowerCase();
       if (status === "voided" || status === "failed" || status === "cancelled" || status === "canceled") continue;
       const id = String((payment as any).pos_order_id || "");
@@ -149,7 +156,7 @@ export async function GET(request: NextRequest) {
       if (channel) paymentChannels.set(id, [...(paymentChannels.get(id) || []), channel]);
     }
 
-    for (const item of items ?? []) {
+    for (const item of items) {
       const id = String((item as any).pos_order_id || "");
       itemTotals.set(id, (itemTotals.get(id) || 0) + numberValue((item as any).line_total));
       const summaryItem = { name: String((item as any).item_name || ""), category: "", quantity: numberValue((item as any).quantity) };
