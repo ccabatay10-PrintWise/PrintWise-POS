@@ -58,6 +58,11 @@ export async function POST(request: NextRequest) {
     if (!wiseMenuOrderId || !Number.isFinite(amountPaid) || amountPaid < 0 || !Number.isFinite(subtotal) || !Number.isFinite(discountValue) || !Number.isFinite(discountAmount) || !Number.isFinite(total) || !transactionNo) throw new Error("Invalid payment details.");
     const { data, error } = await userClient.rpc("checkout_wise_menu_order_v2", { p_wise_menu_order_id: wiseMenuOrderId, p_payment_channel: channel, p_amount_paid: amountPaid, p_transaction_no: transactionNo, p_subtotal: subtotal, p_discount_type: discountType, p_discount_value: discountValue, p_discount_amount: discountAmount, p_total: total });
     if (error) throw error;
+    const notes = String(body.notes || "").trim().slice(0, 500);
+    if (notes) {
+      const { error: noteError } = await userClient.from("wise_menu_orders").update({ notes }).eq("id", wiseMenuOrderId);
+      if (noteError) console.error("Unable to save WISE MENU customer note:", noteError.message);
+    }
     return NextResponse.json(data);
   } catch (error: any) {
     const message = error?.message || "Unable to complete WISE MENU payment.";
