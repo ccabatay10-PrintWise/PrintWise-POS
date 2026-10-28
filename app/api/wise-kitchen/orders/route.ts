@@ -28,13 +28,19 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: true });
     if (error) throw error;
     const items = orders || [];
-    // Staff-entered notes are saved on the matching WISE MENU order row for POS-originated orders.
+    // Read the staff-entered note from either record because older POS orders may have stored it in only one table.
     const posOrderNos = [...new Set(items.filter((o: any) => o.source_type === "pos").map((o: any) => o.order_no).filter(Boolean))];
     let posNotesByOrderNo: Record<string, string> = {};
     if (posOrderNos.length) {
-      const { data: posOrders, error: posNotesError } = await admin.from("wise_menu_orders").select("order_no,notes").eq("source_type", "pos").in("order_no", posOrderNos);
-      if (!posNotesError) {
-        posNotesByOrderNo = Object.fromEntries((posOrders || []).map((p: any) => [String(p.order_no), String(p.notes || "").trim()]));
+      const [posNotesResult, kitchenNotesResult] = await Promise.all([
+        admin.from("pos_orders").select("order_no,notes").in("order_no", posOrderNos),
+        admin.from("wise_menu_orders").select("order_no,notes").eq("source_type", "pos").in("order_no", posOrderNos),
+      ]);
+      for (const row of [...(posNotesResult.data || []), ...(kitchenNotesResult.data || [])]) {
+        const note = String(row.notes || "").trim();
+        if (note && !/^POS ORDER\\s*[·•-]/i.test(note) && !/payment completed.*kitchen preparation required/i.test(note) && !/inventory\\/recipe setup needs attention/i.test(note)) {
+          posNotesByOrderNo[String(row.order_no)] = note;
+        }
       }
     }
     const productIds = [...new Set(items.flatMap((o: any) => o.wise_menu_order_items?.map((i: any) => i.product_id) || []))];
