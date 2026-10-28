@@ -159,12 +159,16 @@ export async function POST(request: NextRequest) {
 
   const notes = String(body.notes ?? "").trim().slice(0, 500);
   if (notes) {
-    const { error: notesError } = await userClient
-      .from("wise_menu_orders")
-      .update({ notes })
-      .eq("order_no", orderNo)
-      .eq("source_type", "pos");
-    if (notesError) console.error("Unable to save POS kitchen instructions:", notesError.message);
+    // Store staff-entered notes on both the POS transaction and the kitchen receiving order.
+    const [posNoteResult, kitchenNoteResult] = await Promise.all([
+      userClient.from("pos_orders").update({ notes }).eq("order_no", orderNo),
+      userClient.from("wise_menu_orders").update({ notes }).eq("order_no", orderNo),
+    ]);
+    if (posNoteResult.error) console.error("Unable to save POS transaction note:", posNoteResult.error.message);
+    if (kitchenNoteResult.error) console.error("Unable to save kitchen order note:", kitchenNoteResult.error.message);
+    if (posNoteResult.error && kitchenNoteResult.error) {
+      return NextResponse.json({ ...(data || { ok: true }), loyalty: loyaltyResult, warning: "Sale completed, but the customer note could not be saved. Please add it to the order notes." });
+    }
   }
 
   return NextResponse.json({ ...(data || { ok: true }), loyalty: loyaltyResult });
