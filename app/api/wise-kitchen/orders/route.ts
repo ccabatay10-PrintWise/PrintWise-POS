@@ -28,11 +28,11 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: true });
     if (error) throw error;
     const items = orders || [];
-    // POS-originated kitchen orders may keep the staff-entered note on the matching POS transaction.
+    // Staff-entered notes are saved on the matching WISE MENU order row for POS-originated orders.
     const posOrderNos = [...new Set(items.filter((o: any) => o.source_type === "pos").map((o: any) => o.order_no).filter(Boolean))];
     let posNotesByOrderNo: Record<string, string> = {};
     if (posOrderNos.length) {
-      const { data: posOrders, error: posNotesError } = await admin.from("pos_orders").select("order_no,notes").in("order_no", posOrderNos);
+      const { data: posOrders, error: posNotesError } = await admin.from("wise_menu_orders").select("order_no,notes").eq("source_type", "pos").in("order_no", posOrderNos);
       if (!posNotesError) {
         posNotesByOrderNo = Object.fromEntries((posOrders || []).map((p: any) => [String(p.order_no), String(p.notes || "").trim()]));
       }
