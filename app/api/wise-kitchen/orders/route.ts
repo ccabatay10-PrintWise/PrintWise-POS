@@ -28,21 +28,41 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: true });
     if (error) throw error;
     const items = orders || [];
-    // Read the staff-entered note from either record because older POS orders may have stored it in only one table.
-    const posOrderNos = [...new Set(items.filter((o: any) => o.source_type === "pos").map((o: any) => o.order_no).filter(Boolean))];
+    // Resolve staff notes by order number first, then fall back to the closest POS transaction
+    // for the same customer/time because kitchen order numbers may be generated with a POS-WISE prefix.
+    const posKitchenOrders = items.filter((o: any) => o.source_type === "pos");
+    const posOrderNos = [...new Set(posKitchenOrders.map((o: any) => o.order_no).filter(Boolean))];
     let posNotesByOrderNo: Record<string, string> = {};
+    let posNoteRows: any[] = [];
     if (posOrderNos.length) {
       const [posNotesResult, kitchenNotesResult] = await Promise.all([
-        admin.from("pos_orders").select("order_no,notes").in("order_no", posOrderNos),
-        admin.from("wise_menu_orders").select("order_no,notes").eq("source_type", "pos").in("order_no", posOrderNos),
+        admin.from("pos_orders").select("order_no,notes,customer_name,created_at").in("order_no", posOrderNos),
+        admin.from("wise_menu_orders").select("order_no,notes,customer_name,created_at").eq("source_type", "pos").in("order_no", posOrderNos),
       ]);
-      for (const row of [...(posNotesResult.data || []), ...(kitchenNotesResult.data || [])]) {
-        const note = String(row.notes || "").trim();
-        if (note && !/^POS ORDER\s*[·•-]/i.test(note) && !/payment completed.*kitchen preparation required/i.test(note) && !/inventory\/recipe setup needs attention/i.test(note)) {
-          posNotesByOrderNo[String(row.order_no)] = note;
-        }
-      }
+      posNoteRows = [...(posNotesResult.data || []), ...(kitchenNotesResult.data || [])];
     }
+    // Also load recent POS transactions with notes for cases where the kitchen generated a different order number.
+    if (posKitchenOrders.length) {
+      const earliest = new Date(Math.min(...posKitchenOrders.map((o: any) => new Date(o.created_at).getTime())) - 10 * 60 * 1000).toISOString();
+      const { data: recentPosNotes } = await admin.from("pos_orders").select("order_no,notes,customer_name,created_at").gte("created_at", earliest).not("notes", "is", null).order("created_at", { ascending: false }).limit(200);
+      posNoteRows = [...posNoteRows, ...(recentPosNotes || [])];
+    }
+    const isRealCustomerNote = (value: unknown) => {
+      const note = String(value || "").trim();
+      return Boolean(note) && !/^POS ORDER\s*[·•-]/i.test(note) && !/payment completed.*kitchen preparation required/i.test(note) && !/inventory\/recipe setup needs attention/i.test(note);
+    };
+    for (const row of posNoteRows) {
+      if (isRealCustomerNote(row.notes)) posNotesByOrderNo[String(row.order_no)] = String(row.notes).trim();
+    }
+    const resolvedOrders = posKitchenOrders.map((k: any) => {
+      if (isRealCustomerNote(posNotesByOrderNo[k.order_no])) return k;
+      const matches = posNoteRows.filter((p: any) => isRealCustomerNote(p.notes)
+        && String(p.customer_name || "").trim().toLowerCase() === String(k.customer_name || "").trim().toLowerCase()
+        && Math.abs(new Date(p.created_at).getTime() - new Date(k.created_at).getTime()) <= 10 * 60 * 1000)
+        .sort((a: any, b: any) => Math.abs(new Date(a.created_at).getTime() - new Date(k.created_at).getTime()) - Math.abs(new Date(b.created_at).getTime() - new Date(k.created_at).getTime()));
+      if (matches[0]) posNotesByOrderNo[String(k.order_no)] = String(matches[0].notes).trim();
+      return k;
+    });
     const productIds = [...new Set(items.flatMap((o: any) => o.wise_menu_order_items?.map((i: any) => i.product_id) || []))];
     let recipes: any[] = [];
     let products: any[] = [];
@@ -56,7 +76,7 @@ export async function GET(req: NextRequest) {
     }
     const result = items.map((o: any) => ({
       ...o,
-      notes: posNotesByOrderNo[String(o.order_no)] || o.notes || null,
+      notes: posNotesByOrderNo[String(o.order_no)] || (isRealCustomerNote(o.notes) ? o.notes : null),
       items: (o.wise_menu_order_items || []).map((i: any) => {
         const recipe = recipes.find((r: any) => r.product_id === i.product_id);
         const product = products.find((p: any) => p.id === i.product_id);
