@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       ]);
       for (const row of [...(posNotesResult.data || []), ...(kitchenNotesResult.data || [])]) {
         const note = String(row.notes || "").trim();
-        if (note && !/^POS ORDER\\s*[·•-]/i.test(note) && !/payment completed.*kitchen preparation required/i.test(note) && !/inventory\\/recipe setup needs attention/i.test(note)) {
+        if (note && !/^POS ORDER\s*[·•-]/i.test(note) && !/payment completed.*kitchen preparation required/i.test(note) && !/inventory\/recipe setup needs attention/i.test(note)) {
           posNotesByOrderNo[String(row.order_no)] = note;
         }
       }
