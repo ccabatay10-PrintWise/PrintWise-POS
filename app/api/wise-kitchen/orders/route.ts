@@ -28,6 +28,15 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: true });
     if (error) throw error;
     const items = orders || [];
+    // POS-originated kitchen orders may keep the staff-entered note on the matching POS transaction.
+    const posOrderNos = [...new Set(items.filter((o: any) => o.source_type === "pos").map((o: any) => o.order_no).filter(Boolean))];
+    let posNotesByOrderNo: Record<string, string> = {};
+    if (posOrderNos.length) {
+      const { data: posOrders, error: posNotesError } = await admin.from("pos_orders").select("order_no,notes").in("order_no", posOrderNos);
+      if (!posNotesError) {
+        posNotesByOrderNo = Object.fromEntries((posOrders || []).map((p: any) => [String(p.order_no), String(p.notes || "").trim()]));
+      }
+    }
     const productIds = [...new Set(items.flatMap((o: any) => o.wise_menu_order_items?.map((i: any) => i.product_id) || []))];
     let recipes: any[] = [];
     let products: any[] = [];
@@ -41,6 +50,7 @@ export async function GET(req: NextRequest) {
     }
     const result = items.map((o: any) => ({
       ...o,
+      notes: posNotesByOrderNo[String(o.order_no)] || o.notes || null,
       items: (o.wise_menu_order_items || []).map((i: any) => {
         const recipe = recipes.find((r: any) => r.product_id === i.product_id);
         const product = products.find((p: any) => p.id === i.product_id);
