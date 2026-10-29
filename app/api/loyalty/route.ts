@@ -52,6 +52,21 @@ export async function POST(request: NextRequest) {
     if(error) return NextResponse.json({error:"Unable to register member: "+error.message},{status:400});
     return NextResponse.json({member:data},{status:201});
   }
+  if(action==="manual_stamp") {
+    const memberId=String(body.memberId||"").trim();
+    const orderNo=String(body.orderNo||"").trim();
+    if(!memberId || !orderNo) return NextResponse.json({error:"Select a member and enter the completed POS order number."},{status:400});
+    const {data:order,error:orderError}=await auth.db.from("pos_orders").select("id,order_no,status").eq("order_no",orderNo).maybeSingle();
+    if(orderError) return NextResponse.json({error:"Unable to find POS order: "+orderError.message},{status:400});
+    if(!order) return NextResponse.json({error:"No POS order found with that order number."},{status:404});
+    if(!["completed","paid","complete"].includes(String(order.status||"").toLowerCase())) return NextResponse.json({error:"Only completed/paid POS orders can receive a loyalty stamp."},{status:400});
+    const {data:stampResult,error:stampError}=await auth.db.rpc("award_loyalty_stamp",{p_order_id:order.id,p_member_id:memberId});
+    if(stampError) return NextResponse.json({error:stampError.message||"Unable to award the stamp."},{status:400});
+    if(stampResult?.duplicate) return NextResponse.json({error:"This POS order already has a loyalty stamp. No duplicate stamp was added."},{status:409});
+    const {data:member,error:memberError}=await auth.db.from("loyalty_members").select("id,loyalty_no,full_name,phone,stamps,free_drinks_redeemed,is_active,created_at").eq("id",memberId).single();
+    if(memberError||!member) return NextResponse.json({error:"Stamp was saved, but member details could not be refreshed. Please refresh the page."},{status:200});
+    return NextResponse.json({member,stamped:true,orderNo:order.order_no,freeDrinkEarned:Boolean(stampResult?.free_drink_earned)});
+  }
   if(action==="redeem") {
     const memberId=String(body.memberId||"");
     if(!memberId) return NextResponse.json({error:"Select a loyalty member."},{status:400});
