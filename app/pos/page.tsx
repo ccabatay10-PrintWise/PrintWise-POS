@@ -14,7 +14,7 @@ type Receipt = { orderNo: string; payment: string; amountPaid: number; change: n
 type ShiftData = { sales: number; discounts: number; orders: number; cash: number; nonCash: number; voided: number; loading: boolean };
 type DiscountType = "senior" | "pwd" | "athlete" | "solo_parent" | "percentage" | "amount" | null;
 type LoyaltyMember = { id: string; loyalty_no: string; full_name: string; phone: string; stamps: number; free_drinks_redeemed: number; is_active: boolean };
-type WiseMenuOrder = { id: string; order_no: string; customer_name: string | null; total: number; amount_paid: number; balance: number; notes: string | null; created_at: string; items: Array<{ product_id: string; product_name: string; quantity: number; unit_price: number; line_total: number }> };
+type WiseMenuOrder = { id: string; order_no: string; customer_name: string | null; order_type: "dine_in" | "take_out"; total: number; amount_paid: number; balance: number; notes: string | null; created_at: string; items: Array<{ product_id: string; product_name: string; quantity: number; unit_price: number; line_total: number }> };
 
 const payments = [
   { key: "Cash", icon: Banknote }, { key: "GCash", icon: Smartphone }, { key: "Maya", icon: Smartphone },
