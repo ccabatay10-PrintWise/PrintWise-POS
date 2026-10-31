@@ -29,13 +29,13 @@ export async function GET(request: NextRequest) {
     const { admin } = await authorize(request);
     const orderId = request.nextUrl.searchParams.get("orderId")?.trim();
     if (!orderId) throw new Error("WISE MENU order is required.");
-    const { data: order, error: orderError } = await admin.from("wise_menu_orders").select("id,order_no,customer_name,customer_email,total,subtotal,notes,created_at,status").eq("id", orderId).in("status", ["accepted", "pending"]).maybeSingle();
+    const { data: order, error: orderError } = await admin.from("wise_menu_orders").select("id,order_no,customer_name,customer_email,total,subtotal,notes,order_type,created_at,status").eq("id", orderId).in("status", ["accepted", "pending"]).maybeSingle();
     if (orderError) throw orderError;
     if (!order) throw new Error("WISE MENU order is no longer available for Current Sale.");
     const { data: items, error: itemsError } = await admin.from("wise_menu_order_items").select("product_id,product_name,quantity,unit_price,line_total").eq("order_id", orderId).order("created_at", { ascending: true });
     if (itemsError) throw itemsError;
     if (!items?.length) throw new Error("WISE MENU order has no items.");
-    return NextResponse.json({ ok: true, order: { id: order.id, order_no: order.order_no, customer_name: order.customer_name, total: Number(order.total), amount_paid: 0, balance: Number(order.total), notes: order.notes, created_at: order.created_at, status: order.status, items: items.map((item) => ({ product_id: item.product_id, product_name: item.product_name, quantity: Number(item.quantity), unit_price: Number(item.unit_price), line_total: Number(item.line_total) })) } });
+    return NextResponse.json({ ok: true, order: { id: order.id, order_no: order.order_no, customer_name: order.customer_name, total: Number(order.total), amount_paid: 0, balance: Number(order.total), notes: order.notes, order_type: order.order_type === "dine_in" ? "dine_in" : "take_out", created_at: order.created_at, status: order.status, items: items.map((item) => ({ product_id: item.product_id, product_name: item.product_name, quantity: Number(item.quantity), unit_price: Number(item.unit_price), line_total: Number(item.line_total) })) } });
   } catch (error: any) {
     const message = error?.message || "Unable to load WISE MENU order.";
     return NextResponse.json({ error: message }, { status: message === "Authentication required" ? 401 : message === "Not authorized" ? 403 : 400 });
