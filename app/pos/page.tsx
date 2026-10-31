@@ -99,7 +99,7 @@ export default function POSPage() {
           return { id: item.product_id, name: item.product_name, category: product?.category || "WISE MENU", price: Number(item.unit_price), unit: product?.unit, image_url: product?.image_url || null, item_type: product?.item_type || "product", quantity: Number(item.quantity) };
         }).filter((item) => item.quantity > 0);
         if (!loadedItems.length) throw new Error("The WISE MENU order has no valid items.");
-        setCart(loadedItems.map((item: CartItem) => ({ ...item, orderType: item.orderType || orderType })));
+        setOrderType(order.order_type);\n        setCart(loadedItems.map((item: CartItem) => ({ ...item, orderType: order.order_type })));
         setCustomer(order.customer_name || ""); setCustomerNotes(order.notes || "");
         setDiscount(0);
         setPayment("Cash");
