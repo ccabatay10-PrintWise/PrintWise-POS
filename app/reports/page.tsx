@@ -46,7 +46,8 @@ export default function ReportsPage(){
       const [ordersResult,expensesResult,plansResult,cashResult]=await Promise.all([
         supabase.from("pos_orders").select("id,order_no,customer_name,total,amount_paid,status,created_at").order("created_at",{ascending:false}),
         supabase.from("daily_expenses").select("id,expense_date,category,description,amount,payment_method,notes").order("expense_date",{ascending:false}),
-        supabase.from("stock_purchase_plans").select("id,plan_date,items,total_amount,notes").order("plan_date",{ascending:false})
+        supabase.from("stock_purchase_plans").select("id,plan_date,items,total_amount,notes").order("plan_date",{ascending:false}),
+        supabase.from("daily_cash_entries").select("id,entry_date,entry_type,amount,description,payment_method,created_at").order("entry_date",{ascending:false}).order("created_at",{ascending:false})
       ]);
       if(ordersResult.error) setMessage(`Unable to load reports: ${ordersResult.error.message}`);
       else setOrders((ordersResult.data??[]).map((o:any)=>({...o,total:Number(o.total||0),amount_paid:Number(o.amount_paid||0)})));
@@ -54,9 +55,11 @@ export default function ReportsPage(){
       else setExpenses((expensesResult.data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
       if(plansResult.error) setMessage(v=>v||`Unable to load stock purchase plans: ${plansResult.error.message}`);
       else setPurchasePlans((plansResult.data??[]).map((p:any)=>({...p,items:Array.isArray(p.items)?p.items:[],total_amount:Number(p.total_amount||0)})));
+      if(cashResult.error) setMessage(v=>v||`Unable to load cash entries: ${cashResult.error.message}`);
+      else setCashEntries((cashResult.data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
       setLoading(false);setFinanceLoading(false);
     };
-    supabase.auth.getUser().then(({data})=>{ if(!data.user) window.location.href="/pos"; else load(); });
+    supabase.auth.getUser().then(({data})=>{ if(!data.user) window.location.href="/pos"; else { setCashUserId(data.user.id); void load(); } });
   },[]);
 
   const filtered=useMemo(()=>{
