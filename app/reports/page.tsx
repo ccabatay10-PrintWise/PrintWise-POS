@@ -91,9 +91,13 @@ export default function ReportsPage(){
   const cashExpenseDay=financeDayExpenses.filter(e=>e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
   const cashExpenseMonth=financeMonthExpenses.filter(e=>e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
   const dayOpening=sumCash(dayCashEntries,"opening_cash"),dayRemittance=sumCash(dayCashEntries,"remittance"),dayWithdrawals=sumCash(dayCashEntries,"withdrawal");
-  const monthOpening=sumCash(monthCashEntries,"opening_cash"),monthRemittance=sumCash(monthCashEntries,"remittance"),monthWithdrawals=sumCash(monthCashEntries,"withdrawal");
+  const latestMonthOpening=monthCashEntries.filter(e=>e.entry_type==="opening_cash"&&e.entry_date<=reportDate).sort((a,b)=>b.entry_date.localeCompare(a.entry_date)||b.created_at.localeCompare(a.created_at))[0];
+  const cashPeriodStart=latestMonthOpening?.entry_date||reportMonth+"-01";
+  const monthCashEntriesSince=monthCashEntries.filter(e=>e.entry_date>=cashPeriodStart&&e.entry_date<=reportDate);
+  const monthCashExpensesSince=financeMonthExpenses.filter(e=>e.expense_date>=cashPeriodStart&&e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
+  const monthOpening=latestMonthOpening?.amount||0,monthRemittance=sumCash(monthCashEntriesSince,"remittance"),monthWithdrawals=sumCash(monthCashEntriesSince,"withdrawal");
   const actualDayCash=dayOpening+dayRemittance-dayWithdrawals-cashExpenseDay;
-  const actualMonthCash=monthOpening+monthRemittance-monthWithdrawals-cashExpenseMonth;
+  const actualMonthCash=monthOpening+monthRemittance-monthWithdrawals-monthCashExpensesSince;
   const saveCashEntry=async()=>{
     const amount=Number(cashAmount);
     if(!cashUserId||!Number.isFinite(amount)||amount<=0){setMessage("Enter a valid cash amount greater than zero.");return}
