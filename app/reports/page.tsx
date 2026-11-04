@@ -160,9 +160,8 @@ export default function ReportsPage(){
         <div>
           <div className="report-kicker">BUSINESS INSIGHTS</div>
           <h1>Reports & Analytics</h1>
-          <p>Monitor your PrintWise sales, payments, and completed transactions in one place.</p>
+          <p>Monitor cash on hand, daily remittances, expenses, and financial performance.</p>
         </div>
-        <button className="export-btn" onClick={exportCsv}><Download size={19}/> <span>EXPORT CSV</span></button>
       </header>
 
       <div className="reports-content">
@@ -201,25 +200,6 @@ export default function ReportsPage(){
             </section><div className="finance-report-period"><b>Monthly Summary</b><span>{reportMonth}</span></div>
             <div className="table-wrap"><table className="reports-table"><thead><tr><th>FINANCIAL SUMMARY</th><th>AMOUNT</th></tr></thead><tbody><tr><td>Completed Sales</td><td className="money-cell">{peso.format(monthSales)}</td></tr><tr><td>Total Expenses</td><td className="money-cell">{peso.format(monthExpenses)}</td></tr><tr><td>Sales Minus Expenses</td><td className="money-cell">{peso.format(monthSales-monthExpenses)}</td></tr><tr><td>Next-Day Stock Purchase Plans</td><td className="money-cell">{peso.format(monthPurchases)}</td></tr><tr><td><b>Actual Monthly Cash on Hand</b></td><td className="money-cell"><b>{peso.format(actualMonthCash)}</b></td></tr></tbody></table></div>
             <p className="finance-report-note">Cash left is an estimate based on completed POS sales minus recorded expenses and saved purchase plans. Opening cash, withdrawals, non-POS income, and unpaid balances are not included.</p></div>}
-        </section>
-        <section className="report-table-card">
-          <div className="table-topbar">
-            <div><h2>Sales Transactions</h2><p>{filtered.length} transaction{filtered.length===1?"":"s"} • {rangeLabel}</p></div>
-            <div className="table-actions">
-              <div className="search-field"><Search size={19}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search order, customer or status..."/>{search&&<button onClick={()=>setSearch("")} aria-label="Clear search"><X size={16}/></button>}</div>
-              <label className="range-select"><CalendarDays size={18}/><select value={range} onChange={e=>setRange(e.target.value)}><option value="all">All Time</option><option value="today">Today</option><option value="7days">Last 7 Days</option><option value="30days">Last 30 Days</option></select></label>
-            </div>
-          </div>
-
-          {message&&<div className="message report-message">{message}</div>}
-
-          <div className="table-wrap"><table className="reports-table"><thead><tr><th>ORDER DETAILS</th><th>CUSTOMER</th><th>DATE & TIME</th><th>TOTAL</th><th>PAID</th><th>STATUS</th></tr></thead><tbody>
-            {loading?<tr><td colSpan={6}><div className="loading-state"><div className="loader"></div>Loading report data...</div></td></tr>:
-            filtered.length===0?<tr><td colSpan={6}><div className="empty-report"><div className="empty-icon"><FileText size={26}/></div><b>No transactions found</b><span>Try changing your search or date range.</span></div></td></tr>:
-            filtered.map(o=><tr key={o.id}><td><div className="order-cell"><b>{o.order_no}</b><span>PrintWise POS</span></div></td><td><div className="customer-cell"><div className="customer-avatar">{(o.customer_name||"W").charAt(0).toUpperCase()}</div><span>{o.customer_name||"Walk-in Customer"}</span></div></td><td className="date-cell">{formatDate(o.created_at)}</td><td className="money-cell">{peso.format(o.total)}</td><td className="money-cell paid-money">{peso.format(o.amount_paid)}</td><td><span className={`status-pill ${o.status?.toLowerCase()==="completed"?"completed":""}`}><CheckCircle2 size={14}/>{o.status||"Unknown"}</span></td></tr>)}
-          </tbody></table></div>
-
-          <div className="table-footer"><span>Showing <b>{filtered.length}</b> transaction{filtered.length===1?"":"s"}</span><span>Last updated from your PrintWise database</span></div>
         </section>
       </div>
 
