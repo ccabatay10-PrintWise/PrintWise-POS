@@ -12,6 +12,8 @@ type Order = { id: string; order_no: string; customer_name: string | null; subto
 type OrderItem = { id: string; product_id?: string | null; item_name: string; unit_price: number; quantity: number; line_total: number; icon?: string; image_url?: string | null; category?: string; };
 type ProductVisualData = { id: string; icon_key?: string | null; image_url?: string | null; category?: string | null; };
 
+const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 function ProductIcon({ icon, size = 28 }: { icon?: string; size?: number }) {
   const p = { size, strokeWidth: 1.8 };
   if (icon === "shirt") return <Shirt {...p} />;
