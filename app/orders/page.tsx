@@ -197,12 +197,16 @@ export default function OrdersPage() {
       .meta{display:block;font-size:8px;line-height:1.45;margin:0 0 6px;padding:5px 0;border-bottom:1px dashed #555}
       .meta span{display:block;overflow-wrap:anywhere}
       table{width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed}
-      th,td{padding:4px 1px;border-bottom:1px dotted #bbb;text-align:left;font-size:8px;line-height:1.2;overflow-wrap:anywhere}
-      th{font-size:7px;font-weight:800;background:#eee;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-      th:first-child,td:first-child{width:10%;text-align:left}
-      th:nth-child(2),td:nth-child(2){width:48%;text-align:left;overflow-wrap:anywhere;word-break:break-word}
-      th:nth-child(3),td:nth-child(3){width:21%;text-align:right}
-      th:nth-child(4),td:nth-child(4){width:21%;text-align:right}
+      th,td{padding:3px 1px;border-bottom:1px dotted #bbb;text-align:left;font-size:7px;line-height:1.25;vertical-align:top}
+      th{font-size:6.5px;font-weight:800;background:#eee;print-color-adjust:exact;-webkit-print-color-adjust:exact;white-space:nowrap}
+      th:first-child,td:first-child{width:6%;text-align:left}
+      th:nth-child(2),td:nth-child(2){width:39%;text-align:left;overflow-wrap:anywhere;word-break:break-word}
+      th:nth-child(3),td:nth-child(3){width:13%;text-align:right;white-space:nowrap}
+      th:nth-child(4),td:nth-child(4){width:13%;text-align:right;white-space:nowrap}
+      th:nth-child(5),td:nth-child(5){width:29%;text-align:right;white-space:nowrap;overflow-wrap:normal;word-break:normal}
+      table{width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed}
+      .total td{white-space:nowrap}
+
       .total td{font-weight:900;background:#eee;border-top:1px solid #111;print-color-adjust:exact;-webkit-print-color-adjust:exact}
       .foot{font-size:7px;line-height:1.35;margin:7px 0 0;color:#444}
       @media print{html,body{width:71mm!important;max-width:71mm!important;margin:0!important;padding:0!important}.receipt{width:71mm!important;max-width:71mm!important}}
