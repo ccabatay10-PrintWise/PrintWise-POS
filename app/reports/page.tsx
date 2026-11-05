@@ -36,6 +36,7 @@ export default function ReportsPage(){
   const [financeLoading,setFinanceLoading]=useState(true);
   const [cashEntries,setCashEntries]=useState<CashEntry[]>([]);
   const [cashOutflows,setCashOutflows]=useState<CashOutflow[]>([]);
+  const [outflowDate,setOutflowDate]=useState(reportDate);
   const [outflowCategory,setOutflowCategory]=useState<"Restocking"|"Other Expenses">("Restocking");
   const [outflowDescription,setOutflowDescription]=useState("");
   const [outflowAmount,setOutflowAmount]=useState("");
@@ -119,7 +120,7 @@ export default function ReportsPage(){
     const amount=Number(outflowAmount);
     if(!cashUserId||!outflowDescription.trim()||!Number.isFinite(amount)||amount<=0){setMessage("Enter an expense description and a valid amount greater than zero.");return}
     setOutflowSaving(true);setMessage("");
-    const {error}=await supabase.from("cash_outflows").insert({expense_date:reportDate,category:outflowCategory,description:outflowDescription.trim(),amount,payment_method:outflowPayment,created_by:cashUserId});
+    const {error}=await supabase.from("cash_outflows").insert({expense_date:outflowDate,category:outflowCategory,description:outflowDescription.trim(),amount,payment_method:outflowPayment,created_by:cashUserId});
     if(error){setMessage("Unable to save cash expense: "+error.message);setOutflowSaving(false);return}
     setOutflowAmount("");setOutflowDescription("");setOutflowSaving(false);
     const {data,error:reloadError}=await supabase.from("cash_outflows").select("id,expense_date,category,description,amount,payment_method,created_at").order("expense_date",{ascending:false}).order("created_at",{ascending:false});
@@ -212,6 +213,7 @@ export default function ReportsPage(){
           <div className="cash-ledger-scroll"><table className="reports-table"><thead><tr><th>TIME</th><th>ENTRY</th><th>DESCRIPTION</th><th>AMOUNT</th></tr></thead><tbody>{dayCashEntries.length?dayCashEntries.map(e=><tr key={e.id}><td>{new Date(e.created_at).toLocaleTimeString("en-PH",{hour:"numeric",minute:"2-digit"})}</td><td>{e.entry_type==="opening_cash"?"Opening Cash":e.entry_type==="remittance"?"Daily Remittance":"Withdrawal"}</td><td>{e.description||"—"}</td><td className="money-cell">{e.entry_type==="withdrawal"?"−": "+"}{peso.format(e.amount)}</td></tr>):<tr><td colSpan={4}>No cash entries recorded for this date.</td></tr>}</tbody></table></div>
           <div className="cash-expense-heading"><b>Restocking & Other Expenses • {reportDate}</b><span>These are separate from Daily Expenses.</span></div>
           <div className="cash-entry-form cash-outflow-form">
+            <input aria-label="Expense date" title="Expense date" type="date" value={outflowDate} onChange={e=>setOutflowDate(e.target.value)}/>
             <select value={outflowCategory} onChange={e=>setOutflowCategory(e.target.value as any)}><option value="Restocking">Restocking Items</option><option value="Other Expenses">Other Expenses</option></select>
             <input placeholder="Expense description (e.g. Eggs, Coffee Beans)" value={outflowDescription} onChange={e=>setOutflowDescription(e.target.value)}/>
             <input type="number" min="0.01" step="0.01" placeholder="Amount (₱)" value={outflowAmount} onChange={e=>setOutflowAmount(e.target.value)}/>
