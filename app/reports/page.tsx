@@ -10,6 +10,7 @@ type Order = { id:string; order_no:string; customer_name:string|null; total:numb
 type Expense = { id:string; expense_date:string; category:string; description:string; amount:number; payment_method:string; notes:string|null };
 type PurchasePlan = { id:string; plan_date:string; items:any[]; total_amount:number; notes:string|null };
 type CashEntry = { id:string; entry_date:string; entry_type:"opening_cash"|"remittance"|"withdrawal"; amount:number; description:string|null; payment_method:string; created_at:string };
+type CashOutflow = { id:string; expense_date:string; category:"Restocking"|"Other Expenses"; description:string; amount:number; payment_method:string; created_at:string };
 
 const nav = [
   [ShoppingCart, "Point of Sale", "/pos"],
@@ -34,6 +35,12 @@ export default function ReportsPage(){
   const [purchasePlans,setPurchasePlans]=useState<PurchasePlan[]>([]);
   const [financeLoading,setFinanceLoading]=useState(true);
   const [cashEntries,setCashEntries]=useState<CashEntry[]>([]);
+  const [cashOutflows,setCashOutflows]=useState<CashOutflow[]>([]);
+  const [outflowCategory,setOutflowCategory]=useState<"Restocking"|"Other Expenses">("Restocking");
+  const [outflowDescription,setOutflowDescription]=useState("");
+  const [outflowAmount,setOutflowAmount]=useState("");
+  const [outflowPayment,setOutflowPayment]=useState("Cash");
+  const [outflowSaving,setOutflowSaving]=useState(false);
   const [cashType,setCashType]=useState<"opening_cash"|"remittance"|"withdrawal">("opening_cash");
   const [cashAmount,setCashAmount]=useState("");
   const [cashDescription,setCashDescription]=useState("");
@@ -43,11 +50,12 @@ export default function ReportsPage(){
   useEffect(()=>{
     const load=async()=>{
       setLoading(true);
-      const [ordersResult,expensesResult,plansResult,cashResult]=await Promise.all([
+      const [ordersResult,expensesResult,plansResult,cashResult,outflowsResult]=await Promise.all([
         supabase.from("pos_orders").select("id,order_no,customer_name,total,amount_paid,status,created_at").order("created_at",{ascending:false}),
         supabase.from("daily_expenses").select("id,expense_date,category,description,amount,payment_method,notes").order("expense_date",{ascending:false}),
         supabase.from("stock_purchase_plans").select("id,plan_date,items,total_amount,notes").order("plan_date",{ascending:false}),
-        supabase.from("daily_cash_entries").select("id,entry_date,entry_type,amount,description,payment_method,created_at").order("entry_date",{ascending:false}).order("created_at",{ascending:false})
+        supabase.from("daily_cash_entries").select("id,entry_date,entry_type,amount,description,payment_method,created_at").order("entry_date",{ascending:false}).order("created_at",{ascending:false}),
+        supabase.from("cash_outflows").select("id,expense_date,category,description,amount,payment_method,created_at").order("expense_date",{ascending:false}).order("created_at",{ascending:false})
       ]);
       if(ordersResult.error) setMessage(`Unable to load reports: ${ordersResult.error.message}`);
       else setOrders((ordersResult.data??[]).map((o:any)=>({...o,total:Number(o.total||0),amount_paid:Number(o.amount_paid||0)})));
@@ -57,6 +65,8 @@ export default function ReportsPage(){
       else setPurchasePlans((plansResult.data??[]).map((p:any)=>({...p,items:Array.isArray(p.items)?p.items:[],total_amount:Number(p.total_amount||0)})));
       if(cashResult.error) setMessage(v=>v||`Unable to load cash entries: ${cashResult.error.message}`);
       else setCashEntries((cashResult.data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
+      if(outflowsResult.error) setMessage(v=>v||`Unable to load cash outflows: ${outflowsResult.error.message}`);
+      else setCashOutflows((outflowsResult.data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
       setLoading(false);setFinanceLoading(false);
     };
     supabase.auth.getUser().then(({data})=>{ if(!data.user) window.location.href="/pos"; else { setCashUserId(data.user.id); void load(); } });
@@ -91,16 +101,28 @@ export default function ReportsPage(){
   const dayCashEntries=cashEntries.filter(e=>e.entry_date===reportDate);
   const monthCashEntries=cashEntries.filter(e=>e.entry_date.startsWith(reportMonth));
   const sumCash=(rows:CashEntry[],type:CashEntry["entry_type"])=>rows.filter(e=>e.entry_type===type).reduce((n,e)=>n+e.amount,0);
-  const cashExpenseDay=financeDayExpenses.filter(e=>e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
-  const cashExpenseMonth=financeMonthExpenses.filter(e=>e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
+  const financeDayOutflows=cashOutflows.filter(e=>e.expense_date===reportDate);
+  const financeMonthOutflows=cashOutflows.filter(e=>e.expense_date.startsWith(reportMonth));
+  const cashExpenseDay=financeDayOutflows.filter(e=>e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
+  const cashExpenseMonth=financeMonthOutflows.filter(e=>e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
   const dayOpening=sumCash(dayCashEntries,"opening_cash"),dayRemittance=sumCash(dayCashEntries,"remittance"),dayWithdrawals=sumCash(dayCashEntries,"withdrawal");
   const latestMonthOpening=monthCashEntries.filter(e=>e.entry_type==="opening_cash"&&e.entry_date<=reportDate).sort((a,b)=>b.entry_date.localeCompare(a.entry_date)||b.created_at.localeCompare(a.created_at))[0];
   const cashPeriodStart=latestMonthOpening?.entry_date||reportMonth+"-01";
   const monthCashEntriesSince=monthCashEntries.filter(e=>e.entry_date>=cashPeriodStart&&e.entry_date<=reportDate);
-  const monthCashExpensesSince=financeMonthExpenses.filter(e=>e.expense_date>=cashPeriodStart&&e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
+  const monthCashExpensesSince=financeMonthOutflows.filter(e=>e.expense_date>=cashPeriodStart&&e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
   const monthOpening=latestMonthOpening?.amount||0,monthRemittance=sumCash(monthCashEntriesSince,"remittance"),monthWithdrawals=sumCash(monthCashEntriesSince,"withdrawal");
   const actualDayCash=dayOpening+dayRemittance-dayWithdrawals-cashExpenseDay;
   const actualMonthCash=monthOpening+monthRemittance-monthWithdrawals-monthCashExpensesSince;
+  const saveCashOutflow=async()=>{
+    const amount=Number(outflowAmount);
+    if(!cashUserId||!outflowDescription.trim()||!Number.isFinite(amount)||amount<=0){setMessage("Enter an expense description and a valid amount greater than zero.");return}
+    setOutflowSaving(true);setMessage("");
+    const {error}=await supabase.from("cash_outflows").insert({expense_date:reportDate,category:outflowCategory,description:outflowDescription.trim(),amount,payment_method:outflowPayment,created_by:cashUserId});
+    if(error){setMessage("Unable to save cash expense: "+error.message);setOutflowSaving(false);return}
+    setOutflowAmount("");setOutflowDescription("");setOutflowSaving(false);
+    const {data,error:reloadError}=await supabase.from("cash_outflows").select("id,expense_date,category,description,amount,payment_method,created_at").order("expense_date",{ascending:false}).order("created_at",{ascending:false});
+    if(reloadError)setMessage("Expense saved, but could not refresh the list: "+reloadError.message);else setCashOutflows((data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
+  };
   const saveCashEntry=async()=>{
     const amount=Number(cashAmount);
     if(!cashUserId||!Number.isFinite(amount)||amount<=0){setMessage("Enter a valid cash amount greater than zero.");return}
@@ -176,19 +198,26 @@ export default function ReportsPage(){
         </section>
 
         <section className="report-table-card cash-control-panel">
-          <div className="table-topbar"><div><h2>Cash on Hand & Daily Remittance</h2><p>Record opening cash, add daily remittances, and record cash withdrawals. Cash expenses are deducted automatically.</p></div><div className="cash-entry-form">
+          <div className="table-topbar"><div><h2>Cash on Hand & Daily Remittance</h2><p>Record opening cash, add daily remittances, and record cash withdrawals. Record restocking purchases and other cash expenses here; Daily Expenses are tracked separately.</p></div><div className="cash-entry-form">
             <select value={cashType} onChange={e=>setCashType(e.target.value as any)}><option value="opening_cash">Opening Cash on Hand</option><option value="remittance">Add Daily Remittance</option><option value="withdrawal">Cash Withdrawal</option></select>
             <input type="number" min="0.01" step="0.01" placeholder="Amount (₱)" value={cashAmount} onChange={e=>setCashAmount(e.target.value)}/>
             <input placeholder="Description (optional)" value={cashDescription} onChange={e=>setCashDescription(e.target.value)}/>
             <button className="export-btn" disabled={cashSaving} onClick={()=>void saveCashEntry()}>{cashSaving?"Saving...":"Save Cash Entry"}</button>
           </div></div>
           <div className="cash-balance-grid">
-            <div><span>Opening Cash</span><strong>{peso.format(dayOpening)}</strong></div><div><span>Daily Remittance Added</span><strong className="cash-positive">+{peso.format(dayRemittance)}</strong></div><div><span>Cash Expenses</span><strong className="cash-negative">−{peso.format(cashExpenseDay)}</strong></div><div><span>Cash Withdrawals</span><strong className="cash-negative">−{peso.format(dayWithdrawals)}</strong></div><div className="cash-balance-total"><span>Actual Cash on Hand • {reportDate}</span><strong>{peso.format(actualDayCash)}</strong></div>
+            <div><span>Opening Cash</span><strong>{peso.format(dayOpening)}</strong></div><div><span>Daily Remittance Added</span><strong className="cash-positive">+{peso.format(dayRemittance)}</strong></div><div><span>Restocking & Other Cash Expenses</span><strong className="cash-negative">−{peso.format(cashExpenseDay)}</strong></div><div><span>Cash Withdrawals</span><strong className="cash-negative">−{peso.format(dayWithdrawals)}</strong></div><div className="cash-balance-total"><span>Actual Cash on Hand • {reportDate}</span><strong>{peso.format(actualDayCash)}</strong></div>
           </div>
           <div className="cash-ledger-scroll"><table className="reports-table"><thead><tr><th>TIME</th><th>ENTRY</th><th>DESCRIPTION</th><th>AMOUNT</th></tr></thead><tbody>{dayCashEntries.length?dayCashEntries.map(e=><tr key={e.id}><td>{new Date(e.created_at).toLocaleTimeString("en-PH",{hour:"numeric",minute:"2-digit"})}</td><td>{e.entry_type==="opening_cash"?"Opening Cash":e.entry_type==="remittance"?"Daily Remittance":"Withdrawal"}</td><td>{e.description||"—"}</td><td className="money-cell">{e.entry_type==="withdrawal"?"−": "+"}{peso.format(e.amount)}</td></tr>):<tr><td colSpan={4}>No cash entries recorded for this date.</td></tr>}</tbody></table></div>
-          <div className="cash-expense-heading"><b>Recorded Expenses • {reportDate}</b><a href="/daily-expenses">Manage Expenses</a></div>
-          <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th></tr></thead><tbody>{financeDayExpenses.length?financeDayExpenses.map(e=><tr key={e.id}><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td></tr>):<tr><td colSpan={4}>No expenses recorded for this date.</td></tr>}</tbody></table></div>
-          <div className="cash-month-summary"><b>Monthly Cash on Hand • {reportMonth}</b><strong>{peso.format(actualMonthCash)}</strong><span>Opening cash + remittances − cash expenses − withdrawals for the selected month.</span></div>
+          <div className="cash-expense-heading"><b>Restocking & Other Expenses • {reportDate}</b><span>These are separate from Daily Expenses.</span></div>
+          <div className="cash-entry-form cash-outflow-form">
+            <select value={outflowCategory} onChange={e=>setOutflowCategory(e.target.value as any)}><option value="Restocking">Restocking Items</option><option value="Other Expenses">Other Expenses</option></select>
+            <input placeholder="Expense description (e.g. Eggs, Coffee Beans)" value={outflowDescription} onChange={e=>setOutflowDescription(e.target.value)}/>
+            <input type="number" min="0.01" step="0.01" placeholder="Amount (₱)" value={outflowAmount} onChange={e=>setOutflowAmount(e.target.value)}/>
+            <select value={outflowPayment} onChange={e=>setOutflowPayment(e.target.value)}><option>Cash</option><option>GCash</option><option>Bank</option></select>
+            <button className="export-btn" disabled={outflowSaving} onClick={()=>void saveCashOutflow()}>{outflowSaving?"Saving...":"Add Expense"}</button>
+          </div>
+          <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th></tr></thead><tbody>{financeDayOutflows.length?financeDayOutflows.map(e=><tr key={e.id}><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td></tr>):<tr><td colSpan={4}>No restocking or other expenses recorded for this date.</td></tr>}</tbody></table></div>
+          <div className="cash-month-summary"><b>Monthly Cash on Hand • {reportMonth}</b><strong>{peso.format(actualMonthCash)}</strong><span>Opening cash + remittances − cash-paid restocking/other expenses − withdrawals. Daily Expenses are excluded.</span></div>
         </section>
         <section className="report-table-card finance-report-panel">
           <div className="table-topbar"><div><h2>Daily & Monthly Financial Reports</h2><p>Completed sales, expenses, next-day stock purchases, and estimated cash left.</p></div>
@@ -199,7 +228,7 @@ export default function ReportsPage(){
               <div className="metric-card"><div className="metric-icon"><ReceiptText size={22}/></div><div><span>Total Expenses</span><strong>{peso.format(dayExpenses)}</strong><small>{financeDayExpenses.length} expense entries</small></div></div>
               <div className="metric-card average-card"><div className="metric-icon"><Wallet size={22}/></div><div><span>Sales Minus Expenses</span><strong>{peso.format(daySales-dayExpenses)}</strong><small>Before stock purchases</small></div></div>
               <div className="metric-card orders-card"><div className="metric-icon"><Package size={22}/></div><div><span>Next-Day Stock Purchase</span><strong>{peso.format(dayPurchases)}</strong><small>{financeDayPlans.length} saved plans</small></div></div>
-              <div className="metric-card paid-card"><div className="metric-icon"><Wallet size={22}/></div><div><span>Actual Cash on Hand</span><strong>{peso.format(daySales-dayExpenses-dayPurchases)}</strong><small>Opening cash + remittance − cash expenses − withdrawals</small></div></div>
+              <div className="metric-card paid-card"><div className="metric-icon"><Wallet size={22}/></div><div><span>Actual Cash on Hand</span><strong>{peso.format(daySales-dayExpenses-dayPurchases)}</strong><small>Opening cash + remittance − restocking/other cash expenses − withdrawals</small></div></div>
             </section><div className="finance-report-period"><b>Monthly Summary</b><span>{reportMonth}</span></div>
             <div className="table-wrap"><table className="reports-table"><thead><tr><th>FINANCIAL SUMMARY</th><th>AMOUNT</th></tr></thead><tbody><tr><td>Completed Sales</td><td className="money-cell">{peso.format(monthSales)}</td></tr><tr><td>Total Expenses</td><td className="money-cell">{peso.format(monthExpenses)}</td></tr><tr><td>Sales Minus Expenses</td><td className="money-cell">{peso.format(monthSales-monthExpenses)}</td></tr><tr><td>Next-Day Stock Purchase Plans</td><td className="money-cell">{peso.format(monthPurchases)}</td></tr><tr><td><b>Actual Monthly Cash on Hand</b></td><td className="money-cell"><b>{peso.format(actualMonthCash)}</b></td></tr></tbody></table></div>
             <p className="finance-report-note">Cash left is an estimate based on completed POS sales minus recorded expenses and saved purchase plans. Opening cash, withdrawals, non-POS income, and unpaid balances are not included.</p></div>}
