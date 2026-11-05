@@ -73,7 +73,7 @@ export default function OrdersPage() {
   const [itemCategoryFilter, setItemCategoryFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [productReportDate, setProductReportDate] = useState(new Date().getFullYear()+"-"+String(new Date().getMonth()+1).padStart(2,"0")+"-"+String(new Date().getDate()).padStart(2,"0"));
+  const [productReportFrom, setProductReportFrom] = useState(new Date().getFullYear()+"-"+String(new Date().getMonth()+1).padStart(2,"0")+"-"+String(new Date().getDate()).padStart(2,"0"));
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [managerEmail, setManagerEmail] = useState("");
   const [managerPassword, setManagerPassword] = useState("");
@@ -159,7 +159,7 @@ export default function OrdersPage() {
   const productReportOrders = orders.filter((o) => {
     const d = new Date(o.created_at);
     const localDate = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-    return localDate === productReportDate && String(o.status || "").toLowerCase() !== "voided";
+    return localDate >= productReportFrom && localDate <= productReportTo && String(o.status || "").toLowerCase() !== "voided";
   });
   const productReports = (kind:"drinks"|"meals") => {
     const totals = new Map<string,{name:string;quantity:number;orders:number;amount:number}>();
@@ -186,7 +186,7 @@ export default function OrdersPage() {
     const esc=(v:string)=>v.replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m] as string));
     const title=kind==="drinks"?"DAILY DRINKS REPORT":"DAILY MEALS REPORT", total=rows.reduce((n,r)=>n+r.quantity,0), amount=rows.reduce((n,r)=>n+r.amount,0);
     win.document.open();
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title} - ${productReportDate}</title><style>
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title} - ${productReportFrom} to ${productReportTo}</title><style>
       @page{size:75mm auto;margin:2mm}*{box-sizing:border-box}
       html,body{margin:0!important;padding:0!important;width:71mm!important;min-width:71mm!important;max-width:71mm!important;background:#fff;color:#111;font:9px Arial,Helvetica,sans-serif}
       body{padding:0!important}.receipt{display:block;width:71mm;min-width:71mm;max-width:71mm;margin:0;padding:0 1mm;overflow-wrap:anywhere}
@@ -206,7 +206,7 @@ export default function OrdersPage() {
       .foot{font-size:7px;line-height:1.35;margin:7px 0 0;color:#444}
       @media print{html,body{width:71mm!important;max-width:71mm!important;margin:0!important;padding:0!important}.receipt{width:71mm!important;max-width:71mm!important}}
     </style></head><body><main class="receipt"><header><h1>ESPACIO Café &amp; Restaurant</h1><div class="subtitle">${title}</div></header>
-    <div class="meta"><span><b>Business Date:</b> ${productReportDate}</span><span><b>Unique Products:</b> ${rows.length}</span><span><b>Total Units:</b> ${total}</span><span><b>Total Amount:</b> ₱${amount.toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+    <div class="meta"><span><b>Business Date:</b> ${productReportFrom} to ${productReportTo}</span><span><b>Unique Products:</b> ${rows.length}</span><span><b>Total Units:</b> ${total}</span><span><b>Total Amount:</b> ₱${amount.toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
     <table><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Orders</th><th>Amount</th></tr></thead><tbody>${rows.length?rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.quantity}</td><td>${r.orders}</td><td>₱${r.amount.toFixed(2)}</td></tr>`).join(""):'<tr><td colspan="5">No products sold for this date.</td></tr>'}
     <tr class="total"><td colspan="2">TOTAL</td><td>${total}</td><td></td><td>₱${amount.toFixed(2)}</td></tr></tbody></table><p class="foot">Sorted highest to lowest. Voided transactions excluded.</p></main><script>window.onload=()=>{window.focus();window.print();};<\\/script></body></html>`);
     win.document.close();
@@ -442,12 +442,12 @@ export default function OrdersPage() {
         </div>
       </section>
       <section className="orders-content-card daily-product-report">
-        <div className="orders-content-head"><div><h2>Daily Product Sales Reports</h2><p>Separate Drinks and Meals reports, sorted from highest quantity sold to lowest.</p></div><label className="orders-date-filter"><CalendarDays size={15}/><span>Report Date</span><input type="date" value={productReportDate} onChange={e=>setProductReportDate(e.target.value)}/></label></div>
+        <div className="orders-content-head"><div><h2>Daily Product Sales Reports</h2><p>Separate Drinks and Meals reports, sorted from highest quantity sold to lowest.</p></div><div className="orders-date-filter"><CalendarDays size={15}/><span>From</span><input aria-label="Report start date" type="date" value={productReportFrom} max={productReportTo} onChange={e=>setProductReportFrom(e.target.value)}/><span>To</span><input aria-label="Report end date" type="date" value={productReportTo} min={productReportFrom} onChange={e=>setProductReportTo(e.target.value)}/></div></div>
         <div className="daily-report-actions-grid">
           {(["drinks","meals"] as const).map(kind=>{const rows=productReports(kind);const qty=rows.reduce((n,r)=>n+r.quantity,0);return <div className={"daily-report-action-card "+kind} key={kind}><div className={"orders-summary-icon "+(kind==="drinks"?"blue":"green")}><ClipboardList size={21}/></div><div><span>{kind==="drinks"?"Drinks Report":"Meals Report"}</span><strong>{qty} units</strong><small>{rows.length} different products</small><strong>{peso.format(rows.reduce((n,r)=>n+r.amount,0))}</strong><small>Total {kind==="drinks"?"drinks":"meals"} amount</small><button className="orders-refresh-btn" onClick={()=>printProductReport(kind)}><Printer size={15}/> Print {kind==="drinks"?"Drinks":"Meals"} Report</button></div></div>})}
         </div>
         <div className="daily-report-tables-grid">
-          {(["drinks","meals"] as const).map(kind=>{const rows=productReports(kind);return <div className="orders-content-card daily-report-table-card" key={kind}><div className="orders-content-head"><div><h2>{kind==="drinks"?"Drinks — Highest to Lowest":"Meals — Highest to Lowest"}</h2><p>{rows.length} products for {productReportDate}</p></div></div><div className="orders-table-wrap"><table className="orders-table"><thead><tr><th>Rank</th><th>Product</th><th className="num">Qty Sold</th><th className="num">Orders</th><th className="num">Total Amount</th></tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.name}><td>{i+1}</td><td>{r.name}</td><td className="num"><b>{r.quantity}</b></td><td className="num">{r.orders}</td><td className="num"><b>{peso.format(r.amount)}</b></td></tr>):<tr><td colSpan={5}>No sales in this category for this date.</td></tr>}</tbody></table></div></div>})}
+          {(["drinks","meals"] as const).map(kind=>{const rows=productReports(kind);return <div className="orders-content-card daily-report-table-card" key={kind}><div className="orders-content-head"><div><h2>{kind==="drinks"?"Drinks — Highest to Lowest":"Meals — Highest to Lowest"}</h2><p>{rows.length} products for {productReportFrom}</p></div></div><div className="orders-table-wrap"><table className="orders-table"><thead><tr><th>Rank</th><th>Product</th><th className="num">Qty Sold</th><th className="num">Orders</th><th className="num">Total Amount</th></tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.name}><td>{i+1}</td><td>{r.name}</td><td className="num"><b>{r.quantity}</b></td><td className="num">{r.orders}</td><td className="num"><b>{peso.format(r.amount)}</b></td></tr>):<tr><td colSpan={5}>No sales in this category for this date.</td></tr>}</tbody></table></div></div>})}
         </div>
       </section>
       <section className="orders-content-card">
