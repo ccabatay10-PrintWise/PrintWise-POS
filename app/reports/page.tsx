@@ -119,9 +119,9 @@ export default function ReportsPage(){
   const cashEntriesUpToDate=cashEntries.filter(e=>e.entry_date<=reportDate);
   const latestOpening=cashEntriesUpToDate.filter(e=>e.entry_type==="opening_cash").sort((a,b)=>b.entry_date.localeCompare(a.entry_date)||b.created_at.localeCompare(a.created_at))[0];
   const cashPeriodStart=latestOpening?.entry_date||"0000-01-01";
-  const cashEntriesSinceOpening=cashEntriesUpToDate.filter(e=>e.entry_date>=cashPeriodStart);
+  const cashEntriesSinceOpening=cashEntriesUpToDate.filter(e=>latestOpening?e.created_at>=latestOpening.created_at:e.entry_date>=cashPeriodStart);
   const cashExpensesSinceOpening=cashOutflows.filter(e=>e.expense_date>=cashPeriodStart&&e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
-  const totalOpening=latestOpening?.amount||0,totalRemittance=sumCash(cashEntriesUpToDate,"remittance"),totalWithdrawals=sumCash(cashEntriesSinceOpening,"withdrawal");
+  const totalOpening=latestOpening?.amount||0,totalRemittance=sumCash(cashEntriesSinceOpening,"remittance"),totalWithdrawals=sumCash(cashEntriesSinceOpening,"withdrawal");
   const actualDayCash=dayOpening+dayRemittance-dayWithdrawals-cashExpenseDay;
   const actualTotalCash=totalOpening+totalRemittance-totalWithdrawals-cashExpensesSinceOpening;
   const actualMonthCash=actualTotalCash;
