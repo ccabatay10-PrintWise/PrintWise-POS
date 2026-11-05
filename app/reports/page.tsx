@@ -106,13 +106,15 @@ export default function ReportsPage(){
   const cashExpenseDay=financeDayOutflows.filter(e=>e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
   const cashExpenseMonth=financeMonthOutflows.filter(e=>e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
   const dayOpening=sumCash(dayCashEntries,"opening_cash"),dayRemittance=sumCash(dayCashEntries,"remittance"),dayWithdrawals=sumCash(dayCashEntries,"withdrawal");
-  const latestMonthOpening=monthCashEntries.filter(e=>e.entry_type==="opening_cash"&&e.entry_date<=reportDate).sort((a,b)=>b.entry_date.localeCompare(a.entry_date)||b.created_at.localeCompare(a.created_at))[0];
-  const cashPeriodStart=latestMonthOpening?.entry_date||reportMonth+"-01";
-  const monthCashEntriesSince=monthCashEntries.filter(e=>e.entry_date>=cashPeriodStart&&e.entry_date<=reportDate);
-  const monthCashExpensesSince=financeMonthOutflows.filter(e=>e.expense_date>=cashPeriodStart&&e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
-  const monthOpening=latestMonthOpening?.amount||0,monthRemittance=sumCash(monthCashEntriesSince,"remittance"),monthWithdrawals=sumCash(monthCashEntriesSince,"withdrawal");
+  const cashEntriesUpToDate=cashEntries.filter(e=>e.entry_date<=reportDate);
+  const latestOpening=cashEntriesUpToDate.filter(e=>e.entry_type==="opening_cash").sort((a,b)=>b.entry_date.localeCompare(a.entry_date)||b.created_at.localeCompare(a.created_at))[0];
+  const cashPeriodStart=latestOpening?.entry_date||"0000-01-01";
+  const cashEntriesSinceOpening=cashEntriesUpToDate.filter(e=>e.entry_date>=cashPeriodStart);
+  const cashExpensesSinceOpening=cashOutflows.filter(e=>e.expense_date>=cashPeriodStart&&e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
+  const totalOpening=latestOpening?.amount||0,totalRemittance=sumCash(cashEntriesSinceOpening,"remittance"),totalWithdrawals=sumCash(cashEntriesSinceOpening,"withdrawal");
   const actualDayCash=dayOpening+dayRemittance-dayWithdrawals-cashExpenseDay;
-  const actualMonthCash=monthOpening+monthRemittance-monthWithdrawals-monthCashExpensesSince;
+  const actualTotalCash=totalOpening+totalRemittance-totalWithdrawals-cashExpensesSinceOpening;
+  const actualMonthCash=actualTotalCash;
   const saveCashOutflow=async()=>{
     const amount=Number(outflowAmount);
     if(!cashUserId||!outflowDescription.trim()||!Number.isFinite(amount)||amount<=0){setMessage("Enter an expense description and a valid amount greater than zero.");return}
@@ -217,7 +219,7 @@ export default function ReportsPage(){
             <button className="export-btn" disabled={outflowSaving} onClick={()=>void saveCashOutflow()}>{outflowSaving?"Saving...":"Add Expense"}</button>
           </div>
           <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th></tr></thead><tbody>{financeDayOutflows.length?financeDayOutflows.map(e=><tr key={e.id}><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td></tr>):<tr><td colSpan={4}>No restocking or other expenses recorded for this date.</td></tr>}</tbody></table></div>
-          <div className="cash-month-summary"><b>Monthly Cash on Hand • {reportMonth}</b><strong>{peso.format(actualMonthCash)}</strong><span>Opening cash + remittances − cash-paid restocking/other expenses − withdrawals. Daily Expenses are excluded.</span></div>
+          <div className="cash-month-summary"><b>Total Cash on Hand • As of {reportDate}</b><strong>{peso.format(actualTotalCash)}</strong><span>Latest recorded opening cash + all remittances − cash-paid restocking/other expenses − withdrawals since that opening date. Daily Expenses are excluded.</span></div>
         </section>
         <section className="report-table-card finance-report-panel">
           <div className="table-topbar"><div><h2>Daily & Monthly Financial Reports</h2><p>Completed sales, expenses, next-day stock purchases, and estimated cash left.</p></div>
@@ -230,7 +232,7 @@ export default function ReportsPage(){
               <div className="metric-card orders-card"><div className="metric-icon"><Package size={22}/></div><div><span>Next-Day Stock Purchase</span><strong>{peso.format(dayPurchases)}</strong><small>{financeDayPlans.length} saved plans</small></div></div>
               <div className="metric-card paid-card"><div className="metric-icon"><Wallet size={22}/></div><div><span>Actual Cash on Hand</span><strong>{peso.format(daySales-dayExpenses-dayPurchases)}</strong><small>Opening cash + remittance − restocking/other cash expenses − withdrawals</small></div></div>
             </section><div className="finance-report-period"><b>Monthly Summary</b><span>{reportMonth}</span></div>
-            <div className="table-wrap"><table className="reports-table"><thead><tr><th>FINANCIAL SUMMARY</th><th>AMOUNT</th></tr></thead><tbody><tr><td>Completed Sales</td><td className="money-cell">{peso.format(monthSales)}</td></tr><tr><td>Total Expenses</td><td className="money-cell">{peso.format(monthExpenses)}</td></tr><tr><td>Sales Minus Expenses</td><td className="money-cell">{peso.format(monthSales-monthExpenses)}</td></tr><tr><td>Next-Day Stock Purchase Plans</td><td className="money-cell">{peso.format(monthPurchases)}</td></tr><tr><td><b>Actual Monthly Cash on Hand</b></td><td className="money-cell"><b>{peso.format(actualMonthCash)}</b></td></tr></tbody></table></div>
+            <div className="table-wrap"><table className="reports-table"><thead><tr><th>FINANCIAL SUMMARY</th><th>AMOUNT</th></tr></thead><tbody><tr><td>Completed Sales</td><td className="money-cell">{peso.format(monthSales)}</td></tr><tr><td>Total Expenses</td><td className="money-cell">{peso.format(monthExpenses)}</td></tr><tr><td>Sales Minus Expenses</td><td className="money-cell">{peso.format(monthSales-monthExpenses)}</td></tr><tr><td>Next-Day Stock Purchase Plans</td><td className="money-cell">{peso.format(monthPurchases)}</td></tr><tr><td><b>Total Cash on Hand</b></td><td className="money-cell"><b>{peso.format(actualTotalCash)}</b></td></tr></tbody></table></div>
             <p className="finance-report-note">Cash left is an estimate based on completed POS sales minus recorded expenses and saved purchase plans. Opening cash, withdrawals, non-POS income, and unpaid balances are not included.</p></div>}
         </section>
       </div>
