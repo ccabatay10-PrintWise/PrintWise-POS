@@ -144,10 +144,10 @@ export default function ReportsPage(){
   const printReceiptReport=(period:"daily"|"monthly")=>{
     const monthly=period==="monthly",label=monthly?reportMonth:reportDate;
     const salesTotal=monthly?monthSales:daySales,expenseTotal=monthly?monthExpenses:dayExpenses,purchaseTotal=monthly?monthPurchases:dayPurchases,cashLeft=monthly?actualMonthCash:actualDayCash;
-    const reportExpenses=(monthly?financeMonthExpenses:financeDayExpenses);
+    const reportExpenses=(monthly?financeMonthOutflows:financeDayOutflows);
     const reportPlans=(monthly?financeMonthPlans:financeDayPlans);
     const reportCashEntries=(monthly?monthCashEntriesSince:dayCashEntries);
-    const rows=(items:Expense[])=>items.map(e=>`<div class="line"><span>${e.description}<small>${e.category} • ${e.payment_method} • ${e.expense_date}</small></span><b>${peso.format(e.amount)}</b></div>`).join("");
+    const rows=(items:CashOutflow[])=>items.map(e=>`<div class="line"><span>${e.description}<small>${e.category} • ${e.payment_method} • ${e.expense_date}</small></span><b>${peso.format(e.amount)}</b></div>`).join("");
     const plans=reportPlans.map(p=>`<div class="line"><span>Stock plan<small>${p.plan_date} • ${(p.items||[]).map(i=>i.name).join(", ")}</small></span><b>${peso.format(p.total_amount)}</b></div>`).join("");
     const cash=reportCashEntries.map(e=>`<div class="line"><span>${e.entry_type==="opening_cash"?"Opening cash":e.entry_type==="remittance"?"Remittance":"Withdrawal"}<small>${e.description||e.entry_date}</small></span><b>${e.entry_type==="withdrawal"?"−":"+"}${peso.format(e.amount)}</b></div>`).join("");
     const w=window.open("","_blank","width=420,height=720");if(!w){setMessage("Allow pop-ups to print the 80mm receipt report.");return}
@@ -163,7 +163,7 @@ export default function ReportsPage(){
       <div class="section"><h2>Cash Entries</h2>${cash||"<div>No cash entries.</div>"}</div>
       <div class="section"><h2>Expenses</h2>${rows(reportExpenses)||"<div>No expenses recorded.</div>"}</div>
       <div class="section"><h2>Stock Purchase Plans</h2>${plans||"<div>No saved plans.</div>"}</div>
-      <div class="note">Cash balance reflects recorded opening cash and remittances, less cash-paid expenses and withdrawals. Stock plans are estimates until paid and recorded as expenses.</div><div class="footer">ESPACIO • Thank you!</div>
+      <div class="note">Cash balance reflects recorded opening cash and remittances, less cash-paid expenses and withdrawals. Daily Expenses are excluded from this cash ledger. Only cash-paid restocking and other expenses entered here are deducted.</div><div class="footer">ESPACIO • Thank you!</div>
       <script>window.onload=()=>{window.focus();window.print();};<\/script></body></html>`);w.document.close();
   };
   const exportCsv=()=>{
