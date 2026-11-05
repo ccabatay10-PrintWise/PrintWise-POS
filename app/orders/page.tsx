@@ -213,7 +213,6 @@ export default function OrdersPage() {
   const completedSales = completedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   const refreshOrders = async () => {
-    setLoading(true);
     setError("");
     try {
       const payload = await apiGet("/api/orders");
