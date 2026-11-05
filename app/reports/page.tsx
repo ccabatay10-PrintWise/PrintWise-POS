@@ -42,6 +42,7 @@ export default function ReportsPage(){
   const [outflowAmount,setOutflowAmount]=useState("");
   const [outflowPayment,setOutflowPayment]=useState("Cash");
   const [outflowSaving,setOutflowSaving]=useState(false);
+  const [cashEntryDate,setCashEntryDate]=useState(reportDate);
   const [cashType,setCashType]=useState<"opening_cash"|"remittance"|"withdrawal">("opening_cash");
   const [cashAmount,setCashAmount]=useState("");
   const [cashDescription,setCashDescription]=useState("");
@@ -129,9 +130,9 @@ export default function ReportsPage(){
   const saveCashEntry=async()=>{
     const amount=Number(cashAmount);
     if(!cashUserId||!Number.isFinite(amount)||amount<=0){setMessage("Enter a valid cash amount greater than zero.");return}
-    if(cashType==="opening_cash"&&dayCashEntries.some(e=>e.entry_type==="opening_cash")){setMessage("An opening cash entry already exists for this date. Add a remittance or withdrawal instead.");return}
+    if(cashType==="opening_cash"&&cashEntries.some(e=>e.entry_date===cashEntryDate&&e.entry_type==="opening_cash")){setMessage("An opening cash entry already exists for this date. Add a remittance or withdrawal instead.");return}
     setCashSaving(true);setMessage("");
-    const {error}=await supabase.from("daily_cash_entries").insert({entry_date:reportDate,entry_type:cashType,amount,description:cashDescription.trim()||null,payment_method:"Cash",created_by:cashUserId});
+    const {error}=await supabase.from("daily_cash_entries").insert({entry_date:cashEntryDate,entry_type:cashType,amount,description:cashDescription.trim()||null,payment_method:"Cash",created_by:cashUserId});
     if(error){setMessage("Unable to save cash entry: "+error.message);setCashSaving(false);return}
     setCashAmount("");setCashDescription("");setCashSaving(false);
     const {data,error:reloadError}=await supabase.from("daily_cash_entries").select("id,entry_date,entry_type,amount,description,payment_method,created_at").order("entry_date",{ascending:false}).order("created_at",{ascending:false});
@@ -202,6 +203,7 @@ export default function ReportsPage(){
 
         <section className="report-table-card cash-control-panel">
           <div className="table-topbar"><div><h2>Cash on Hand & Daily Remittance</h2><p>Record opening cash, add daily remittances, and record cash withdrawals. Record restocking purchases and other cash expenses here; Daily Expenses are tracked separately.</p></div><div className="cash-entry-form">
+            <input aria-label="Cash entry date" title="Date remitted / cash entry date" type="date" value={cashEntryDate} onChange={e=>setCashEntryDate(e.target.value)}/>
             <select value={cashType} onChange={e=>setCashType(e.target.value as any)}><option value="opening_cash">Opening Cash on Hand</option><option value="remittance">Add Daily Remittance</option><option value="withdrawal">Cash Withdrawal</option></select>
             <input type="number" min="0.01" step="0.01" placeholder="Amount (₱)" value={cashAmount} onChange={e=>setCashAmount(e.target.value)}/>
             <input placeholder="Description (optional)" value={cashDescription} onChange={e=>setCashDescription(e.target.value)}/>
@@ -210,7 +212,7 @@ export default function ReportsPage(){
           <div className="cash-balance-grid">
             <div><span>Opening Cash</span><strong>{peso.format(dayOpening)}</strong></div><div><span>Daily Remittance Added</span><strong className="cash-positive">+{peso.format(dayRemittance)}</strong></div><div><span>Restocking & Other Cash Expenses</span><strong className="cash-negative">−{peso.format(cashExpenseDay)}</strong></div><div><span>Cash Withdrawals</span><strong className="cash-negative">−{peso.format(dayWithdrawals)}</strong></div><div className="cash-balance-total"><span>Actual Cash on Hand • {reportDate}</span><strong>{peso.format(actualDayCash)}</strong></div>
           </div>
-          <div className="cash-ledger-scroll"><table className="reports-table"><thead><tr><th>TIME</th><th>ENTRY</th><th>DESCRIPTION</th><th>AMOUNT</th></tr></thead><tbody>{dayCashEntries.length?dayCashEntries.map(e=><tr key={e.id}><td>{new Date(e.created_at).toLocaleTimeString("en-PH",{hour:"numeric",minute:"2-digit"})}</td><td>{e.entry_type==="opening_cash"?"Opening Cash":e.entry_type==="remittance"?"Daily Remittance":"Withdrawal"}</td><td>{e.description||"—"}</td><td className="money-cell">{e.entry_type==="withdrawal"?"−": "+"}{peso.format(e.amount)}</td></tr>):<tr><td colSpan={4}>No cash entries recorded for this date.</td></tr>}</tbody></table></div>
+          <div className="cash-ledger-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>TIME</th><th>ENTRY</th><th>DESCRIPTION</th><th>AMOUNT</th></tr></thead><tbody>{dayCashEntries.length?dayCashEntries.map(e=><tr key={e.id}><td>{e.entry_date}</td><td>{new Date(e.created_at).toLocaleTimeString("en-PH",{hour:"numeric",minute:"2-digit"})}</td><td>{e.entry_type==="opening_cash"?"Opening Cash":e.entry_type==="remittance"?"Daily Remittance":"Withdrawal"}</td><td>{e.description||"—"}</td><td className="money-cell">{e.entry_type==="withdrawal"?"−": "+"}{peso.format(e.amount)}</td></tr>):<tr><td colSpan={5}>No cash entries recorded for this date.</td></tr>}</tbody></table></div>
           <div className="cash-expense-heading"><b>Restocking & Other Expenses • {reportDate}</b><span>These are separate from Daily Expenses.</span></div>
           <div className="cash-entry-form cash-outflow-form">
             <input aria-label="Expense date" title="Expense date" type="date" value={outflowDate} onChange={e=>setOutflowDate(e.target.value)}/>
