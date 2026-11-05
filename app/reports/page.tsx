@@ -43,6 +43,13 @@ export default function ReportsPage(){
   const [outflowPayment,setOutflowPayment]=useState("Cash");
   const [outflowSaving,setOutflowSaving]=useState(false);
   const [deletingOutflowId,setDeletingOutflowId]=useState<string|null>(null);
+  const [editingOutflow,setEditingOutflow]=useState<CashOutflow|null>(null);
+  const [editOutflowDate,setEditOutflowDate]=useState("");
+  const [editOutflowCategory,setEditOutflowCategory]=useState<"Restocking"|"Other Expenses">("Restocking");
+  const [editOutflowDescription,setEditOutflowDescription]=useState("");
+  const [editOutflowAmount,setEditOutflowAmount]=useState("");
+  const [editOutflowPayment,setEditOutflowPayment]=useState("Cash");
+  const [editOutflowSaving,setEditOutflowSaving]=useState(false);
   const [cashEntryDate,setCashEntryDate]=useState(reportDate);
   const [cashType,setCashType]=useState<"opening_cash"|"remittance"|"withdrawal">("opening_cash");
   const [cashAmount,setCashAmount]=useState("");
@@ -129,6 +136,20 @@ export default function ReportsPage(){
     setOutflowAmount("");setOutflowDescription("");setOutflowSaving(false);
     const {data,error:reloadError}=await supabase.from("cash_outflows").select("id,expense_date,category,description,amount,payment_method,created_at").order("expense_date",{ascending:false}).order("created_at",{ascending:false});
     if(reloadError)setMessage("Expense saved, but could not refresh the list: "+reloadError.message);else setCashOutflows((data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
+  };
+  const openEditCashOutflow=(expense:CashOutflow)=>{
+    setEditingOutflow(expense);setEditOutflowDate(expense.expense_date);setEditOutflowCategory(expense.category);
+    setEditOutflowDescription(expense.description);setEditOutflowAmount(String(expense.amount));setEditOutflowPayment(expense.payment_method);
+  };
+  const updateCashOutflow=async()=>{
+    if(!editingOutflow)return;
+    const amount=Number(editOutflowAmount);
+    if(!editOutflowDate||!editOutflowDescription.trim()||!Number.isFinite(amount)||amount<=0){setMessage("Enter a valid date, expense description, and amount greater than zero.");return}
+    setEditOutflowSaving(true);setMessage("");
+    const {error}=await supabase.from("cash_outflows").update({expense_date:editOutflowDate,category:editOutflowCategory,description:editOutflowDescription.trim(),amount,payment_method:editOutflowPayment}).eq("id",editingOutflow.id);
+    if(error){setMessage("Unable to update expense: "+error.message);setEditOutflowSaving(false);return}
+    setCashOutflows(rows=>rows.map(e=>e.id===editingOutflow.id?{...e,expense_date:editOutflowDate,category:editOutflowCategory,description:editOutflowDescription.trim(),amount,payment_method:editOutflowPayment}:e));
+    setEditingOutflow(null);setEditOutflowSaving(false);setMessage("Expense record updated successfully.");
   };
   const deleteCashOutflow=async(id:string)=>{
     if(!window.confirm("Delete this expense record? This will also add the amount back to Total Cash on Hand if it was paid in cash."))return;
@@ -232,9 +253,28 @@ export default function ReportsPage(){
             <select value={outflowPayment} onChange={e=>setOutflowPayment(e.target.value)}><option>Cash</option><option>GCash</option><option>Bank</option></select>
             <button className="export-btn" disabled={outflowSaving} onClick={()=>void saveCashOutflow()}>{outflowSaving?"Saving...":"Add Expense"}</button>
           </div>
-          <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th><th>ACTION</th></tr></thead><tbody>{cashOutflows.length?[...cashOutflows].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)||b.created_at.localeCompare(a.created_at)).map(e=><tr key={e.id}><td>{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td><td><button className="text-danger" disabled={deletingOutflowId===e.id} onClick={()=>void deleteCashOutflow(e.id)}>{deletingOutflowId===e.id?"Deleting...":"Delete"}</button></td></tr>):<tr><td colSpan={6}>No restocking or other expenses recorded yet.</td></tr>}</tbody></table></div>
+          <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th><th>ACTION</th></tr></thead><tbody>{cashOutflows.length?[...cashOutflows].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)||b.created_at.localeCompare(a.created_at)).map(e=><tr key={e.id}><td>{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td><td><button className="export-btn" type="button" onClick={()=>openEditCashOutflow(e)}>View</button></td></tr>):<tr><td colSpan={6}>No restocking or other expenses recorded yet.</td></tr>}</tbody></table></div>
           <div className="cash-month-summary"><b>Total Cash on Hand • As of {reportDate}</b><strong>{peso.format(actualTotalCash)}</strong><span>Latest recorded opening cash + all remittances − cash-paid restocking/other expenses − withdrawals since that opening date. Daily Expenses are excluded.</span></div>
         </section>
+        {editingOutflow&&<div role="presentation" onClick={()=>setEditingOutflow(null)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <section role="dialog" aria-modal="true" aria-labelledby="edit-cash-expense-title" onClick={e=>e.stopPropagation()} style={{width:"min(520px,100%)",background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,.25)",padding:22}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}>
+              <div><h2 id="edit-cash-expense-title" style={{margin:0,fontSize:20}}>Expense Details</h2><p style={{margin:"5px 0 0",color:"#64748b",fontSize:13}}>View and update this restocking or other expense record.</p></div>
+              <button type="button" className="text-danger" aria-label="Close" onClick={()=>setEditingOutflow(null)}><X size={20}/></button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Expense Date<input type="date" value={editOutflowDate} onChange={e=>setEditOutflowDate(e.target.value)} /></label>
+              <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Category<select value={editOutflowCategory} onChange={e=>setEditOutflowCategory(e.target.value as "Restocking"|"Other Expenses")}><option value="Restocking">Restocking Items</option><option value="Other Expenses">Other Expenses</option></select></label>
+              <label style={{gridColumn:"1 / -1",display:"grid",gap:6,fontSize:13,fontWeight:600}}>Expense Description<input value={editOutflowDescription} onChange={e=>setEditOutflowDescription(e.target.value)} /></label>
+              <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Amount (₱)<input type="number" min="0.01" step="0.01" value={editOutflowAmount} onChange={e=>setEditOutflowAmount(e.target.value)} /></label>
+              <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Payment Method<select value={editOutflowPayment} onChange={e=>setEditOutflowPayment(e.target.value)}><option>Cash</option><option>GCash</option><option>Bank</option></select></label>
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:22}}>
+              <button type="button" className="export-btn" onClick={()=>setEditingOutflow(null)} disabled={editOutflowSaving}>Cancel</button>
+              <button type="button" className="export-btn" onClick={()=>void updateCashOutflow()} disabled={editOutflowSaving}>{editOutflowSaving?"Saving...":"Save Changes"}</button>
+            </div>
+          </section>
+        </div>}
         <section className="report-table-card finance-report-panel">
           <div className="table-topbar"><div><h2>Daily & Monthly Financial Reports</h2><p>Completed sales, expenses, next-day stock purchases, and estimated cash left.</p></div>
             <div className="table-actions"><label className="range-select"><CalendarDays size={18}/><input aria-label="Financial report date" type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)} /></label><button className="export-btn finance-print" onClick={()=>printFinancialReport("daily")}><FileText size={17}/> Print Daily</button><button className="export-btn" onClick={()=>printFinancialReport("monthly")}><FileText size={17}/> Print Monthly</button><button className="export-btn finance-print" onClick={()=>printReceiptReport("daily")}><ReceiptText size={17}/> 80mm Daily Receipt</button><button className="export-btn finance-print" onClick={()=>printReceiptReport("monthly")}><ReceiptText size={17}/> 80mm Monthly Receipt</button></div></div>
