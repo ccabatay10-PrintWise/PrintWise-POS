@@ -135,16 +135,19 @@ export async function GET(request: NextRequest) {
     const payments: any[] = [];
     const items: any[] = [];
     // Chunk ID filters to avoid URL/query-size limits for a full history.
-    for (let from = 0; from < orderIds.length; from += 200) {
-      const ids = orderIds.slice(from, from + 200);
+    const chunks = Array.from({ length: Math.ceil(orderIds.length / 200) }, (_, index) => orderIds.slice(index * 200, index * 200 + 200));
+    const chunkResults = await Promise.all(chunks.map(async (ids) => {
       const [{ data: paymentPage, error: paymentsError }, { data: itemPage, error: itemsError }] = await Promise.all([
         adminClient.from("payment_transactions").select("pos_order_id,amount,status,channel").in("pos_order_id", ids),
         adminClient.from("pos_order_items").select("pos_order_id,line_total,item_name,quantity").in("pos_order_id", ids),
       ]);
-      if (paymentsError) return jsonError(`Unable to load transaction payment methods: ${paymentsError.message}`, 400);
-      if (itemsError) return jsonError(`Unable to load transaction item details: ${itemsError.message}`, 400);
-      payments.push(...(paymentPage ?? []));
-      items.push(...(itemPage ?? []));
+      return { paymentPage, itemPage, paymentsError, itemsError };
+    }));
+    for (const result of chunkResults) {
+      if (result.paymentsError) return jsonError(`Unable to load transaction payment methods: ${result.paymentsError.message}`, 400);
+      if (result.itemsError) return jsonError(`Unable to load transaction item details: ${result.itemsError.message}`, 400);
+      payments.push(...(result.paymentPage ?? []));
+      items.push(...(result.itemPage ?? []));
     }
 
     for (const payment of payments) {
@@ -165,7 +168,19 @@ export async function GET(request: NextRequest) {
   }
 
   const nameCache = new Map<string, string>();
-  const orders = await Promise.all((data ?? []).map(async (order: any) => {
+  const cashierIds = [...new Set((data ?? []).map((order: any) => String(order.created_by || "").trim()).filter(Boolean))];
+  await Promise.all(cashierIds.map(async (userId) => {
+    try {
+      const { data: userData, error: userError } = await adminClient.auth.admin.getUserById(userId);
+      const user = userData?.user;
+      nameCache.set(userId, userError || !user
+        ? "Not recorded"
+        : String(user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Not recorded"));
+    } catch {
+      nameCache.set(userId, "Not recorded");
+    }
+  }));
+  const orders = (data ?? []).map((order: any) => {
     const id = String(order.id || "");
     const savedSubtotal = numberValue(order.subtotal);
     const savedDiscount = numberValue(order.discount_amount);
@@ -183,22 +198,7 @@ export async function GET(request: NextRequest) {
 
     const userId = String(order.created_by || "").trim();
     let transactedBy = "Not recorded";
-    if (userId) {
-      let name = nameCache.get(userId);
-      if (!name) {
-        try {
-          const { data: userData, error: userError } = await adminClient.auth.admin.getUserById(userId);
-          const user = userData?.user;
-          name = userError || !user
-            ? "Not recorded"
-            : String(user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Not recorded");
-        } catch {
-          name = "Not recorded";
-        }
-        nameCache.set(userId, name);
-      }
-      transactedBy = name;
-    }
+    if (userId) transactedBy = nameCache.get(userId) || "Not recorded";
 
     return {
       ...order,
@@ -210,7 +210,7 @@ export async function GET(request: NextRequest) {
       item_summary: itemSummary.get(id) || [],
       transacted_by: transactedBy,
     };
-  }));
+  });
 
   return NextResponse.json({ orders });
 }
