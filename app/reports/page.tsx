@@ -188,12 +188,21 @@ export default function ReportsPage(){
     const cash=reportCashEntries.map(e=>`<div class="line"><span>${e.entry_type==="opening_cash"?"Opening cash":e.entry_type==="remittance"?"Remittance":"Withdrawal"}<small>${e.description||e.entry_date}</small></span><b>${e.entry_type==="withdrawal"?"−":"+"}${peso.format(e.amount)}</b></div>`).join("");
     const w=window.open("","_blank","width=420,height=720");if(!w){setMessage("Allow pop-ups to print the 80mm receipt report.");return}
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>ESPACIO ${monthly?"Monthly":"Daily"} Report</title><style>
-      @page{size:80mm auto;margin:3mm}*{box-sizing:border-box}html,body{width:74mm;margin:0;padding:0}body{font:10px Arial,sans-serif;color:#111;line-height:1.35}
-      header{text-align:center;padding:4px 0 8px;border-bottom:1px dashed #333}h1{font-size:15px;margin:0 0 3px}header b{font-size:11px}
-      .date{text-align:center;margin:5px 0 9px;font-size:9px}.section{margin-top:9px}.section h2{font-size:10px;margin:0 0 5px;padding-bottom:3px;border-bottom:1px solid #333;text-transform:uppercase}
-      .line{display:flex;justify-content:space-between;gap:5px;padding:3px 0;border-bottom:1px dotted #bbb;align-items:flex-start}.line span{flex:1;min-width:0;overflow-wrap:anywhere}.line b{white-space:nowrap;text-align:right}
-      small{display:block;color:#555;font-size:8px}.totals .line{border:0;padding:2px 0}.balance{border-top:1px dashed #111;border-bottom:1px dashed #111;margin-top:5px;padding:7px 0;font-size:13px;font-weight:bold}
-      .note{font-size:8px;margin-top:8px;text-align:center}.footer{text-align:center;border-top:1px dashed #333;margin-top:9px;padding-top:6px;font-size:8px}
+      @page{size:80mm auto;margin:2mm 2.5mm}*{box-sizing:border-box}
+      html,body{width:75mm;max-width:75mm;margin:0 auto;padding:0}
+      body{font:9px Arial,Helvetica,sans-serif;color:#111;line-height:1.3;text-align:left}
+      header{display:block;width:100%;text-align:center;padding:4px 0 7px;border-bottom:1px dashed #333}
+      h1{font-size:14px;line-height:1.2;margin:0 0 3px}header b{font-size:10px}
+      .date{width:100%;text-align:center;margin:5px 0 8px;font-size:8px;line-height:1.35}
+      .section{width:100%;margin-top:8px;clear:both}.section h2{font-size:9px;line-height:1.2;margin:0 0 4px;padding:0 0 3px;border-bottom:1px solid #333;text-transform:uppercase}
+      .line{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:5px;width:100%;padding:3px 0;border-bottom:1px dotted #bbb;align-items:start}
+      .line span{display:block;min-width:0;overflow-wrap:anywhere;word-break:normal;text-align:left}
+      .line b{display:block;min-width:19mm;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+      small{display:block;color:#555;font-size:7px;line-height:1.25;margin-top:1px}
+      .totals .line{border:0;padding:2px 0}.balance{width:100%;border-top:1px dashed #111;border-bottom:1px dashed #111;margin-top:5px;padding:7px 2px;font-size:12px;line-height:1.4;font-weight:bold;text-align:center}
+      .note{width:100%;font-size:7px;line-height:1.3;margin-top:7px;text-align:left;overflow-wrap:anywhere}
+      .footer{width:100%;text-align:center;border-top:1px dashed #333;margin-top:8px;padding-top:5px;font-size:8px}
+      @media print{html,body{width:75mm!important;margin:0 auto!important;padding:0!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
     </style></head><body><header><h1>ESPACIO Café &amp; Restaurant</h1><b>${monthly?"MONTHLY":"DAILY"} FINANCIAL REPORT</b></header><div class="date">Report Period: ${label}<br>Printed: ${new Date().toLocaleString("en-PH")}</div>
       <div class="section totals"><h2>Financial Summary</h2><div class="line"><span>Completed Sales</span><b>${peso.format(salesTotal)}</b></div><div class="line"><span>Total Expenses</span><b>${peso.format(expenseTotal)}</b></div><div class="line"><span>Sales Less Expenses</span><b>${peso.format(salesTotal-expenseTotal)}</b></div><div class="line"><span>Next-Day Stock Plans</span><b>${peso.format(purchaseTotal)}</b></div><div class="balance">ACTUAL CASH ON HAND<br>${peso.format(cashLeft)}</div></div>
       <div class="section"><h2>Cash Entries</h2>${cash||"<div>No cash entries.</div>"}</div>
