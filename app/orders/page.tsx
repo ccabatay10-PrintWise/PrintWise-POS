@@ -204,9 +204,9 @@ export default function OrdersPage() {
       .foot{font-size:7px;line-height:1.35;margin:7px 0 0;color:#444}
       @media print{html,body{width:71mm!important;max-width:71mm!important;margin:0!important;padding:0!important}.receipt{width:71mm!important;max-width:71mm!important}}
     </style></head><body><main class="receipt"><header><h1>ESPACIO Café &amp; Restaurant</h1><div class="subtitle">${title}</div></header>
-    <div class="meta"><span><b>Business Date:</b> ${productReportDate}</span><span><b>Unique Products:</b> ${rows.length}</span><span><b>Total Units:</b> ${total}</span></div>
-    <table><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Orders</th></tr></thead><tbody>${rows.length?rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.quantity}</td><td>${r.orders}</td></tr>`).join(""):'<tr><td colspan="4">No products sold for this date.</td></tr>'}
-    <tr class="total"><td colspan="2">TOTAL UNITS</td><td>${total}</td><td></td></tr></tbody></table><p class="foot">Sorted highest to lowest. Voided transactions excluded.</p></main><script>window.onload=()=>{window.focus();window.print();};<\\/script></body></html>`);
+    <div class="meta"><span><b>Business Date:</b> ${productReportDate}</span><span><b>Unique Products:</b> ${rows.length}</span><span><b>Total Units:</b> ${total}</span><span><b>Total Amount:</b> ₱${amount.toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+    <table><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Orders</th><th>Amount</th></tr></thead><tbody>${rows.length?rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.quantity}</td><td>${r.orders}</td><td>₱${r.amount.toFixed(2)}</td></tr>`).join(""):'<tr><td colspan="5">No products sold for this date.</td></tr>'}
+    <tr class="total"><td colspan="2">TOTAL</td><td>${total}</td><td></td><td>₱${amount.toFixed(2)}</td></tr></tbody></table><p class="foot">Sorted highest to lowest. Voided transactions excluded.</p></main><script>window.onload=()=>{window.focus();window.print();};<\\/script></body></html>`);
     win.document.close();
   };
   const completedOrders = orders.filter((o) => String(o.status || "").toLowerCase() === "completed");
