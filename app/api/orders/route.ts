@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
   const paymentTotals = new Map<string, number>();
   const paymentChannels = new Map<string, string[]>();
   const itemTotals = new Map<string, number>();
-  const itemSummary = new Map<string, Array<{ name: string; category: string; quantity: number }>>();
+  const itemSummary = new Map<string, Array<{ name: string; category: string; quantity: number; amount: number }>>();
 
   if (orderIds.length) {
     const payments: any[] = [];
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
     for (const item of items) {
       const id = String((item as any).pos_order_id || "");
       itemTotals.set(id, (itemTotals.get(id) || 0) + numberValue((item as any).line_total));
-      const summaryItem = { name: String((item as any).item_name || ""), category: "", quantity: numberValue((item as any).quantity) };
+      const summaryItem = { name: String((item as any).item_name || ""), category: "", quantity: numberValue((item as any).quantity), amount: numberValue((item as any).line_total) };
       itemSummary.set(id, [...(itemSummary.get(id) || []), summaryItem]);
     }
   }
