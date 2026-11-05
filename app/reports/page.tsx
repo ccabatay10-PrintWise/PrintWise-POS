@@ -120,7 +120,7 @@ export default function ReportsPage(){
   const latestOpening=cashEntriesUpToDate.filter(e=>e.entry_type==="opening_cash").sort((a,b)=>b.entry_date.localeCompare(a.entry_date)||b.created_at.localeCompare(a.created_at))[0];
   const cashPeriodStart=latestOpening?.entry_date||"0000-01-01";
   const cashEntriesSinceOpening=cashEntriesUpToDate.filter(e=>latestOpening?e.created_at>=latestOpening.created_at:e.entry_date>=cashPeriodStart);
-  const totalRestockingCashExpenses=cashOutflows.filter(e=>e.expense_date>=cashPeriodStart&&e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
+  const totalRestockingCashExpenses=cashOutflows.filter(e=>e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
   const cashExpensesSinceOpening=cashOutflows.filter(e=>e.expense_date>=cashPeriodStart&&e.expense_date<=reportDate&&e.payment_method?.toLowerCase()==="cash").reduce((n,e)=>n+e.amount,0);
   const totalOpening=latestOpening?.amount||0,totalRemittance=sumCash(cashEntriesSinceOpening,"remittance"),totalWithdrawals=sumCash(cashEntriesSinceOpening,"withdrawal");
   const actualDayCash=dayOpening+dayRemittance-dayWithdrawals-cashExpenseDay;
@@ -255,7 +255,7 @@ export default function ReportsPage(){
             <button className="export-btn" disabled={outflowSaving} onClick={()=>void saveCashOutflow()}>{outflowSaving?"Saving...":"Add Expense"}</button>
           </div>
           <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th><th>ACTION</th></tr></thead><tbody>{cashOutflows.length?[...cashOutflows].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)||b.created_at.localeCompare(a.created_at)).map(e=><tr key={e.id}><td>{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td><td><button className="export-btn" type="button" onClick={()=>openEditCashOutflow(e)}>View</button></td></tr>):<tr><td colSpan={6}>No restocking or other expenses recorded yet.</td></tr>}</tbody></table></div>
-          <div className="cash-month-summary"><b>Total Cash on Hand • As of {reportDate}</b><strong>{peso.format(actualTotalCash)}</strong><span>Opening Cash − total cash-paid restocking/other expenses + total remittances since the latest opening. Daily Expenses are excluded.</span></div>
+          <div className="cash-month-summary"><b>Total Cash on Hand • As of {reportDate}</b><strong>{peso.format(actualTotalCash)}</strong><span>Opening Cash − all recorded cash-paid restocking/other expenses up to the report date + daily remittances since the latest opening. Daily Expenses are excluded.</span></div>
         </section>
         {editingOutflow&&<div role="presentation" onClick={()=>setEditingOutflow(null)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <section role="dialog" aria-modal="true" aria-labelledby="edit-cash-expense-title" onClick={e=>e.stopPropagation()} style={{width:"min(520px,100%)",background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,.25)",padding:22}}>
