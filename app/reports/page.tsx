@@ -42,6 +42,7 @@ export default function ReportsPage(){
   const [outflowAmount,setOutflowAmount]=useState("");
   const [outflowPayment,setOutflowPayment]=useState("Cash");
   const [outflowSaving,setOutflowSaving]=useState(false);
+  const [deletingOutflowId,setDeletingOutflowId]=useState<string|null>(null);
   const [cashEntryDate,setCashEntryDate]=useState(reportDate);
   const [cashType,setCashType]=useState<"opening_cash"|"remittance"|"withdrawal">("opening_cash");
   const [cashAmount,setCashAmount]=useState("");
@@ -120,12 +121,21 @@ export default function ReportsPage(){
   const saveCashOutflow=async()=>{
     const amount=Number(outflowAmount);
     if(!cashUserId||!outflowDescription.trim()||!Number.isFinite(amount)||amount<=0){setMessage("Enter an expense description and a valid amount greater than zero.");return}
+    const duplicate=cashOutflows.find(e=>e.expense_date===outflowDate&&e.category===outflowCategory&&e.description.trim().toLowerCase()===outflowDescription.trim().toLowerCase()&&e.amount===amount&&e.payment_method===outflowPayment);
+    if(duplicate){setMessage("Possible duplicate expense detected. This date, description, amount, and payment method already exist. Check the records before adding again.");return}
     setOutflowSaving(true);setMessage("");
     const {error}=await supabase.from("cash_outflows").insert({expense_date:outflowDate,category:outflowCategory,description:outflowDescription.trim(),amount,payment_method:outflowPayment,created_by:cashUserId});
     if(error){setMessage("Unable to save cash expense: "+error.message);setOutflowSaving(false);return}
     setOutflowAmount("");setOutflowDescription("");setOutflowSaving(false);
     const {data,error:reloadError}=await supabase.from("cash_outflows").select("id,expense_date,category,description,amount,payment_method,created_at").order("expense_date",{ascending:false}).order("created_at",{ascending:false});
     if(reloadError)setMessage("Expense saved, but could not refresh the list: "+reloadError.message);else setCashOutflows((data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
+  };
+  const deleteCashOutflow=async(id:string)=>{
+    if(!window.confirm("Delete this expense record? This will also add the amount back to Total Cash on Hand if it was paid in cash."))return;
+    setDeletingOutflowId(id);setMessage("");
+    const {error}=await supabase.from("cash_outflows").delete().eq("id",id);
+    if(error){setMessage("Unable to delete expense: "+error.message);setDeletingOutflowId(null);return}
+    setCashOutflows(rows=>rows.filter(e=>e.id!==id));setDeletingOutflowId(null);
   };
   const saveCashEntry=async()=>{
     const amount=Number(cashAmount);
@@ -210,7 +220,7 @@ export default function ReportsPage(){
             <button className="export-btn" disabled={cashSaving} onClick={()=>void saveCashEntry()}>{cashSaving?"Saving...":"Save Cash Entry"}</button>
           </div></div>
           <div className="cash-balance-grid">
-            <div><span>Opening Cash</span><strong>{peso.format(dayOpening)}</strong></div><div><span>Daily Remittance Added</span><strong className="cash-positive">+{peso.format(dayRemittance)}</strong></div><div><span>Restocking & Other Cash Expenses</span><strong className="cash-negative">−{peso.format(cashExpenseDay)}</strong></div><div><span>Cash Withdrawals</span><strong className="cash-negative">−{peso.format(dayWithdrawals)}</strong></div><div className="cash-balance-total"><span>Actual Cash on Hand • {reportDate}</span><strong>{peso.format(actualDayCash)}</strong></div>
+            <div><span>Opening Cash (Recorded)</span><strong>{peso.format(totalOpening)}</strong></div><div><span>Daily Remittance Added</span><strong className="cash-positive">+{peso.format(dayRemittance)}</strong></div><div><span>Restocking & Other Cash Expenses</span><strong className="cash-negative">−{peso.format(cashExpenseDay)}</strong></div><div><span>Cash Withdrawals</span><strong className="cash-negative">−{peso.format(dayWithdrawals)}</strong></div><div className="cash-balance-total"><span>Actual Cash on Hand • {reportDate}</span><strong>{peso.format(actualDayCash)}</strong></div>
           </div>
           <div className="cash-ledger-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>TIME</th><th>ENTRY</th><th>DESCRIPTION</th><th>AMOUNT</th></tr></thead><tbody>{dayCashEntries.length?dayCashEntries.map(e=><tr key={e.id}><td>{e.entry_date}</td><td>{new Date(e.created_at).toLocaleTimeString("en-PH",{hour:"numeric",minute:"2-digit"})}</td><td>{e.entry_type==="opening_cash"?"Opening Cash":e.entry_type==="remittance"?"Daily Remittance":"Withdrawal"}</td><td>{e.description||"—"}</td><td className="money-cell">{e.entry_type==="withdrawal"?"−": "+"}{peso.format(e.amount)}</td></tr>):<tr><td colSpan={5}>No cash entries recorded for this date.</td></tr>}</tbody></table></div>
           <div className="cash-expense-heading"><b>Restocking & Other Expenses • All Records</b><span>Showing expenses from all dates. These are separate from Daily Expenses.</span></div>
@@ -222,7 +232,7 @@ export default function ReportsPage(){
             <select value={outflowPayment} onChange={e=>setOutflowPayment(e.target.value)}><option>Cash</option><option>GCash</option><option>Bank</option></select>
             <button className="export-btn" disabled={outflowSaving} onClick={()=>void saveCashOutflow()}>{outflowSaving?"Saving...":"Add Expense"}</button>
           </div>
-          <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th></tr></thead><tbody>{cashOutflows.length?[...cashOutflows].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)||b.created_at.localeCompare(a.created_at)).map(e=><tr key={e.id}><td>{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td></tr>):<tr><td colSpan={5}>No restocking or other expenses recorded yet.</td></tr>}</tbody></table></div>
+          <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th><th>ACTION</th></tr></thead><tbody>{cashOutflows.length?[...cashOutflows].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)||b.created_at.localeCompare(a.created_at)).map(e=><tr key={e.id}><td>{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td><td><button className="text-danger" disabled={deletingOutflowId===e.id} onClick={()=>void deleteCashOutflow(e.id)}>{deletingOutflowId===e.id?"Deleting...":"Delete"}</button></td></tr>):<tr><td colSpan={6}>No restocking or other expenses recorded yet.</td></tr>}</tbody></table></div>
           <div className="cash-month-summary"><b>Total Cash on Hand • As of {reportDate}</b><strong>{peso.format(actualTotalCash)}</strong><span>Latest recorded opening cash + all remittances − cash-paid restocking/other expenses − withdrawals since that opening date. Daily Expenses are excluded.</span></div>
         </section>
         <section className="report-table-card finance-report-panel">
