@@ -170,7 +170,7 @@ export default function ReportsPage(){
     if(reloadError)setMessage("Saved, but could not refresh cash entries: "+reloadError.message);else setCashEntries((data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
   };
   const printFinancialReport=(period:"daily"|"monthly")=>{
-    const monthly=period==="monthly",label=monthly?reportMonth:reportDate,salesTotal=monthly?monthSales:daySales,expenseTotal=monthly?monthExpenses:dayExpenses,purchaseTotal=monthly?monthPurchases:dayPurchases,cashLeft=monthly?actualMonthCash:actualDayCash;
+    const monthly=period==="monthly",label=monthly?reportMonth:reportDate,salesTotal=monthly?monthSales:daySales,expenseTotal=monthly?monthExpenses:dayExpenses,purchaseTotal=monthly?monthPurchases:dayPurchases,cashLeft=actualTotalCash;
     const expenseRows=(monthly?financeMonthExpenses:financeDayExpenses).map(e=>`<tr><td>${e.expense_date}</td><td>${e.description}</td><td>${e.category}</td><td class="money">${peso.format(e.amount)}</td></tr>`).join("");
     const planRows=(monthly?financeMonthPlans:financeDayPlans).map(p=>`<tr><td>${p.plan_date}</td><td>${(p.items||[]).map(i=>i.name).join(", ")}</td><td class="money">${peso.format(p.total_amount)}</td></tr>`).join("");
     const w=window.open("","_blank","width=900,height=720");if(!w){setMessage("Allow pop-ups to print the financial report.");return}
@@ -178,7 +178,7 @@ export default function ReportsPage(){
   };
   const printReceiptReport=(period:"daily"|"monthly")=>{
     const monthly=period==="monthly",label=monthly?reportMonth:reportDate;
-    const salesTotal=monthly?monthSales:daySales,expenseTotal=monthly?monthExpenses:dayExpenses,purchaseTotal=monthly?monthPurchases:dayPurchases,cashLeft=monthly?actualMonthCash:actualDayCash;
+    const salesTotal=monthly?monthSales:daySales,expenseTotal=monthly?monthExpenses:dayExpenses,purchaseTotal=monthly?monthPurchases:dayPurchases,cashLeft=actualTotalCash;
     const reportExpenses=(monthly?financeMonthOutflows:financeDayOutflows);
     const reportPlans=(monthly?financeMonthPlans:financeDayPlans);
     const reportCashEntries=(monthly?monthCashEntriesSince:dayCashEntries);
