@@ -80,3 +80,20 @@
 .wise-item-order-type button{padding:5px 6px;font-size:10px;white-space:nowrap}
 .wise-cart-line-total{margin-left:auto;white-space:nowrap;font-size:11px;color:#283850}
 @media(max-width:1250px){.wise-cart-item-actions{gap:4px}.wise-item-order-type button{padding:5px 5px;font-size:9px}.wise-cart-item-actions .wise-cart-controls{gap:3px}}
+
+
+/* New WISE MENU order notifications */
+.wise-new-order-stack{position:fixed;z-index:1200;top:88px;right:18px;display:flex;flex-direction:column;gap:10px;width:min(370px,calc(100vw - 28px));pointer-events:none}
+.wise-new-order-toast{display:flex;align-items:center;gap:10px;padding:12px 10px 12px 13px;background:#fff;border:1px solid #dce9e4;border-left:4px solid #1b9b78;border-radius:13px;box-shadow:0 12px 32px rgba(20,45,38,.16);pointer-events:auto;animation:wiseOrderSlideIn .48s cubic-bezier(.2,.8,.2,1) both}
+.wise-new-order-indicator{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:#20a47e;box-shadow:0 0 0 4px #e6f6f0}
+.wise-new-order-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.wise-new-order-copy strong{font-size:13px;color:#173b32;font-weight:800}
+.wise-new-order-copy span{font-size:11px;color:#405b53;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wise-new-order-copy small{font-size:11px;color:#71857e}
+.wise-new-order-view{border:0;border-radius:8px;background:#137f68;color:#fff;font-size:12px;font-weight:800;padding:8px 12px;cursor:pointer}
+.wise-new-order-view:hover{background:#0d6d59}
+.wise-new-order-dismiss{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border:0;border-radius:7px;background:transparent;color:#789087;cursor:pointer}
+.wise-new-order-dismiss:hover{background:#f0f5f3;color:#24483d}
+@keyframes wiseOrderSlideIn{from{opacity:0;transform:translateX(110%)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:600px){.wise-new-order-stack{top:72px;right:10px;width:min(350px,calc(100vw - 20px))}.wise-new-order-toast{padding:10px;gap:8px}}
+@media(prefers-reduced-motion:reduce){.wise-new-order-toast{animation:none}}
