@@ -29,6 +29,8 @@ export default function POSPage() {
   const [search, setSearch] = useState(""), [category, setCategory] = useState("All"), [productPage, setProductPage] = useState(1), [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState(""), [customerNotes, setCustomerNotes] = useState(""), [loyaltyMembers, setLoyaltyMembers] = useState<LoyaltyMember[]>([]), [loyaltyMemberId, setLoyaltyMemberId] = useState(""), [orderType, setOrderType] = useState<"dine_in"|"take_out">("take_out"), [discount, setDiscount] = useState(0), [payment, setPayment] = useState("Cash"), [tendered, setTendered] = useState(0);
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]), [pendingOpen, setPendingOpen] = useState(false);
+  const [newMenuNotifications, setNewMenuNotifications] = useState<Array<{id:string;order_no:string;customer_name:string|null;total:number;order_type:string;created_at:string;item_count:number}>>([]);
+  const seenMenuOrderIds = useRef<Set<string>>(new Set());
   const [checkoutOpen, setCheckoutOpen] = useState(false), [saving, setSaving] = useState(false), [message, setMessage] = useState(""), [receipt, setReceipt] = useState<Receipt | null>(null), [moreOpen, setMoreOpen] = useState(false), [kitchenPromptOpen, setKitchenPromptOpen] = useState(false);
   const [wiseMenuOrderId, setWiseMenuOrderId] = useState(""), [wiseMenuOrderNo, setWiseMenuOrderNo] = useState("");
   const [shiftOpen, setShiftOpen] = useState(false), [shiftData, setShiftData] = useState<ShiftData>({ sales: 0, discounts: 0, orders: 0, cash: 0, nonCash: 0, voided: 0, loading: false });
@@ -116,6 +118,39 @@ export default function POSPage() {
     loadWiseMenuSale();
     return () => { cancelled = true; };
   }, [user, products, wiseMenuOrderId]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    let polling = false;
+    const pollNewMenuOrders = async () => {
+      if (polling || cancelled) return;
+      polling = true;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+        const response = await fetch("/api/pos/wise-menu", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok || !Array.isArray(payload.orders)) return;
+        const fresh = payload.orders.filter((order: any) => {
+          if (!order?.id || seenMenuOrderIds.current.has(order.id)) return false;
+          seenMenuOrderIds.current.add(order.id);
+          return true;
+        });
+        if (!cancelled && fresh.length) {
+          setNewMenuNotifications((current) => [...fresh.reverse(), ...current].slice(0, 5));
+        }
+      } catch (error) {
+        console.error("Unable to check new WISE MENU orders:", error);
+      } finally {
+        polling = false;
+      }
+    };
+    void pollNewMenuOrders();
+    const timer = window.setInterval(pollNewMenuOrders, 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [user]);
 
   useEffect(() => {
     if (!shiftOpen || !user) return;
@@ -554,6 +589,18 @@ export default function POSPage() {
 
   return <main className="app-shell"><Sidebar /><section className="wise-pos-page">
     <header className="wise-header"><div><div className="wise-eyebrow">POINT OF SALE</div><h1>WISE POS</h1><p>Smart point of sale for every business.</p></div><div className="wise-header-actions"><button type="button" className="wise-kitchen-open" onClick={() => window.open("/wise-kitchen","_blank","noopener,noreferrer")}><ChefHat size={17}/> Open WISE Kitchen <ExternalLink size={14}/></button><div className="wise-header-pill">GENERAL BUSINESS MODE</div></div></header>
+    {newMenuNotifications.length > 0 && <aside className="wise-new-order-stack" aria-label="New WISE MENU orders">
+      {newMenuNotifications.map((order) => <div className="wise-new-order-toast" key={order.id}>
+        <div className="wise-new-order-indicator"><span /></div>
+        <div className="wise-new-order-copy">
+          <strong>New order received!</strong>
+          <span>{order.order_no} · {order.customer_name || "Walk-in"}</span>
+          <small>{order.item_count} item{order.item_count === 1 ? "" : "s"} · {money(order.total)}</small>
+        </div>
+        <button type="button" className="wise-new-order-view" onClick={() => window.location.assign(`/pos?wiseMenuOrder=${encodeURIComponent(order.id)}`)}>View</button>
+        <button type="button" className="wise-new-order-dismiss" aria-label={`Hide notification for ${order.order_no}`} onClick={() => setNewMenuNotifications((current) => current.filter((item) => item.id !== order.id))}><X size={16}/></button>
+      </div>)}
+    </aside>}
     <div className="wise-layout"><section className="wise-catalog"><div className="wise-toolbar"><div className="wise-search"><Search size={18} /><input value={search} onChange={(e) => { setSearch(e.target.value); setProductPage(1); if (message) setMessage(""); }} placeholder="Search products or services..." /></div>{categories.length > 1 && <div className="wise-categories">{categories.map((item) => <button key={item} className={category === item ? "active" : ""} onClick={() => { setCategory(item); setProductPage(1); setMessage(""); }}>{item}</button>)}</div>}</div>
       {message && <div className="wise-notice" role="alert"><span>{message}</span><button type="button" onClick={() => setMessage("")} aria-label="Dismiss message">×</button></div>}
       {productsLoading ? <div className="wise-empty"><ShoppingCart size={34} /><strong>Loading products & services...</strong><span>WISE POS is loading the items enabled for checkout.</span></div> : filtered.length ? <div className="wise-product-grid">{visibleProducts.map((product) => <button className="wise-product" key={product.id} onClick={() => add(product)}>{product.image_url ? <img src={product.image_url} alt="" loading="lazy" decoding="async" /> : <div className="wise-product-letter">{product.name.charAt(0).toUpperCase()}</div>}<div className="wise-product-info"><strong>{product.name}</strong><span>{product.recipe_required ? "Recipe / Inventory Check Needed" : product.item_type === "service" ? "Service" : product.category}</span><b>{money(product.price)}{product.unit ? ` / ${product.unit}` : ""}</b></div><span className="wise-add">{product.recipe_required ? <span className="wise-product-warning-icon" title="Recipe or inventory setup needs attention">!</span> : <Plus size={16} />}</span></button>)}</div> : <div className="wise-empty"><ShoppingCart size={34} /><strong>No products or services are enabled for POS</strong><span>Go to Products & Services and turn on “Show in POS” for the items you want to sell.</span></div>}
