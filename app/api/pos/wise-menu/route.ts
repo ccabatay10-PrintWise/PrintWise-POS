@@ -28,8 +28,24 @@ export async function GET(request: NextRequest) {
   try {
     const { admin } = await authorize(request);
     const orderId = request.nextUrl.searchParams.get("orderId")?.trim();
-    if (!orderId) throw new Error("WISE MENU order is required.");
-    const { data: order, error: orderError } = await admin.from("wise_menu_orders").select("id,order_no,customer_name,customer_email,total,subtotal,notes,order_type,created_at,status").eq("id", orderId).in("status", ["accepted", "pending"]).maybeSingle();
+    if (!orderId) {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: orders, error: listError } = await admin.from("wise_menu_orders")
+        .select("id,order_no,customer_name,total,order_type,created_at,status,wise_menu_order_items(quantity)")
+        .in("status", ["new", "pending", "accepted"])
+        .eq("source_type", "customer_menu")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (listError) throw listError;
+      return NextResponse.json({ ok: true, orders: (orders || []).map((o: any) => ({
+        id: o.id, order_no: o.order_no, customer_name: o.customer_name,
+        total: Number(o.total || 0), order_type: o.order_type,
+        created_at: o.created_at, status: o.status,
+        item_count: (o.wise_menu_order_items || []).reduce((n: number, i: any) => n + Number(i.quantity || 0), 0)
+      })) });
+    }
+    const { data: order, error: orderError } = await admin.from("wise_menu_orders").select("id,order_no,customer_name,customer_email,total,subtotal,notes,order_type,created_at,status").eq("id", orderId).in("status", ["new", "accepted", "pending"]).maybeSingle();
     if (orderError) throw orderError;
     if (!order) throw new Error("WISE MENU order is no longer available for Current Sale.");
     const { data: items, error: itemsError } = await admin.from("wise_menu_order_items").select("product_id,product_name,quantity,unit_price,line_total").eq("order_id", orderId).order("created_at", { ascending: true });
