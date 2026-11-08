@@ -597,7 +597,7 @@ export default function POSPage() {
           <span>{order.order_no} · {order.customer_name || "Walk-in"}</span>
           <small>{order.item_count} item{order.item_count === 1 ? "" : "s"} · {money(order.total)}</small>
         </div>
-        <button type="button" className="wise-new-order-view" onClick={() => window.location.assign(`/pos?wiseMenuOrder=${encodeURIComponent(order.id)}`)}>View</button>
+        <button type="button" className="wise-new-order-view" onClick={() => window.location.assign(`/wise-menu?orderId=${encodeURIComponent(order.id)}`)}>View</button>
         <button type="button" className="wise-new-order-dismiss" aria-label={`Hide notification for ${order.order_no}`} onClick={() => setNewMenuNotifications((current) => current.filter((item) => item.id !== order.id))}><X size={16}/></button>
       </div>)}
     </aside>}
