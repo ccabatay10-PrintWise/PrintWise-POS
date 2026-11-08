@@ -133,6 +133,12 @@ export default function POSPage() {
         const response = await fetch("/api/pos/wise-menu", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.ok || !Array.isArray(payload.orders)) return;
+        let savedSeenIds: string[] = [];
+        try {
+          const saved = localStorage.getItem("wise_pos_seen_menu_order_notifications");
+          savedSeenIds = saved ? JSON.parse(saved) : [];
+        } catch { savedSeenIds = []; }
+        savedSeenIds.forEach((id) => seenMenuOrderIds.current.add(id));
         const fresh = payload.orders.filter((order: any) => {
           if (!order?.id || seenMenuOrderIds.current.has(order.id)) return false;
           seenMenuOrderIds.current.add(order.id);
@@ -597,8 +603,8 @@ export default function POSPage() {
           <span>{order.order_no} · {order.customer_name || "Walk-in"}</span>
           <small>{order.item_count} item{order.item_count === 1 ? "" : "s"} · {money(order.total)}</small>
         </div>
-        <button type="button" className="wise-new-order-view" onClick={() => window.location.assign(`/wise-menu?orderId=${encodeURIComponent(order.id)}`)}>View</button>
-        <button type="button" className="wise-new-order-dismiss" aria-label={`Hide notification for ${order.order_no}`} onClick={() => setNewMenuNotifications((current) => current.filter((item) => item.id !== order.id))}><X size={16}/></button>
+        <button type="button" className="wise-new-order-view" onClick={() => { seenMenuOrderIds.current.add(order.id); try { const ids = Array.from(seenMenuOrderIds.current); localStorage.setItem("wise_pos_seen_menu_order_notifications", JSON.stringify(ids.slice(-500))); } catch {} setNewMenuNotifications((current) => current.filter((item) => item.id !== order.id)); window.location.assign(`/wise-menu?orderId=${encodeURIComponent(order.id)}`); }}>View</button>
+        <button type="button" className="wise-new-order-dismiss" aria-label={`Hide notification for ${order.order_no}`} onClick={() => { seenMenuOrderIds.current.add(order.id); try { const ids = Array.from(seenMenuOrderIds.current); localStorage.setItem("wise_pos_seen_menu_order_notifications", JSON.stringify(ids.slice(-500))); } catch {} setNewMenuNotifications((current) => current.filter((item) => item.id !== order.id)); }}><X size={16}/></button>
       </div>)}
     </aside>}
     <div className="wise-layout"><section className="wise-catalog"><div className="wise-toolbar"><div className="wise-search"><Search size={18} /><input value={search} onChange={(e) => { setSearch(e.target.value); setProductPage(1); if (message) setMessage(""); }} placeholder="Search products or services..." /></div>{categories.length > 1 && <div className="wise-categories">{categories.map((item) => <button key={item} className={category === item ? "active" : ""} onClick={() => { setCategory(item); setProductPage(1); setMessage(""); }}>{item}</button>)}</div>}</div>
