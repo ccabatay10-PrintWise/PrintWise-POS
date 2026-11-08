@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data: orders, error: listError } = await admin.from("wise_menu_orders")
         .select("id,order_no,customer_name,total,order_type,created_at,status,wise_menu_order_items(quantity)")
-        .in("status", ["new", "pending", "accepted"])
+        .in("status", ["new", "pending"])
         .eq("source_type", "customer_menu")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
