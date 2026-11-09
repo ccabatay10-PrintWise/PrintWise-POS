@@ -32,7 +32,7 @@ export default function AttendanceKiosk(){
   setBusy(true);setNotice(null);
   const {data,error}=await supabase.rpc("record_payroll_attendance_pin",{p_pin:pin,p_action:action});
   if(error)setNotice({ok:false,text:error.message});
-  else setNotice({ok:true,text:data?.employee+" — "+(action==="time_in"?"TIME IN":"TIME OUT")+" recorded at "+data?.time+"."});
+  else setNotice({ok:true,text:data?.employee+" — "+(action==="time_in"?"TIME IN":"TIME OUT")+" successfully recorded. Date: "+data?.date+" · Time: "+data?.time+"."});
   setPin("");setBusy(false);
  };
  const openSetup=async()=>{
