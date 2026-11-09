@@ -46,11 +46,16 @@ export default function AttendanceKiosk(){
   if(!employeeId){setNotice({ok:false,text:"Select your employee record."});return}
   if(!/^\d{4}$/.test(newPin)){setNotice({ok:false,text:"PIN must contain exactly 4 digits."});return}
   if(newPin!==confirmPin){setNotice({ok:false,text:"PIN confirmation does not match."});return}
-  setBusy(true);
-  const {error}=await supabase.rpc("set_payroll_employee_pin",{p_employee_id:employeeId,p_pin:newPin});
-  if(error)setNotice({ok:false,text:error.message});
-  else{setNotice({ok:true,text:"Attendance PIN successfully set. You can now use it to time in and time out."});setSetupOpen(false);setEmployeeId("");setNewPin("");setConfirmPin("")}
-  setBusy(false);
+  setBusy(true);setNotice(null);
+  try{
+   const {data,error}=await supabase.rpc("set_payroll_employee_pin",{p_employee_id:employeeId,p_pin:newPin});
+   if(error){setNotice({ok:false,text:"Unable to save PIN: "+error.message});return}
+   if(data?.ok===false){setNotice({ok:false,text:"PIN was not saved. Please try again or contact your administrator."});return}
+   setNotice({ok:true,text:"Attendance PIN successfully saved. This employee can now use it to time in and time out."});
+   setNewPin("");setConfirmPin("");
+   setSetupOpen(false);
+  }catch(err){setNotice({ok:false,text:"Save PIN failed: "+(err instanceof Error?err.message:"Unexpected error")})}
+  finally{setBusy(false)}
  };
  const key=(v:string)=>setPin(old=>(old+v).slice(0,4));
  const card={width:"min(100%,420px)",background:"#fff",border:"1px solid #e1ebe6",borderRadius:24,padding:30,boxShadow:"0 20px 60px #1c44301a",textAlign:"center" as const,color:"#173c32",fontFamily:"Arial,sans-serif"};
@@ -63,6 +68,7 @@ export default function AttendanceKiosk(){
    {setupOpen?<div>
     <h1 style={{fontSize:24,margin:"0 0 8px"}}>Set Up Employee PIN</h1>
     <p style={{fontSize:13,color:"#71857d",margin:"0 0 22px"}}>Select your employee record and create a private 4-digit PIN. Administrator access is required.</p>
+    {notice&&<div role="alert" style={{display:"flex",alignItems:"center",gap:9,padding:12,borderRadius:11,textAlign:"left",fontSize:12,lineHeight:1.4,margin:"0 auto 14px",maxWidth:290,background:notice.ok?"#eaf8f0":"#fff1f0",color:notice.ok?"#14633f":"#a32f2a"}}>{notice.ok?<CheckCircle2 size={18}/>:<AlertCircle size={18}/>}<span>{notice.text}</span></div>}
     <div style={{display:"flex",flexDirection:"column",gap:11,maxWidth:290,margin:"22px auto"}}>
      <select style={fieldStyle} value={employeeId} onChange={e=>setEmployeeId(e.target.value)}><option value="">Select employee</option>{employees.map(e=><option key={e.id} value={e.id}>{e.full_name}{e.employee_code?" · "+e.employee_code:""}</option>)}</select>
      <input style={fieldStyle} aria-label="New 4-digit PIN" type="password" inputMode="numeric" maxLength={4} placeholder="New 4-digit PIN" value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\D/g,"").slice(0,4))}/>
