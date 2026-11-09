@@ -1,5 +1,5 @@
 "use client";
-import {useState} from "react";
+import {useEffect,useState} from "react";
 import {Clock3,LogIn,LogOut,ShieldCheck,CheckCircle2,AlertCircle,Settings2,ArrowLeft} from "lucide-react";
 import {supabase} from "../../lib/supabase";
 
@@ -15,6 +15,18 @@ export default function AttendanceKiosk(){
  const [employeeId,setEmployeeId]=useState("");
  const [newPin,setNewPin]=useState("");
  const [confirmPin,setConfirmPin]=useState("");
+ useEffect(()=>{
+  const handleKeyDown=(event:KeyboardEvent)=>{
+   if(setupOpen||busy)return;
+   const target=event.target as HTMLElement|null;
+   if(target&&(target.tagName==="INPUT"||target.tagName==="TEXTAREA"||target.tagName==="SELECT"||target.isContentEditable))return;
+   if(/^[0-9]$/.test(event.key)){event.preventDefault();setPin(current=>(current+event.key).slice(0,4));}
+   else if(event.key==="Backspace"){event.preventDefault();setPin(current=>current.slice(0,-1));}
+   else if(event.key==="Escape"){event.preventDefault();setPin("");}
+  };
+  window.addEventListener("keydown",handleKeyDown);
+  return ()=>window.removeEventListener("keydown",handleKeyDown);
+ },[setupOpen,busy]);
  const submit=async(action:"time_in"|"time_out")=>{
   if(pin.length!==4){setNotice({ok:false,text:"Please enter your 4-digit employee PIN."});return}
   setBusy(true);setNotice(null);
@@ -69,6 +81,7 @@ export default function AttendanceKiosk(){
      <button style={{...primaryStyle,background:"#263f36",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:busy||pin.length!==4?.4:1}} disabled={busy||pin.length!==4} onClick={()=>void submit("time_out")}><LogOut size={19}/> TIME OUT</button>
     </div>
     <button style={{marginTop:14,border:0,background:"transparent",color:green,fontSize:11,fontWeight:800,letterSpacing:.4,display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer"}} disabled={busy} onClick={()=>void openSetup()}><Settings2 size={14}/> SET UP PIN</button>
+    <button style={{marginTop:8,border:0,background:"transparent",color:"#526b60",fontSize:11,fontWeight:800,letterSpacing:.4,display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer"}} onClick={()=>window.location.assign("/pos")}><ArrowLeft size={14}/> BACK TO POS</button>
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:22,color:"#8a9b93",fontSize:10}}><ShieldCheck size={14}/> Attendance is automatically saved to WISE POS Payroll.</div>
    </div>}
   </div>
