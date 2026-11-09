@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator, Receipt, BadgeDollarSign, Award,
+  Beaker, ChefHat, ChevronRight, FileText, Layers3, LayoutDashboard, Calculator, Receipt, BadgeDollarSign, Award, Clock3,
   LogOut, Menu, Package, Plus, ReceiptText, Settings, ShoppingCart,
   UserPlus, Users, Wallet, X, Utensils, ShieldCheck,
 } from "lucide-react";
@@ -25,6 +25,7 @@ const nav = [
   [Layers3, "Inventory", "/inventory"],
   [Receipt, "Daily Expenses", "/daily-expenses"],
   [BadgeDollarSign, "Payroll", "/payroll"],
+  [Clock3, "Employee Attendance", "/attendance"],
   [FileText, "Reports", "/reports"],
 ] as const;
 
