@@ -44,7 +44,7 @@ export default function AttendanceKiosk(){
  };
  const savePin=async()=>{
   if(!employeeId){setNotice({ok:false,text:"Select your employee record."});return}
-  if(!/^\\d{4}$/.test(newPin)){setNotice({ok:false,text:"PIN must contain exactly 4 digits."});return}
+  if(!/^\d{4}$/.test(newPin)){setNotice({ok:false,text:"PIN must contain exactly 4 digits."});return}
   if(newPin!==confirmPin){setNotice({ok:false,text:"PIN confirmation does not match."});return}
   setBusy(true);
   const {error}=await supabase.rpc("set_payroll_employee_pin",{p_employee_id:employeeId,p_pin:newPin});
