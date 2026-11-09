@@ -65,8 +65,8 @@ export default function AttendanceKiosk(){
     <p style={{fontSize:13,color:"#71857d",margin:"0 0 22px"}}>Select your employee record and create a private 4-digit PIN. Administrator access is required.</p>
     <div style={{display:"flex",flexDirection:"column",gap:11,maxWidth:290,margin:"22px auto"}}>
      <select style={fieldStyle} value={employeeId} onChange={e=>setEmployeeId(e.target.value)}><option value="">Select employee</option>{employees.map(e=><option key={e.id} value={e.id}>{e.full_name}{e.employee_code?" · "+e.employee_code:""}</option>)}</select>
-     <input style={fieldStyle} aria-label="New 4-digit PIN" type="password" inputMode="numeric" maxLength={4} placeholder="New 4-digit PIN" value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\\D/g,"").slice(0,4))}/>
-     <input style={fieldStyle} aria-label="Confirm 4-digit PIN" type="password" inputMode="numeric" maxLength={4} placeholder="Confirm 4-digit PIN" value={confirmPin} onChange={e=>setConfirmPin(e.target.value.replace(/\\D/g,"").slice(0,4))}/>
+     <input style={fieldStyle} aria-label="New 4-digit PIN" type="password" inputMode="numeric" maxLength={4} placeholder="New 4-digit PIN" value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\D/g,"").slice(0,4))}/>
+     <input style={fieldStyle} aria-label="Confirm 4-digit PIN" type="password" inputMode="numeric" maxLength={4} placeholder="Confirm 4-digit PIN" value={confirmPin} onChange={e=>setConfirmPin(e.target.value.replace(/\D/g,"").slice(0,4))}/>
      <button style={primaryStyle} disabled={busy} onClick={()=>void savePin()}>SAVE PIN</button>
      <button style={{...primaryStyle,background:"#edf4f0",color:"#31584a",display:"flex",alignItems:"center",justifyContent:"center",gap:7}} disabled={busy} onClick={()=>setSetupOpen(false)}><ArrowLeft size={15}/> BACK TO ATTENDANCE</button>
     </div>
