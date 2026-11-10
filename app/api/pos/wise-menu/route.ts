@@ -48,10 +48,10 @@ export async function GET(request: NextRequest) {
     const { data: order, error: orderError } = await admin.from("wise_menu_orders").select("id,order_no,customer_name,customer_email,total,subtotal,notes,order_type,created_at,status").eq("id", orderId).in("status", ["new", "accepted", "pending"]).maybeSingle();
     if (orderError) throw orderError;
     if (!order) throw new Error("WISE MENU order is no longer available for Current Sale.");
-    const { data: items, error: itemsError } = await admin.from("wise_menu_order_items").select("product_id,product_name,quantity,unit_price,line_total").eq("order_id", orderId).order("created_at", { ascending: true });
+    const { data: items, error: itemsError } = await admin.from("wise_menu_order_items").select("product_id,product_name,quantity,unit_price,line_total,products!inner(price,is_active,show_in_pos)").eq("order_id", orderId).order("created_at", { ascending: true });
     if (itemsError) throw itemsError;
     if (!items?.length) throw new Error("WISE MENU order has no items.");
-    return NextResponse.json({ ok: true, order: { id: order.id, order_no: order.order_no, customer_name: order.customer_name, total: Number(order.total), amount_paid: 0, balance: Number(order.total), notes: order.notes, order_type: order.order_type === "dine_in" ? "dine_in" : "take_out", created_at: order.created_at, status: order.status, items: items.map((item) => ({ product_id: item.product_id, product_name: item.product_name, quantity: Number(item.quantity), unit_price: Number(item.unit_price), line_total: Number(item.line_total) })) } });
+    return NextResponse.json({ ok: true, order: { id: order.id, order_no: order.order_no, customer_name: order.customer_name, total: Number(order.total), amount_paid: 0, balance: Number(order.total), notes: order.notes, order_type: order.order_type === "dine_in" ? "dine_in" : "take_out", created_at: order.created_at, status: order.status, items: items.map((item: any) => ({ product_id: item.product_id, product_name: item.product_name, quantity: Number(item.quantity), unit_price: Number(item.products?.price ?? item.unit_price), line_total: Number((Number(item.products?.price ?? item.unit_price) * Number(item.quantity)).toFixed(2)) })) } });
   } catch (error: any) {
     const message = error?.message || "Unable to load WISE MENU order.";
     return NextResponse.json({ error: message }, { status: message === "Authentication required" ? 401 : message === "Not authorized" ? 403 : 400 });
