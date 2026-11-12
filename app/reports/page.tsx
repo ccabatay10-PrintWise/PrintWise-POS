@@ -58,6 +58,23 @@ export default function ReportsPage(){
   const [cashDescription,setCashDescription]=useState("");
   const [cashSaving,setCashSaving]=useState(false);
   const [cashUserId,setCashUserId]=useState<string|null>(null);
+  const [showRemittance,setShowRemittance]=useState(false);
+  const [remitSaving,setRemitSaving]=useState(false);
+  const [remitDate,setRemitDate]=useState(reportDate);
+  const [remitSales,setRemitSales]=useState({cash:"",gcash:"",bank:"",other:""});
+  const [remitCounts,setRemitCounts]=useState<Record<string,string>>({"1000":"","500":"","200":"","100":"","50":"","20":"","10":"","5":"","1":""});
+  const [remitGcash,setRemitGcash]=useState("");
+  const [remitBank,setRemitBank]=useState("");
+  const [remitOther,setRemitOther]=useState("");
+  const [remitAuthorized,setRemitAuthorized]=useState("");
+  const [remitPetty,setRemitPetty]=useState("");
+  const remitDenominations=[1000,500,200,100,50,20,10,5,1];
+  const remitCash=remitDenominations.reduce((sum,d)=>sum+d*(Number(remitCounts[String(d)]||0)||0),0);
+  const remitGross=Object.values(remitSales).reduce((sum,v)=>sum+(Number(v)||0),0);
+  const remitExpected=remitGross-(Number(remitAuthorized)||0)-(Number(remitPetty)||0);
+  const remitActual=remitCash+(Number(remitGcash)||0)+(Number(remitBank)||0)+(Number(remitOther)||0);
+  const remitVariance=remitActual-remitExpected;
+
 
   useEffect(()=>{
     const load=async()=>{
@@ -188,6 +205,29 @@ export default function ReportsPage(){
     const {data,error:reloadError}=await supabase.from("daily_cash_entries").select("id,entry_date,entry_type,amount,description,payment_method,created_at").order("entry_date",{ascending:false}).order("created_at",{ascending:false});
     if(reloadError)setMessage("Saved, but could not refresh cash entries: "+reloadError.message);else setCashEntries((data??[]).map((e:any)=>({...e,amount:Number(e.amount||0)})));
   };
+
+  const printDailyRemittance=(data:any)=>{
+    let offset=0,width=72;
+    try{const saved=localStorage.getItem("wise_pos_receipt_alignment");if(saved){const p=JSON.parse(saved);if(Number.isFinite(Number(p.offset)))offset=Math.max(-5,Math.min(5,Number(p.offset)));if(Number.isFinite(Number(p.width)))width=Math.max(60,Math.min(76,Number(p.width)));}}catch{}
+    const denom=[1000,500,200,100,50,20,10,5,1].map(d=>({d,q:Number(data.denomination_counts?.[String(d)]||0)})).filter(x=>x.q>0);
+    const w=window.open("","_blank","width=420,height=720");if(!w){setMessage("Allow pop-ups to print the Daily Remittance Report.");return}
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Daily Remittance Report</title><style>@page{size:80mm auto;margin:0}*{box-sizing:border-box}html,body{width:80mm!important;margin:0!important;padding:0!important}body{font:9px Arial,sans-serif;color:#111;line-height:1.3}.receipt{width:min(${width}mm,100%);max-width:${width}mm;margin:0 auto;padding:3mm 0;transform:translateX(${offset}mm)}header{text-align:center;border-bottom:1px dashed #222;padding:4px 0 7px}h1{font-size:14px;margin:0 0 3px}.date{text-align:center;margin:6px 0}.section{margin-top:8px}.section h2{font-size:9px;margin:0 0 4px;padding:3px;background:#244f73;color:#fff}.line{display:grid;grid-template-columns:1fr auto;gap:4px;padding:2px 0}.total{font-weight:bold;border-top:1px solid #222;padding-top:3px}.muted{color:#555}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:2px 1px}td:last-child,th:last-child{text-align:right}.sign{margin-top:18px;border-top:1px solid #222;padding-top:4px;text-align:center}</style></head><body><main class="receipt"><header><h1>ESPACIO</h1><b>DAILY REMITTANCE REPORT</b></header><div class="date">Date: ${data.report_date}<br>Printed: ${new Date().toLocaleString("en-PH")}</div><section class="section"><h2>SALES SUMMARY</h2>${Object.entries(data.payment_summary||{}).map(([k,v])=>`<div class="line"><span>${k}</span><b>${peso.format(Number(v)||0)}</b></div>`).join("")}<div class="line total"><span>TOTAL SALES</span><b>${peso.format(data.gross_sales)}</b></div></section><section class="section"><h2>DETAILED CASH COUNT</h2><table><thead><tr><th>Denomination</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${denom.map(x=>`<tr><td>₱${x.d.toLocaleString("en-PH")}</td><td>${x.q}</td><td>${peso.format(x.d*x.q)}</td></tr>`).join("")}<tr><td colspan="2"><b>TOTAL CASH</b></td><td><b>${peso.format(data.actual_cash)}</b></td></tr></tbody></table><div class="line"><span>Cash on GCash</span><b>${peso.format(data.gcash_on_hand)}</b></div><div class="line"><span>Bank Transfer</span><b>${peso.format(data.bank_transfer_on_hand)}</b></div><div class="line"><span>Other</span><b>${peso.format(data.other_on_hand)}</b></div></section><section class="section"><h2>REMITTANCE SUMMARY</h2><div class="line"><span>Gross Sales</span><b>${peso.format(data.gross_sales)}</b></div><div class="line"><span>Less: Authorized Expenses</span><b>−${peso.format(data.authorized_expenses)}</b></div><div class="line"><span>Less: Beginning / Petty</span><b>−${peso.format(data.beginning_petty)}</b></div><div class="line total"><span>Expected Remittance</span><b>${peso.format(data.expected_remittance)}</b></div><div class="line"><span>Actual Remittance</span><b>${peso.format(data.actual_remittance)}</b></div><div class="line total"><span>${data.over_short>=0?"OVER":"SHORT"}</span><b>${peso.format(Math.abs(data.over_short))}</b></div></section><div class="sign">Cashier / Staff Signature</div><div class="sign">Received by</div></main><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`);
+    w.document.close();
+  };
+  const saveDailyRemittance=async()=>{
+    if(!cashUserId){setMessage("Please sign in again before saving the remittance.");return}
+    if(!remitDate){setMessage("Select the remittance date.");return}
+    if(remitGross<=0){setMessage("Enter the sales summary amounts.");return}
+    if(remitCash<=0){setMessage("Enter the cash denomination quantities.");return}
+    setRemitSaving(true);setMessage("");
+    const payload={report_date:remitDate,payment_summary:{Cash:Number(remitSales.cash)||0,GCash:Number(remitSales.gcash)||0,"Bank Transfer":Number(remitSales.bank)||0,Other:Number(remitSales.other)||0},denomination_counts:remitCounts,gcash_on_hand:Number(remitGcash)||0,bank_transfer_on_hand:Number(remitBank)||0,other_on_hand:Number(remitOther)||0,gross_sales:remitGross,authorized_expenses:Number(remitAuthorized)||0,beginning_petty:Number(remitPetty)||0,expected_remittance:remitExpected,actual_cash:remitCash,actual_remittance:remitActual,over_short:remitVariance,created_by:cashUserId};
+    const {data,error}=await supabase.from("daily_remittance_reports").insert(payload).select("*").single();
+    if(error){setMessage("Unable to save Daily Remittance Report: "+error.message);setRemitSaving(false);return}
+    const {error:cashError}=await supabase.from("daily_cash_entries").insert({entry_date:remitDate,entry_type:"remittance",amount:remitCash,description:"Daily Remittance Report • Cash counted",payment_method:"Cash",created_by:cashUserId});
+    if(cashError){setMessage("Report saved, but cash ledger was not updated: "+cashError.message);setRemitSaving(false);printDailyRemittance(data);return}
+    setCashEntries(rows=>[{id:"remit-"+data.id,entry_date:remitDate,entry_type:"remittance",amount:remitCash,description:"Daily Remittance Report • Cash counted",payment_method:"Cash",created_at:data.created_at},...rows]);
+    setRemitSaving(false);setShowRemittance(false);setMessage("Daily Remittance Report saved successfully.");printDailyRemittance(data);
+  };
   const printFinancialReport=(period:"daily"|"monthly")=>{
     const monthly=period==="monthly",label=monthly?reportMonth:reportDate,salesTotal=monthly?monthSales:daySales,expenseTotal=monthly?monthExpenses:dayExpenses,purchaseTotal=monthly?monthPurchases:dayPurchases,cashLeft=actualTotalCash;
     const expenseRows=(monthly?financeMonthExpenses:financeDayExpenses).map(e=>`<tr><td>${e.expense_date}</td><td>${e.description}</td><td>${e.category}</td><td class="money">${peso.format(e.amount)}</td></tr>`).join("");
@@ -291,7 +331,7 @@ export default function ReportsPage(){
             <select value={cashType} onChange={e=>setCashType(e.target.value as any)}><option value="opening_cash">Opening Cash on Hand</option><option value="remittance">Add Daily Remittance</option><option value="withdrawal">Cash Withdrawal</option></select>
             <input type="number" min="0.01" step="0.01" placeholder="Amount (₱)" value={cashAmount} onChange={e=>setCashAmount(e.target.value)}/>
             <input placeholder="Description (optional)" value={cashDescription} onChange={e=>setCashDescription(e.target.value)}/>
-            <button className="export-btn" disabled={cashSaving} onClick={()=>void saveCashEntry()}>{cashSaving?"Saving...":"Save Cash Entry"}</button>
+            <button className="export-btn" disabled={cashSaving} onClick={()=>void saveCashEntry()}>{cashSaving?"Saving...":"Save Cash Entry"}</button><button className="export-btn" type="button" onClick={()=>{setRemitDate(cashEntryDate||reportDate);setShowRemittance(true)}}>Daily Remittance Report</button>
           </div></div>
           <div className="cash-balance-grid">
             <div><span>Opening Cash (Recorded)</span><strong>{peso.format(totalOpening)}</strong></div><div><span>Total Remittances Since Opening</span><strong className="cash-positive">+{peso.format(totalRemittance)}</strong></div><div><span>Total Restocking & Other Cash Expenses</span><strong className="cash-negative">−{peso.format(totalRestockingCashExpenses)}</strong></div><div><span>Total Cash Withdrawals</span><strong className="cash-negative">−{peso.format(totalWithdrawals)}</strong></div><div className="cash-balance-total"><span>Total Cash on Hand • {reportDate}</span><strong>{peso.format(actualTotalCash)}</strong></div>
@@ -309,6 +349,19 @@ export default function ReportsPage(){
           <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th><th>ACTION</th></tr></thead><tbody>{cashOutflows.length?[...cashOutflows].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)||b.created_at.localeCompare(a.created_at)).map(e=><tr key={e.id}><td>{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td><td><button className="export-btn" type="button" onClick={()=>openEditCashOutflow(e)}>View</button></td></tr>):<tr><td colSpan={6}>No restocking or other expenses recorded yet.</td></tr>}</tbody></table></div>
           <div className="cash-month-summary"><b>Total Cash on Hand • As of {reportDate}</b><strong>{peso.format(actualTotalCash)}</strong><span>Opening Cash − all recorded cash-paid restocking/other expenses up to the report date + daily remittances since the latest opening. Daily Expenses are excluded.</span></div>
         </section>
+        {showRemittance&&<div role="presentation" onClick={()=>setShowRemittance(false)} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(15,23,42,.58)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
+          <section role="dialog" aria-modal="true" aria-labelledby="daily-remittance-title" onClick={e=>e.stopPropagation()} style={{width:"min(900px,100%)",maxHeight:"92vh",overflowY:"auto",background:"#fff",borderRadius:14,padding:20,boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}><div><h2 id="daily-remittance-title" style={{margin:0}}>Daily Remittance Report</h2><p style={{margin:"4px 0 12px",color:"#64748b"}}>Enter sales summary and count the cash on hand before remitting.</p></div><button type="button" className="payroll-btn light" onClick={()=>setShowRemittance(false)}>×</button></div>
+            <label style={{display:"grid",gap:5,maxWidth:220,marginBottom:12}}>Remittance Date<input type="date" value={remitDate} onChange={e=>setRemitDate(e.target.value)}/></label>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:14}}>
+              <div style={{border:"1px solid #dbe4ee",borderRadius:10,padding:12}}><h3>Sales Summary</h3>{([{k:"cash",l:"Cash"},{k:"gcash",l:"GCash"},{k:"bank",l:"Bank Transfer"},{k:"other",l:"Other"}] as const).map(x=><label key={x.k} style={{display:"grid",gridTemplateColumns:"1fr 130px",alignItems:"center",gap:8,margin:"8px 0"}}>{x.l}<input type="number" min="0" step="0.01" value={remitSales[x.k]} onChange={e=>setRemitSales(s=>({...s,[x.k]:e.target.value}))} placeholder="₱0.00"/></label>)}<div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid #dbe4ee",paddingTop:8,fontWeight:800}}>TOTAL SALES <span>{peso.format(remitGross)}</span></div></div>
+              <div style={{border:"1px solid #dbe4ee",borderRadius:10,padding:12}}><h3>Detailed Cash Count</h3><div style={{display:"grid",gridTemplateColumns:"1fr 90px 110px",gap:6,fontSize:12,fontWeight:700}}><span>Denomination</span><span>Quantity</span><span>Amount</span>{remitDenominations.map(d=><React.Fragment key={d}><span>₱{d.toLocaleString("en-PH")}</span><input aria-label={`Quantity of ₱${d}`} type="number" min="0" step="1" value={remitCounts[String(d)]} onChange={e=>setRemitCounts(s=>({...s,[String(d)]:e.target.value}))}/><b>{peso.format(d*(Number(remitCounts[String(d)]||0)||0))}</b></React.Fragment>)}</div><div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid #dbe4ee",paddingTop:8,marginTop:8,fontWeight:800}}>TOTAL CASH <span>{peso.format(remitCash)}</span></div>
+              <label style={{display:"grid",gridTemplateColumns:"1fr 120px",gap:8,marginTop:10,alignItems:"center"}}>GCash on hand<input type="number" min="0" step="0.01" value={remitGcash} onChange={e=>setRemitGcash(e.target.value)}/></label><label style={{display:"grid",gridTemplateColumns:"1fr 120px",gap:8,marginTop:8,alignItems:"center"}}>Bank transfer<input type="number" min="0" step="0.01" value={remitBank} onChange={e=>setRemitBank(e.target.value)}/></label><label style={{display:"grid",gridTemplateColumns:"1fr 120px",gap:8,marginTop:8,alignItems:"center"}}>Other<input type="number" min="0" step="0.01" value={remitOther} onChange={e=>setRemitOther(e.target.value)}/></label></div>
+            </div>
+            <div style={{border:"1px solid #dbe4ee",borderRadius:10,padding:12,marginTop:14}}><h3>Remittance Summary</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><label>Authorized Expenses (₱)<input type="number" min="0" step="0.01" value={remitAuthorized} onChange={e=>setRemitAuthorized(e.target.value)}/></label><label>Beginning / Petty (₱)<input type="number" min="0" step="0.01" value={remitPetty} onChange={e=>setRemitPetty(e.target.value)}/></label></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginTop:12}}><div>Gross Sales <b>{peso.format(remitGross)}</b></div><div>Expected Remittance <b>{peso.format(remitExpected)}</b></div><div>Actual Remittance <b>{peso.format(remitActual)}</b></div><div style={{color:remitVariance<0?"#dc2626":"#047857"}}>{remitVariance<0?"SHORT":"OVER"} <b>{peso.format(Math.abs(remitVariance))}</b></div></div></div>
+            <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}><button className="export-btn" type="button" onClick={()=>setShowRemittance(false)}>Cancel</button><button className="export-btn" type="button" disabled={remitSaving} onClick={()=>void saveDailyRemittance()}>{remitSaving?"Saving...":"Save & Print Report"}</button></div>
+          </section>
+        </div>}
         {editingOutflow&&<div role="presentation" onClick={()=>setEditingOutflow(null)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <section role="dialog" aria-modal="true" aria-labelledby="edit-cash-expense-title" onClick={e=>e.stopPropagation()} style={{width:"min(520px,100%)",background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,.25)",padding:22}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}>
