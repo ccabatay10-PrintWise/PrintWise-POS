@@ -394,9 +394,12 @@ export default function ReportsPage(){
               <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Remittance Date<input type="date" value={remitDate} onChange={e=>setRemitDate(e.target.value)} disabled={remitEditSaving}/></label>
               <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Remittance Amount (₱)<input type="number" min="0" step="0.01" value={editingRemitAmount} onChange={e=>setEditingRemitAmount(e.target.value)} disabled={remitEditSaving}/></label>
             </div>
-            <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:22}}>
-              <button className="export-btn" type="button" onClick={()=>setEditingRemit(null)} disabled={remitEditSaving}>Cancel</button>
-              <button className="export-btn" type="button" onClick={()=>void updateDailyRemittance()} disabled={remitEditSaving}>{remitEditSaving?"Saving...":"Save Changes"}</button>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginTop:22}}>
+              <button type="button" onClick={()=>void deleteDailyRemittance()} disabled={remitEditSaving} style={{background:"#dc2626",color:"#fff",border:0,borderRadius:10,padding:"12px 18px",fontWeight:700,cursor:remitEditSaving?"not-allowed":"pointer",opacity:remitEditSaving?.65:1}}>{remitEditSaving?"Please wait...":"Delete Record"}</button>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+                <button className="export-btn" type="button" onClick={()=>setEditingRemit(null)} disabled={remitEditSaving}>Cancel</button>
+                <button className="export-btn" type="button" onClick={()=>void updateDailyRemittance()} disabled={remitEditSaving}>{remitEditSaving?"Saving...":"Save Changes"}</button>
+              </div>
             </div>
           </section>
         </div>}
