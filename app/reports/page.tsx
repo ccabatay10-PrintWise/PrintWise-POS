@@ -27,6 +27,7 @@ const peso = new Intl.NumberFormat("en-PH", { style:"currency", currency:"PHP", 
 export default function ReportsPage(){
   const [orders,setOrders]=useState<Order[]>([]);
   const [loading,setLoading]=useState(true);
+  const [activeReportTab,setActiveReportTab]=useState<"income"|"expenses"|"daily">("income");
   const [message,setMessage]=useState("");
   const [search,setSearch]=useState("");
   const [range,setRange]=useState("all");
@@ -331,6 +332,13 @@ export default function ReportsPage(){
       </header>
 
       <div className="reports-content">
+        <nav className="report-section-tabs" aria-label="Report sections">
+          <button type="button" className={activeReportTab==="income"?"active":""} onClick={()=>setActiveReportTab("income")}><TrendingUp size={17}/> Income Report <span>{peso.format(sales)}</span></button>
+          <button type="button" className={activeReportTab==="expenses"?"active":""} onClick={()=>setActiveReportTab("expenses")}><Wallet size={17}/> Expenses Report <span>{cashOutflows.length+expenses.length} records</span></button>
+          <button type="button" className={activeReportTab==="daily"?"active":""} onClick={()=>setActiveReportTab("daily")}><CalendarDays size={17}/> Daily Report <span>{reportDate}</span></button>
+        </nav>
+        {activeReportTab==="income"&&<>
+        <div className="report-section-intro"><div><h2>Income Overview</h2><p>Completed sales, collections, average order value, and sales trends.</p></div></div>
         <section className="metrics-grid">
           <div className="metric-card sales-card"><div className="metric-icon"><TrendingUp size={22}/></div><div><span>Total Sales</span><strong>{peso.format(sales)}</strong><small>Completed orders only</small></div></div>
           <div className="metric-card orders-card"><div className="metric-icon"><ReceiptText size={22}/></div><div><span>Completed Orders</span><strong>{completed.length}</strong><small>Transactions in this period</small></div></div>
@@ -359,7 +367,13 @@ export default function ReportsPage(){
           </div>
           <p className="sales-expense-note">Expenses combine Daily Expenses and Restocking & Other Expenses records. Stock purchase plans are shown separately in Financial Reports and are not added again here.</p>
         </section>
-
+        </>}
+        {activeReportTab==="expenses"&&<>
+        <div className="report-section-intro"><div><h2>Expenses Overview</h2><p>Daily operating expenses and restocking or other cash expenses are listed separately.</p></div><div className="expense-total-chip"><span>Recorded Expenses</span><b>{peso.format(expenses.reduce((n,e)=>n+e.amount,0)+cashOutflows.reduce((n,e)=>n+e.amount,0))}</b></div></div>
+        <section className="report-table-card daily-expense-list">
+          <div className="table-topbar"><div><h2>Daily Operating Expenses • All Records</h2><p>Expenses recorded through the Daily Expenses module.</p></div><strong>{expenses.length} records</strong></div>
+          <div className="table-wrap"><table className="reports-table"><thead><tr><th>DATE</th><th>DESCRIPTION</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th></tr></thead><tbody>{expenses.length?[...expenses].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)).map(e=><tr key={e.id}><td className="date-cell">{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td></tr>):<tr><td colSpan={5}>No daily operating expenses recorded yet.</td></tr>}</tbody></table></div>
+        </section>
         <section className="report-table-card cash-control-panel">
           <div className="table-topbar"><div><h2>Cash on Hand & Daily Remittance</h2><p>Record opening cash, add daily remittances, and record cash withdrawals. Record restocking purchases and other cash expenses here; Daily Expenses are tracked separately.</p></div><div className="cash-entry-form">
             <input aria-label="Cash entry date" title="Date remitted / cash entry date" type="date" value={cashEntryDate} onChange={e=>setCashEntryDate(e.target.value)}/>
@@ -384,6 +398,7 @@ export default function ReportsPage(){
           <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th><th>ACTION</th></tr></thead><tbody>{cashOutflows.length?[...cashOutflows].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)||b.created_at.localeCompare(a.created_at)).map(e=><tr key={e.id}><td>{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td><td><button className="export-btn" type="button" onClick={()=>openEditCashOutflow(e)}>View</button></td></tr>):<tr><td colSpan={6}>No restocking or other expenses recorded yet.</td></tr>}</tbody></table></div>
           <div className="cash-month-summary"><b>Total Cash on Hand • As of {reportDate}</b><strong>{peso.format(actualTotalCash)}</strong><span>Opening Cash − all recorded cash-paid restocking/other expenses up to the report date + daily remittances since the latest opening. Daily Expenses are excluded.</span></div>
         </section>
+        </>}
         {editingRemit&&<div role="presentation" onClick={()=>!remitEditSaving&&setEditingRemit(null)} style={{position:"fixed",inset:0,zIndex:1250,background:"rgba(15,23,42,.58)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
           <section role="dialog" aria-modal="true" aria-labelledby="edit-remittance-title" onClick={e=>e.stopPropagation()} style={{width:"min(520px,100%)",background:"#fff",borderRadius:14,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}>
@@ -438,6 +453,8 @@ export default function ReportsPage(){
             </div>
           </section>
         </div>}
+        {activeReportTab==="daily"&&<>
+        <div className="report-section-intro"><div><h2>Daily Financial Report</h2><p>Choose a business date to review daily and monthly performance, cash position, and print reports.</p></div></div>
         <section className="report-table-card finance-report-panel">
           <div className="table-topbar"><div><h2>Daily & Monthly Financial Reports</h2><p>Completed sales, expenses, next-day stock purchases, and estimated cash left.</p></div>
             <div className="table-actions"><label className="range-select"><CalendarDays size={18}/><input aria-label="Financial report date" type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)} /></label><button className="export-btn finance-print" onClick={()=>printFinancialReport("daily")}><FileText size={17}/> Print Daily</button><button className="export-btn" onClick={()=>printFinancialReport("monthly")}><FileText size={17}/> Print Monthly</button><button className="export-btn finance-print" onClick={()=>printReceiptReport("daily")}><ReceiptText size={17}/> 80mm Daily Receipt</button><button className="export-btn finance-print" onClick={()=>printReceiptReport("monthly")}><ReceiptText size={17}/> 80mm Monthly Receipt</button></div></div>
@@ -452,9 +469,24 @@ export default function ReportsPage(){
             <div className="table-wrap"><table className="reports-table"><thead><tr><th>FINANCIAL SUMMARY</th><th>AMOUNT</th></tr></thead><tbody><tr><td>Completed Sales</td><td className="money-cell">{peso.format(monthSales)}</td></tr><tr><td>Total Expenses</td><td className="money-cell">{peso.format(monthExpenses)}</td></tr><tr><td>Sales Minus Expenses</td><td className="money-cell">{peso.format(monthSales-monthExpenses)}</td></tr><tr><td>Next-Day Stock Purchase Plans</td><td className="money-cell">{peso.format(monthPurchases)}</td></tr><tr><td><b>Total Cash on Hand</b></td><td className="money-cell"><b>{peso.format(actualTotalCash)}</b></td></tr></tbody></table></div>
             <p className="finance-report-note">Cash left is an estimate based on completed POS sales minus recorded expenses and saved purchase plans. Opening cash, withdrawals, non-POS income, and unpaid balances are not included.</p></div>}
         </section>
+        </>}
       </div>
 
       <style>{`
+        .report-section-tabs{display:flex;gap:10px;padding:8px;background:#fff;border:1px solid #e7ecf2;border-radius:16px;margin:0 0 22px;box-shadow:0 4px 18px rgba(17,24,39,.035)}
+        .report-section-tabs button{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:9px;padding:15px 18px;border:1px solid transparent;border-radius:12px;background:transparent;color:#667085;font-size:14px;font-weight:800;cursor:pointer;transition:.18s}
+        .report-section-tabs button span{margin-left:auto;padding:5px 8px;border-radius:8px;background:#f1f4f8;color:#748094;font-size:11px;font-weight:700;white-space:nowrap}
+        .report-section-tabs button.active{background:#fff1f0;border-color:#ffd8d5;color:#d9231e;box-shadow:0 3px 10px rgba(217,35,30,.08)}
+        .report-section-tabs button.active span{background:#fff;color:#c81e19}
+        .report-section-intro{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:2px 0 16px}
+        .report-section-intro h2{margin:0;color:#253247;font-size:21px;letter-spacing:-.02em}
+        .report-section-intro p{margin:5px 0 0;color:#8290a2;font-size:13px}
+        .expense-total-chip{display:grid;gap:3px;padding:10px 16px;border:1px solid #f2d6d4;background:#fffafa;border-radius:12px}
+        .expense-total-chip span{font-size:10px;color:#8994a3;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+        .expense-total-chip b{font-size:18px;color:#d9231e}
+        .daily-expense-list{margin-bottom:22px}
+        .daily-expense-list .table-topbar>strong{color:#718096;font-size:12px}
+        @media(max-width:760px){.report-section-tabs{display:grid;grid-template-columns:1fr;gap:6px}.report-section-tabs button{justify-content:flex-start}.report-section-tabs button span{margin-left:auto}.report-section-intro{align-items:flex-start;flex-direction:column}.expense-total-chip{width:100%}}
         .sales-expense-date-filters{display:flex;gap:10px;align-items:center}.sales-expense-date-filters label{display:grid;gap:4px;font-size:9px;font-weight:800;letter-spacing:.06em;color:#718096}.sales-expense-date-filters input{height:38px;border:1px solid #d8e1ec;border-radius:8px;padding:0 10px;color:#253247;background:#fff;font:inherit;font-size:12px}
         .sales-expense-tracker{margin-bottom:22px}
         .sales-expense-tracker .table-topbar{align-items:center}
