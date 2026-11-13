@@ -370,10 +370,6 @@ export default function ReportsPage(){
         </>}
         {activeReportTab==="expenses"&&<>
         <div className="report-section-intro"><div><h2>Expenses Overview</h2><p>Daily operating expenses and restocking or other cash expenses are listed separately.</p></div><div className="expense-total-chip"><span>Recorded Expenses</span><b>{peso.format(expenses.reduce((n,e)=>n+e.amount,0)+cashOutflows.reduce((n,e)=>n+e.amount,0))}</b></div></div>
-        <section className="report-table-card daily-expense-list">
-          <div className="table-topbar"><div><h2>Daily Operating Expenses • All Records</h2><p>Expenses recorded through the Daily Expenses module.</p></div><strong>{expenses.length} records</strong></div>
-          <div className="table-wrap"><table className="reports-table"><thead><tr><th>DATE</th><th>DESCRIPTION</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th></tr></thead><tbody>{expenses.length?[...expenses].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)).map(e=><tr key={e.id}><td className="date-cell">{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td></tr>):<tr><td colSpan={5}>No daily operating expenses recorded yet.</td></tr>}</tbody></table></div>
-        </section>
         <section className="report-table-card cash-control-panel">
           <div className="table-topbar"><div><h2>Cash on Hand & Daily Remittance</h2><p>Record opening cash, add daily remittances, and record cash withdrawals. Record restocking purchases and other cash expenses here; Daily Expenses are tracked separately.</p></div><div className="cash-entry-form">
             <input aria-label="Cash entry date" title="Date remitted / cash entry date" type="date" value={cashEntryDate} onChange={e=>setCashEntryDate(e.target.value)}/>
@@ -398,6 +394,11 @@ export default function ReportsPage(){
           <div className="cash-expense-scroll"><table className="reports-table"><thead><tr><th>DATE</th><th>EXPENSE</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th><th>ACTION</th></tr></thead><tbody>{cashOutflows.length?[...cashOutflows].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)||b.created_at.localeCompare(a.created_at)).map(e=><tr key={e.id}><td>{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td><td><button className="export-btn" type="button" onClick={()=>openEditCashOutflow(e)}>View</button></td></tr>):<tr><td colSpan={6}>No restocking or other expenses recorded yet.</td></tr>}</tbody></table></div>
           <div className="cash-month-summary"><b>Total Cash on Hand • As of {reportDate}</b><strong>{peso.format(actualTotalCash)}</strong><span>Opening Cash − all recorded cash-paid restocking/other expenses up to the report date + daily remittances since the latest opening. Daily Expenses are excluded.</span></div>
         </section>
+        <section className="report-table-card daily-expense-list">
+          <div className="table-topbar"><div><h2>Daily Operating Expenses • All Records</h2><p>Expenses recorded through the Daily Expenses module.</p></div><strong>{expenses.length} records</strong></div>
+          <div className="daily-expense-table-wrap"><table className="reports-table"><thead><tr><th>DATE</th><th>DESCRIPTION</th><th>CATEGORY</th><th>PAYMENT</th><th>AMOUNT</th></tr></thead><tbody>{expenses.length?[...expenses].sort((a,b)=>b.expense_date.localeCompare(a.expense_date)).map(e=><tr key={e.id}><td className="date-cell">{e.expense_date}</td><td>{e.description}</td><td>{e.category}</td><td>{e.payment_method}</td><td className="money-cell">{peso.format(e.amount)}</td></tr>):<tr><td colSpan={5}>No daily operating expenses recorded yet.</td></tr>}</tbody></table></div>
+        </section>
+
         </>}
         {editingRemit&&<div role="presentation" onClick={()=>!remitEditSaving&&setEditingRemit(null)} style={{position:"fixed",inset:0,zIndex:1250,background:"rgba(15,23,42,.58)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
           <section role="dialog" aria-modal="true" aria-labelledby="edit-remittance-title" onClick={e=>e.stopPropagation()} style={{width:"min(520px,100%)",background:"#fff",borderRadius:14,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}>
@@ -485,6 +486,7 @@ export default function ReportsPage(){
         .expense-total-chip span{font-size:10px;color:#8994a3;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
         .expense-total-chip b{font-size:18px;color:#d9231e}
         .daily-expense-list{margin-bottom:22px}
+        .daily-expense-table-wrap{max-height:230px;overflow-y:auto;border-bottom:1px solid #edf0f4}.daily-expense-table-wrap thead{position:sticky;top:0;z-index:2;background:#f8fafc}.daily-expense-table-wrap table{margin:0}.daily-expense-list .table-topbar{padding-bottom:10px}
         .daily-expense-list .table-topbar>strong{color:#718096;font-size:12px}
         @media(max-width:760px){.report-section-tabs{display:grid;grid-template-columns:1fr;gap:6px}.report-section-tabs button{justify-content:flex-start}.report-section-tabs button span{margin-left:auto}.report-section-intro{align-items:flex-start;flex-direction:column}.expense-total-chip{width:100%}}
         .sales-expense-date-filters{display:flex;gap:10px;align-items:center}.sales-expense-date-filters label{display:grid;gap:4px;font-size:9px;font-weight:800;letter-spacing:.06em;color:#718096}.sales-expense-date-filters input{height:38px;border:1px solid #d8e1ec;border-radius:8px;padding:0 10px;color:#253247;background:#fff;font:inherit;font-size:12px}
