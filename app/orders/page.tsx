@@ -168,7 +168,7 @@ export default function OrdersPage() {
       const seen = new Set<string>();
       for (const item of order.item_summary || []) {
         const t=(item.name+" "+item.category).toLowerCase().replace(/[_-]+/g," ").replace(/\s+/g," ").trim();
-        const food=/flatter french fries|fries platter|french fries platter|fries flat|flat fries|fries sharing|regular french fries|regular fries|french fries regular|fries|pasta|spaghetti|carbonara|alfredo|silog|rice meal|burger|sandwich|nachos|nugget|hotdog|sisig|hungarian|club house|snack|rice/.test(t);
+        const food=/chicken|wings?|tenders?|karaage|drumsticks?|chicken fillet|popcorn chicken|flatter french fries|fries platter|french fries platter|fries flat|flat fries|fries sharing|regular french fries|regular fries|french fries regular|fries|pasta|spaghetti|carbonara|alfredo|silog|rice meal|burger|sandwich|nachos|nuggets?|hotdog|sisig|hungarian|club house|snack|rice/.test(t);
         const drink=/coffee|latte|americano|mocha|matcha|milk tea|milk|soda|refreshment|juice|tea|frappe|smoothie|beverage|drink|oreo|chocolate|strawberry/.test(t);
         if (!(kind==="drinks" ? (drink&&!food) : food)) continue;
         const key=item.name.trim().toLowerCase();
