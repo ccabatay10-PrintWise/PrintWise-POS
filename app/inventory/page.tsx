@@ -30,7 +30,7 @@ export default function InventoryPage(){
  setLoading(false);
 };
  const loadProducts=async(token:string)=>{try{const response=await fetch("/api/products",{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Unable to load products.");setProducts((payload.products??[]).map((p:any)=>({id:p.id,name:p.name,category:p.category,price:Number(p.price||0)})));}catch(error:any){setMessage(`Unable to load products: ${error?.message||"Unknown error"}`)}};
- useEffect(()=>{supabase.auth.getUser().then(async({data})=>{if(!data.user){window.location.href="/pos";return}const{data:sessionData}=await supabase.auth.getSession();if(sessionData.session?.access_token)await loadProducts(sessionData.session.access_token);await load()})},[]);
+ useEffect(()=>{if(typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("tab")==="recipes")setActiveTab("recipes");supabase.auth.getUser().then(async({data})=>{if(!data.user){window.location.href="/pos";return}const{data:sessionData}=await supabase.auth.getSession();if(sessionData.session?.access_token)await loadProducts(sessionData.session.access_token);await load()})},[]);
  const filtered=useMemo(()=>items.filter(i=>`${i.name} ${i.category} ${i.unit}`.toLowerCase().includes(search.toLowerCase())),[items,search]);
  const recipeProducts=useMemo(()=>products.filter(p=>`${p.name} ${p.category}`.toLowerCase().includes(recipeSearch.toLowerCase())),[products,recipeSearch]);
  const selectRecipeProduct=async(p:Product)=>{
@@ -47,7 +47,7 @@ export default function InventoryPage(){
    if(!recipeIngredients.length){setRecipeError("Add at least one ingredient.");return}
    for(const x of recipeIngredients){if(!x.inventory_item_id||!Number.isFinite(Number(x.quantity))||Number(x.quantity)<=0||!x.unit.trim()){setRecipeError("Each ingredient needs an inventory item, quantity, and unit.");return}}
    setRecipeSaving(true);
-   try{const{data,error}=await supabase.rpc("save_wise_product_recipe",{p_product_id:selectedProduct.id,p_recipe_name:recipeName.trim(),p_ingredients:recipeIngredients.map(x=>({inventory_item_id:x.inventory_item_id,quantity:Number(x.quantity),unit:x.unit.trim()}))});if(error)throw error;if(!(data as any)?.recipe_id)throw new Error("Recipe save completed without a recipe ID.");setRecipeMessage("Recipe saved. Inventory will be deducted using these measurements.");await selectRecipeProduct(selectedProduct)}catch(e:any){setRecipeError(e?.message||"Unable to save recipe.")}finally{setRecipeSaving(false)}
+   try{const{data,error}=await supabase.rpc("save_wise_product_recipe",{p_product_id:selectedProduct.id,p_recipe_name:recipeName.trim(),p_ingredients:recipeIngredients.map(x=>({inventory_item_id:x.inventory_item_id,quantity:Number(x.quantity),unit:x.unit.trim()}))});if(error)throw error;if(!(data as any)?.recipe_id)throw new Error("Recipe save completed without a recipe ID.");await selectRecipeProduct(selectedProduct);setRecipeMessage("Recipe saved. Inventory will be deducted using these measurements.")}catch(e:any){setRecipeError(e?.message||"Unable to save recipe.")}finally{setRecipeSaving(false)}
  };
 
  const productById=useMemo(()=>new Map(products.map(p=>[p.id,p])),[products]);
