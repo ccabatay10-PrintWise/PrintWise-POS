@@ -134,7 +134,7 @@ export default function ReportsPage(){
   const average=completed.length?sales/completed.length:0;
 
   const reportMonth=reportDate.slice(0,7);
-  const businessDate=(s:string)=>new Date(s).toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
+  function businessDate(s:string){return new Date(s).toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});}
   const salesExpenseChart=useMemo(()=>{
     if(!salesExpenseFrom||!salesExpenseTo||salesExpenseFrom>salesExpenseTo)return [];
     const start=new Date(`${salesExpenseFrom}T12:00:00`),end=new Date(`${salesExpenseTo}T12:00:00`);
