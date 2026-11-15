@@ -60,3 +60,16 @@
 .inventory-recipe-chip b{flex-shrink:0;padding-left:7px;border-left:1px solid #c6e5d9;color:#087b59;font-size:9px;white-space:nowrap}
 .inventory-table td{vertical-align:middle}
 @media(max-width:900px){.inventory-usage-cell{min-width:150px;max-width:300px}.inventory-recipe-chip-name{max-width:125px}}
+
+.inventory-ingredient-modal{width:min(520px,100%);max-height:min(88vh,720px);overflow:auto;background:#fff;border:1px solid #e4e7ec;border-radius:18px;box-shadow:0 24px 70px rgba(16,24,40,.22);display:flex;flex-direction:column}
+.inventory-ingredient-modal .inventory-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:22px 24px;border-bottom:1px solid #edf0f4}
+.inventory-ingredient-modal .inventory-modal-head h2{margin:0;color:#1d2939;font-size:21px}
+.inventory-ingredient-modal .inventory-modal-head p{margin:5px 0 0;color:#667085;font-size:13px}
+.inventory-ingredient-modal-body{padding:22px 24px 24px}
+.inventory-ingredient-field{display:flex;flex-direction:column;gap:7px;margin-bottom:16px;color:#344054;font-size:13px;font-weight:800}
+.inventory-ingredient-field input,.inventory-ingredient-field select{width:100%;height:46px;box-sizing:border-box;border:1px solid #d8dee8;border-radius:10px;background:#fff;padding:0 12px;color:#1d2939;font-size:14px;outline:none}
+.inventory-ingredient-field input:focus,.inventory-ingredient-field select:focus{border-color:#ef2019;box-shadow:0 0 0 3px rgba(239,32,25,.09)}
+.inventory-ingredient-stock{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 17px;padding:11px 13px;border:1px solid #d8eee6;border-radius:10px;background:#effaf5;color:#167451;font-size:13px}
+.inventory-ingredient-quantity-grid{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:12px}
+.inventory-ingredient-modal .inventory-modal-note{margin-top:4px;line-height:1.5}
+@media(max-width:600px){.inventory-ingredient-modal .inventory-modal-head,.inventory-ingredient-modal-body{padding-left:17px;padding-right:17px}.inventory-ingredient-quantity-grid{grid-template-columns:1fr 105px}.inventory-ingredient-modal .inventory-modal-actions{flex-direction:column-reverse}.inventory-ingredient-modal .inventory-modal-actions button{width:100%;justify-content:center}}
