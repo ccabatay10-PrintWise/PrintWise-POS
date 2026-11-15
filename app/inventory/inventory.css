@@ -14,3 +14,39 @@
 .inventory-modal-actions{flex:0 0 auto;position:sticky;bottom:0;background:rgba(251,252,254,.97);z-index:2}
 .inventory-modal-body::-webkit-scrollbar{width:8px}.inventory-modal-body::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:20px}.inventory-modal-body::-webkit-scrollbar-track{background:transparent}
 .full-field>label{line-height:1.25}
+
+.inventory-unified-tabs{display:flex;gap:8px;padding:7px;background:#fff;border:1px solid #e4e7ec;border-radius:14px;margin-bottom:18px;box-shadow:0 4px 14px rgba(16,24,40,.035)}
+.inventory-unified-tabs button{display:flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:0 17px;border:0;border-radius:10px;background:transparent;color:#667085;font-weight:800;font-size:13px;cursor:pointer}
+.inventory-unified-tabs button span{font-size:10px;background:#f2f4f7;border-radius:999px;padding:4px 7px}
+.inventory-unified-tabs button.active{background:#fff1f0;color:#d71920;box-shadow:inset 0 0 0 1px #ffd4d1}
+.inventory-recipe-layout{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:16px;min-height:620px}
+.inventory-recipe-products,.inventory-recipe-editor{background:#fff;border:1px solid #e4e7ec;border-radius:18px;overflow:hidden;min-width:0;box-shadow:0 8px 25px rgba(16,24,40,.035)}
+.inventory-recipe-products .inventory-toolbar{padding:20px}
+.inventory-recipe-product-list{max-height:650px;overflow:auto}
+.inventory-recipe-product-list button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;padding:12px 17px;border:0;border-top:1px solid #f0f2f5;background:#fff;cursor:pointer}
+.inventory-recipe-product-list button:hover,.inventory-recipe-product-list button.selected{background:#fff5f4}
+.inventory-recipe-product-list b,.inventory-recipe-product-list small{display:block}
+.inventory-recipe-product-list b{font-size:13px;color:#344054}
+.inventory-recipe-product-list small{font-size:11px;color:#98a2b3;margin-top:3px}
+.inventory-recipe-product-list button>span:last-child{font-size:22px;color:#98a2b3}
+.inventory-recipe-editor{padding:24px;display:flex;flex-direction:column}
+.inventory-recipe-title{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #edf0f3;padding-bottom:17px}
+.inventory-recipe-title small,.inventory-recipe-title span{display:block;color:#98a2b3;font-size:11px;font-weight:700}
+.inventory-recipe-title h2{margin:5px 0;color:#1d2939;font-size:23px}
+.inventory-recipe-title button{display:flex;align-items:center;gap:6px;align-self:flex-start;border:1px solid #e4e7ec;border-radius:9px;background:#fff;padding:8px 10px;color:#667085;font-weight:700}
+.inventory-recipe-label{display:block;margin-top:18px;color:#344054;font-size:13px;font-weight:800}
+.inventory-recipe-label input{display:block;width:100%;height:44px;box-sizing:border-box;margin-top:7px;border:1px solid #d8dee8;border-radius:9px;padding:0 12px}
+.inventory-recipe-ingredients-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:22px 0 12px}
+.inventory-recipe-ingredients-head h3{margin:0;color:#344054;font-size:16px}
+.inventory-recipe-ingredients-head p{margin:4px 0 0;color:#98a2b3;font-size:12px}
+.inventory-recipe-ingredients-head button{display:flex;align-items:center;gap:6px;border:1px solid #ffd0cd;background:#fff5f4;color:#c51d24;border-radius:9px;padding:9px 12px;font-weight:800;white-space:nowrap}
+.inventory-recipe-ingredient-list{display:flex;flex-direction:column;gap:9px}
+.inventory-recipe-ingredient{display:grid;grid-template-columns:28px minmax(0,1fr) 95px 85px 36px;gap:8px;align-items:center}
+.inventory-recipe-ingredient>b{width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:#f2f4f7;color:#667085;font-size:11px}
+.inventory-recipe-ingredient select,.inventory-recipe-ingredient input{width:100%;min-width:0;height:42px;border:1px solid #d8dee8;border-radius:9px;padding:0 9px;background:#fff;box-sizing:border-box}
+.inventory-recipe-ingredient button{height:36px;border:0;background:#fff;color:#d71920}
+.inventory-recipe-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;padding-top:18px;border-top:1px solid #edf0f3}
+.inventory-recipe-footer>span{font-size:12px;color:#98a2b3}
+.inventory-recipe-footer .inventory-save-btn{display:inline-flex;align-items:center;gap:8px}
+@media(max-width:900px){.inventory-recipe-layout{grid-template-columns:1fr}.inventory-recipe-product-list{max-height:280px}}
+@media(max-width:600px){.inventory-unified-tabs button{flex:1;padding:0 8px;font-size:11px}.inventory-recipe-editor{padding:16px}.inventory-recipe-title{flex-direction:column}.inventory-recipe-ingredients-head{align-items:flex-start;flex-direction:column}.inventory-recipe-ingredient{grid-template-columns:26px minmax(0,1fr) 34px}.inventory-recipe-ingredient select{grid-column:2}.inventory-recipe-ingredient input{grid-column:2}.inventory-recipe-ingredient button{grid-column:3;grid-row:1/4}.inventory-recipe-footer{align-items:stretch;flex-direction:column}.inventory-recipe-footer .inventory-save-btn{width:100%;justify-content:center}}
