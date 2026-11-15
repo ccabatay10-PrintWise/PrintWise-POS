@@ -48,7 +48,6 @@ export default function InventoryPage(){
  const openIngredientModal=()=>{setIngredientDraft({inventory_item_id:"",quantity:"",unit:"unit"});setIngredientSearch("");setIngredientModalError("");setIngredientModalOpen(true)};
  const confirmAddIngredient=()=>{if(!ingredientDraft.inventory_item_id){setIngredientModalError("Please select an inventory ingredient.");return}if(!Number.isFinite(Number(ingredientDraft.quantity))||Number(ingredientDraft.quantity)<=0){setIngredientModalError("Enter a quantity greater than zero.");return}if(!ingredientDraft.unit.trim()){setIngredientModalError("Please enter the measurement unit.");return}setRecipeIngredients(a=>[...a,{...ingredientDraft}]);setIngredientModalOpen(false)};
  const updateRecipeIngredient=(idx:number,key:keyof RecipeIngredient,value:string)=>setRecipeIngredients(a=>a.map((x,i)=>i===idx?{...x,[key]:value}:x));
- const updateRecipeIngredient=(idx:number,key:keyof RecipeIngredient,value:string)=>setRecipeIngredients(a=>a.map((x,i)=>i===idx?{...x,[key]:value}:x));
  const saveRecipe=async()=>{
    if(!selectedProduct)return;setRecipeError("");setRecipeMessage("");
    if(!recipeName.trim()){setRecipeError("Recipe name is required.");return}
