@@ -457,7 +457,7 @@ export default function ReportsPage(){
               </div>
             </div>
             <div style={{display:"flex",justifyContent:"flex-end",gap:9,marginTop:16,flexWrap:"wrap",position:"sticky",bottom:-1,background:"#fff",paddingTop:10}}>
-              <button type="button" className="export-btn" onClick={()=>printDailyRemittance(viewingRemit)}>Print Report</button><button type="button" className="export-btn" onClick={()=>setViewingRemit(null)}>Close</button>
+              <button type="button" className="export-btn" onClick={()=>{const report=viewingRemit;setViewingRemit(null);openEditRemittance(report);}}>Edit Report</button><button type="button" className="export-btn" onClick={()=>printDailyRemittance(viewingRemit)}>Print Report</button><button type="button" className="export-btn" onClick={()=>setViewingRemit(null)}>Close</button>
             </div>
           </section>
         </div>}
