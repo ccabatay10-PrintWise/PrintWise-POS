@@ -70,6 +70,7 @@ export default function ReportsPage(){
   const [remitEditSaving,setRemitEditSaving]=useState(false);
   const [editingRemitDescription,setEditingRemitDescription]=useState("");
   const [editingRemitAmount,setEditingRemitAmount]=useState("");
+  const [editingRemitCounts,setEditingRemitCounts]=useState<Record<string,string>>({"1000":"0","500":"0","200":"0","100":"0","50":"0","20":"0","10":"0","5":"0","1":"0"});
   const [remitDate,setRemitDate]=useState(reportDate);
   const [remitSales,setRemitSales]=useState({cash:"",gcash:"",bank:"",other:""});
   const [remitCounts,setRemitCounts]=useState<Record<string,string>>({"1000":"","500":"","200":"","100":"","50":"","20":"","10":"","5":"","1":""});
@@ -265,11 +266,11 @@ export default function ReportsPage(){
     setRemitSaving(false);setShowRemittance(false);setMessage("Daily Remittance Report saved successfully.");printDailyRemittance({...data,pos_daily_sales:remitDailyTransactionAmount});
   };
   const openViewRemittance=(r:any)=>{if(!r||r.ledgerOnly){setMessage("Full denomination details are not available for this cash ledger entry. Only saved Daily Remittance Reports contain the original cash count.");return}setViewingRemit(r);};
-  const openEditRemittance=(r:any)=>{setEditingRemit(r);setRemitDate(r.report_date||r.entry_date||reportDate);setEditingRemitAmount(String(r.amount??r.actual_cash??0));};
+  const openEditRemittance=(r:any)=>{setEditingRemit(r);setRemitDate(r.report_date||r.entry_date||reportDate);setEditingRemitCounts(Object.fromEntries([1000,500,200,100,50,20,10,5,1].map(d=>[String(d),String(r.denomination_counts?.[String(d)]??0)])));setEditingRemitAmount(String(r.actual_cash??r.amount??0));};
   const updateDailyRemittance=async()=>{
     if(!editingRemit)return;
-    const amount=Number(editingRemitAmount);
-    if(!remitDate||!Number.isFinite(amount)||amount<0){setMessage("Enter a valid remittance date and amount.");return}
+    const amount=editingRemit.ledgerOnly?Number(editingRemitAmount):[1000,500,200,100,50,20,10,5,1].reduce((sum,d)=>sum+d*(Number(editingRemitCounts[String(d)])||0),0);
+    if(!remitDate||!Number.isFinite(amount)||amount<0||[1000,500,200,100,50,20,10,5,1].some(d=>!Number.isFinite(Number(editingRemitCounts[String(d)]))||Number(editingRemitCounts[String(d)])<0)){setMessage("Enter a valid remittance date and cash quantities.");return}
     setRemitEditSaving(true);setMessage("");
     if(editingRemit.ledgerOnly){
       const {error}=await supabase.from("daily_cash_entries").update({entry_date:remitDate,amount}).eq("id",editingRemit.id);
@@ -278,7 +279,7 @@ export default function ReportsPage(){
       setEditingRemit(null);setRemitEditSaving(false);setMessage("Remittance updated successfully.");return;
     }
     const actualRemittance=amount+Number(editingRemit.gcash_on_hand||0)+Number(editingRemit.bank_transfer_on_hand||0)+Number(editingRemit.other_on_hand||0);
-    const payload={report_date:remitDate,actual_cash:amount,actual_remittance:actualRemittance,over_short:actualRemittance-Number(editingRemit.expected_remittance||0)};
+    const payload={report_date:remitDate,denomination_counts:editingRemitCounts,actual_cash:amount,actual_remittance:actualRemittance,over_short:actualRemittance-Number(editingRemit.expected_remittance||0)};
     const {error}=await supabase.from("daily_remittance_reports").update(payload).eq("id",editingRemit.id);
     if(error){setMessage("Unable to update remittance: "+error.message);setRemitEditSaving(false);return}
     if(editingRemit.cash_entry_id){
@@ -467,9 +468,10 @@ export default function ReportsPage(){
               <div><h2 id="edit-remittance-title" style={{margin:0,fontSize:20}}>Edit Remittance</h2><p style={{margin:"5px 0 0",color:"#64748b",fontSize:13}}>Update the date and amount for this remittance entry.</p></div>
               <button type="button" className="payroll-btn light" aria-label="Close" onClick={()=>setEditingRemit(null)} disabled={remitEditSaving}>×</button>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:12}}>
               <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Remittance Date<input type="date" value={remitDate} onChange={e=>setRemitDate(e.target.value)} disabled={remitEditSaving}/></label>
-              <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Remittance Amount (₱)<input type="number" min="0" step="0.01" value={editingRemitAmount} onChange={e=>setEditingRemitAmount(e.target.value)} disabled={remitEditSaving}/></label>
+              {!editingRemit.ledgerOnly&&<div style={{border:"1px solid #e2e8f0",borderRadius:12,padding:12}}><h3 style={{margin:"0 0 5px",fontSize:16}}>Edit Detailed Cash Count</h3><p style={{margin:"0 0 10px",fontSize:12,color:"#64748b"}}>Update the quantity of each bill and coin. Total cash recalculates automatically.</p><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:9}}>{[1000,500,200,100,50,20,10,5,1].map(d=><label key={d} style={{display:"grid",gap:5,fontSize:12,fontWeight:650}}>₱{d.toLocaleString("en-PH")} bills/coins<input type="number" min="0" step="1" inputMode="numeric" value={editingRemitCounts[String(d)]??"0"} onChange={e=>setEditingRemitCounts(v=>({...v,[String(d)]:e.target.value}))} disabled={remitEditSaving} style={{width:"100%",boxSizing:"border-box",padding:"9px",border:"1px solid #cbd5e1",borderRadius:8}}/></label>)}</div><div style={{display:"flex",justifyContent:"space-between",gap:10,marginTop:12,paddingTop:10,borderTop:"1px solid #e2e8f0",fontWeight:800}}><span>Total Cash Counted</span><span>{peso.format([1000,500,200,100,50,20,10,5,1].reduce((sum,d)=>sum+d*(Number(editingRemitCounts[String(d)])||0),0))}</span></div></div>}
+              {editingRemit.ledgerOnly&&<label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Remittance Amount (₱)<input type="number" min="0" step="0.01" value={editingRemitAmount} onChange={e=>setEditingRemitAmount(e.target.value)} disabled={remitEditSaving}/></label>}
             </div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginTop:22}}>
               <button type="button" onClick={()=>void deleteDailyRemittance()} disabled={remitEditSaving} style={{background:"#dc2626",color:"#fff",border:0,borderRadius:10,padding:"12px 18px",fontWeight:700,cursor:remitEditSaving?"not-allowed":"pointer",opacity:remitEditSaving?.65:1}}>{remitEditSaving?"Please wait...":"Delete Record"}</button>
