@@ -71,6 +71,10 @@ export default function ReportsPage(){
   const [editingRemitDescription,setEditingRemitDescription]=useState("");
   const [editingRemitAmount,setEditingRemitAmount]=useState("");
   const [editingRemitCounts,setEditingRemitCounts]=useState<Record<string,string>>({"1000":"0","500":"0","200":"0","100":"0","50":"0","20":"0","10":"0","5":"0","1":"0"});
+  const [editingRemitSales,setEditingRemitSales]=useState({cash:"0",gcash:"0",bank:"0",other:"0"});
+  const [editingRemitGcash,setEditingRemitGcash]=useState("0");
+  const [editingRemitBank,setEditingRemitBank]=useState("0");
+  const [editingRemitOther,setEditingRemitOther]=useState("0");
   const [remitDate,setRemitDate]=useState(reportDate);
   const [remitSales,setRemitSales]=useState({cash:"",gcash:"",bank:"",other:""});
   const [remitCounts,setRemitCounts]=useState<Record<string,string>>({"1000":"","500":"","200":"","100":"","50":"","20":"","10":"","5":"","1":""});
@@ -266,7 +270,7 @@ export default function ReportsPage(){
     setRemitSaving(false);setShowRemittance(false);setMessage("Daily Remittance Report saved successfully.");printDailyRemittance({...data,pos_daily_sales:remitDailyTransactionAmount});
   };
   const openViewRemittance=(r:any)=>{if(!r||r.ledgerOnly){setMessage("Full denomination details are not available for this cash ledger entry. Only saved Daily Remittance Reports contain the original cash count.");return}setViewingRemit(r);};
-  const openEditRemittance=(r:any)=>{setEditingRemit(r);setRemitDate(r.report_date||r.entry_date||reportDate);setEditingRemitCounts(Object.fromEntries([1000,500,200,100,50,20,10,5,1].map(d=>[String(d),String(r.denomination_counts?.[String(d)]??0)])));setEditingRemitAmount(String(r.actual_cash??r.amount??0));};
+  const openEditRemittance=(r:any)=>{setEditingRemit(r);setRemitDate(r.report_date||r.entry_date||reportDate);setEditingRemitCounts(Object.fromEntries([1000,500,200,100,50,20,10,5,1].map(d=>[String(d),String(r.denomination_counts?.[String(d)]??0)])));setEditingRemitSales({cash:String(r.payment_summary?.Cash??0),gcash:String(r.payment_summary?.GCash??0),bank:String(r.payment_summary?.["Bank Transfer"]??0),other:String(r.payment_summary?.Other??0)});setEditingRemitGcash(String(r.gcash_on_hand??0));setEditingRemitBank(String(r.bank_transfer_on_hand??0));setEditingRemitOther(String(r.other_on_hand??0));setEditingRemitAmount(String(r.actual_cash??r.amount??0));};
   const updateDailyRemittance=async()=>{
     if(!editingRemit)return;
     const amount=editingRemit.ledgerOnly?Number(editingRemitAmount):[1000,500,200,100,50,20,10,5,1].reduce((sum,d)=>sum+d*(Number(editingRemitCounts[String(d)])||0),0);
@@ -278,8 +282,9 @@ export default function ReportsPage(){
       setCashEntries(rows=>rows.map(x=>x.id===editingRemit.id?{...x,entry_date:remitDate,amount}:x));
       setEditingRemit(null);setRemitEditSaving(false);setMessage("Remittance updated successfully.");return;
     }
-    const actualRemittance=amount+Number(editingRemit.gcash_on_hand||0)+Number(editingRemit.bank_transfer_on_hand||0)+Number(editingRemit.other_on_hand||0);
-    const payload={report_date:remitDate,denomination_counts:editingRemitCounts,actual_cash:amount,actual_remittance:actualRemittance,over_short:actualRemittance-Number(editingRemit.expected_remittance||0)};
+    const gcashOnHand=Number(editingRemitGcash)||0,bankOnHand=Number(editingRemitBank)||0,otherOnHand=Number(editingRemitOther)||0;
+    const actualRemittance=amount+gcashOnHand+bankOnHand+otherOnHand;
+    const payload={report_date:remitDate,payment_summary:{Cash:Number(editingRemitSales.cash)||0,GCash:Number(editingRemitSales.gcash)||0,"Bank Transfer":Number(editingRemitSales.bank)||0,Other:Number(editingRemitSales.other)||0},denomination_counts:editingRemitCounts,gcash_on_hand:gcashOnHand,bank_transfer_on_hand:bankOnHand,other_on_hand:otherOnHand,actual_cash:amount,actual_remittance:actualRemittance,over_short:actualRemittance-Number(editingRemit.expected_remittance||0)};
     const {error}=await supabase.from("daily_remittance_reports").update(payload).eq("id",editingRemit.id);
     if(error){setMessage("Unable to update remittance: "+error.message);setRemitEditSaving(false);return}
     if(editingRemit.cash_entry_id){
@@ -462,27 +467,39 @@ export default function ReportsPage(){
             </div>
           </section>
         </div>}
-        {editingRemit&&<div role="presentation" onClick={()=>!remitEditSaving&&setEditingRemit(null)} style={{position:"fixed",inset:0,zIndex:1250,background:"rgba(15,23,42,.58)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
-          <section role="dialog" aria-modal="true" aria-labelledby="edit-remittance-title" onClick={e=>e.stopPropagation()} style={{width:"min(520px,100%)",background:"#fff",borderRadius:14,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}>
-              <div><h2 id="edit-remittance-title" style={{margin:0,fontSize:20}}>Edit Remittance</h2><p style={{margin:"5px 0 0",color:"#64748b",fontSize:13}}>Update the date and amount for this remittance entry.</p></div>
+                {editingRemit&&<div role="presentation" onClick={()=>!remitEditSaving&&setEditingRemit(null)} style={{position:"fixed",inset:0,zIndex:1250,background:"rgba(15,23,42,.58)",display:"flex",alignItems:"center",justifyContent:"center",padding:12}}>
+          <section role="dialog" aria-modal="true" aria-labelledby="edit-remittance-title" onClick={e=>e.stopPropagation()} style={{width:"min(900px,100%)",maxHeight:"94vh",overflowY:"auto",background:"#fff",borderRadius:14,padding:20,boxShadow:"0 20px 60px rgba(0,0,0,.25)",boxSizing:"border-box"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12}}>
+              <div><h2 id="edit-remittance-title" style={{margin:0,fontSize:22}}>Edit Daily Remittance Report</h2><p style={{margin:"4px 0 12px",color:"#64748b",fontSize:13}}>Update sales summary, cash count, and non-cash funds on hand.</p></div>
               <button type="button" className="payroll-btn light" aria-label="Close" onClick={()=>setEditingRemit(null)} disabled={remitEditSaving}>×</button>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:12}}>
-              <label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Remittance Date<input type="date" value={remitDate} onChange={e=>setRemitDate(e.target.value)} disabled={remitEditSaving}/></label>
-              {!editingRemit.ledgerOnly&&<div style={{border:"1px solid #e2e8f0",borderRadius:12,padding:12}}><h3 style={{margin:"0 0 5px",fontSize:16}}>Edit Detailed Cash Count</h3><p style={{margin:"0 0 10px",fontSize:12,color:"#64748b"}}>Update the quantity of each bill and coin. Total cash recalculates automatically.</p><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:9}}>{[1000,500,200,100,50,20,10,5,1].map(d=><label key={d} style={{display:"grid",gap:5,fontSize:12,fontWeight:650}}>₱{d.toLocaleString("en-PH")} bills/coins<input type="number" min="0" step="1" inputMode="numeric" value={editingRemitCounts[String(d)]??"0"} onChange={e=>setEditingRemitCounts(v=>({...v,[String(d)]:e.target.value}))} disabled={remitEditSaving} style={{width:"100%",boxSizing:"border-box",padding:"9px",border:"1px solid #cbd5e1",borderRadius:8}}/></label>)}</div><div style={{display:"flex",justifyContent:"space-between",gap:10,marginTop:12,paddingTop:10,borderTop:"1px solid #e2e8f0",fontWeight:800}}><span>Total Cash Counted</span><span>{peso.format([1000,500,200,100,50,20,10,5,1].reduce((sum,d)=>sum+d*(Number(editingRemitCounts[String(d)])||0),0))}</span></div></div>}
-              {editingRemit.ledgerOnly&&<label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Remittance Amount (₱)<input type="number" min="0" step="0.01" value={editingRemitAmount} onChange={e=>setEditingRemitAmount(e.target.value)} disabled={remitEditSaving}/></label>}
-            </div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginTop:22}}>
+            <label style={{display:"grid",gap:5,maxWidth:220,marginBottom:12,fontSize:13,fontWeight:600}}>Remittance Date<input type="date" value={remitDate} onChange={e=>setRemitDate(e.target.value)} disabled={remitEditSaving}/></label>
+            {!editingRemit.ledgerOnly?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,340px),1fr))",gap:12}}>
+              <div style={{border:"1px solid #dbe4ee",borderRadius:10,padding:12,minWidth:0}}>
+                <h3 style={{margin:"0 0 14px",fontSize:16}}>Sales Summary</h3>
+                {([{k:"cash",l:"Cash"},{k:"gcash",l:"GCash"},{k:"bank",l:"Bank Transfer"},{k:"other",l:"Other"}] as const).map(x=><label key={x.k} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(100px,130px)",alignItems:"center",gap:8,margin:"8px 0",fontSize:14}}>{x.l}<input type="number" min="0" step="0.01" inputMode="decimal" value={editingRemitSales[x.k]} onChange={e=>setEditingRemitSales(s=>({...s,[x.k]:e.target.value}))} disabled={remitEditSaving} style={{width:"100%",minWidth:0,boxSizing:"border-box",padding:"9px",border:"1px solid #9ca3af",borderRadius:4}}/></label>)}
+                <div style={{display:"flex",justifyContent:"space-between",gap:8,borderTop:"1px solid #dbe4ee",paddingTop:10,marginTop:10,fontWeight:800}}>TOTAL SALES <span>{peso.format(Object.values(editingRemitSales).reduce((sum,v)=>sum+(Number(v)||0),0))}</span></div>
+              </div>
+              <div style={{border:"1px solid #dbe4ee",borderRadius:10,padding:12,minWidth:0}}>
+                <h3 style={{margin:"0 0 14px",fontSize:16}}>Detailed Cash Count</h3>
+                <div style={{display:"grid",gridTemplateColumns:"minmax(80px,1fr) minmax(72px,80px) minmax(80px,100px)",gap:7,alignItems:"center",fontSize:12,fontWeight:700,color:"#334155"}}><span>Denomination</span><span>Quantity</span><span>Amount</span>
+                  {[1000,500,200,100,50,20,10,5,1].map(d=><React.Fragment key={d}><span style={{fontWeight:600}}>₱{d.toLocaleString("en-PH")}</span><input type="number" min="0" step="1" inputMode="numeric" value={editingRemitCounts[String(d)]??"0"} onChange={e=>setEditingRemitCounts(v=>({...v,[String(d)]:e.target.value}))} disabled={remitEditSaving} style={{width:"100%",minWidth:0,boxSizing:"border-box",padding:"8px 5px",border:"1px solid #9ca3af",borderRadius:3}}/><b style={{textAlign:"right",whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums"}}>{peso.format(d*(Number(editingRemitCounts[String(d)])||0))}</b></React.Fragment>)}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",gap:8,borderTop:"1px solid #dbe4ee",paddingTop:10,marginTop:10,fontWeight:800}}>TOTAL CASH <span>{peso.format([1000,500,200,100,50,20,10,5,1].reduce((sum,d)=>sum+d*(Number(editingRemitCounts[String(d)])||0),0))}</span></div>
+                {[{k:"gcash",l:"GCash on Hand",v:editingRemitGcash,set:setEditingRemitGcash},{k:"bank",l:"Bank Transfer",v:editingRemitBank,set:setEditingRemitBank},{k:"other",l:"Other",v:editingRemitOther,set:setEditingRemitOther}].map(x=><label key={x.k} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(100px,130px)",alignItems:"center",gap:8,marginTop:9,fontSize:14}}>{x.l}<input type="number" min="0" step="0.01" inputMode="decimal" value={x.v} onChange={e=>x.set(e.target.value)} disabled={remitEditSaving} style={{width:"100%",minWidth:0,boxSizing:"border-box",padding:"9px",border:"1px solid #9ca3af",borderRadius:4}}/></label>)}
+                <div style={{display:"flex",justifyContent:"space-between",gap:8,borderTop:"1px solid #dbe4ee",paddingTop:10,marginTop:10,fontWeight:800,color:"#047857"}}>TOTAL REMITTANCE <span>{peso.format([1000,500,200,100,50,20,10,5,1].reduce((sum,d)=>sum+d*(Number(editingRemitCounts[String(d)])||0),0)+(Number(editingRemitGcash)||0)+(Number(editingRemitBank)||0)+(Number(editingRemitOther)||0))}</span></div>
+              </div>
+            </div>:<label style={{display:"grid",gap:6,fontSize:13,fontWeight:600}}>Remittance Amount (₱)<input type="number" min="0" step="0.01" value={editingRemitAmount} onChange={e=>setEditingRemitAmount(e.target.value)} disabled={remitEditSaving}/></label>}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginTop:18,flexWrap:"wrap"}}>
               <button type="button" onClick={()=>void deleteDailyRemittance()} disabled={remitEditSaving} style={{background:"#dc2626",color:"#fff",border:0,borderRadius:10,padding:"12px 18px",fontWeight:700,cursor:remitEditSaving?"not-allowed":"pointer",opacity:remitEditSaving?.65:1}}>{remitEditSaving?"Please wait...":"Delete Record"}</button>
-              <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:10,flexWrap:"wrap"}}>
                 <button className="export-btn" type="button" onClick={()=>setEditingRemit(null)} disabled={remitEditSaving}>Cancel</button>
                 <button className="export-btn" type="button" onClick={()=>void updateDailyRemittance()} disabled={remitEditSaving}>{remitEditSaving?"Saving...":"Save Changes"}</button>
               </div>
             </div>
           </section>
         </div>}
-        {showRemittance&&<div role="presentation" onClick={()=>setShowRemittance(false)} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(15,23,42,.58)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
+{showRemittance&&<div role="presentation" onClick={()=>setShowRemittance(false)} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(15,23,42,.58)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
           <section role="dialog" aria-modal="true" aria-labelledby="daily-remittance-title" onClick={e=>e.stopPropagation()} style={{width:"min(900px,100%)",maxHeight:"92vh",overflowY:"auto",background:"#fff",borderRadius:14,padding:20,boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}><div><h2 id="daily-remittance-title" style={{margin:0}}>Daily Remittance Report</h2><p style={{margin:"4px 0 12px",color:"#64748b"}}>Enter sales summary and count the cash on hand before remitting.</p></div><button type="button" className="payroll-btn light" onClick={()=>setShowRemittance(false)}>×</button></div>
             <label style={{display:"grid",gap:5,maxWidth:220,marginBottom:12}}>Remittance Date<input type="date" value={remitDate} onChange={e=>setRemitDate(e.target.value)}/></label>
